@@ -747,34 +747,43 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
         const firebaseConfig = {
-            apiKey: "AIzaSyD8LY3VcAm4Z0vNJI1FfzUK5mMa5Bwe5uI",
+            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
             authDomain: "menti-7b8a1.firebaseapp.com",
             projectId: "menti-7b8a1",
             storageBucket: "menti-7b8a1.firebasestorage.app",
-            messagingSenderId: "821671643682",
-            appId: "1:821671643682:web:87b2c0cd4e74c02745cea5"
+            messagingSenderId: "164612023817",
+            appId: "1:164612023817:web:c0437146e86951377f3ad8"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        // Anonymous login function
+        // Listen for authentication state changes and auto-redirect
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // User is signed in, redirect to chat
+                window.location.href = '/chat-page';
+            }
+        });
+
+        // Anonymous login function (same as "Continue as Guest" in login page)
         window.tryAnonymously = async function() {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            
             try {
                 // Show loading state
-                const btn = event.target;
-                const originalText = btn.textContent;
                 btn.textContent = 'Connecting...';
                 btn.disabled = true;
 
                 // Sign in anonymously
                 await signInAnonymously(auth);
+                console.log('✅ Anonymous login successful');
+                // Redirect will happen via onAuthStateChanged
                 
-                // Redirect to chat page
-                window.location.href = '/chat-page';
             } catch (error) {
                 console.error('Error signing in anonymously:', error);
                 alert('Failed to connect. Please try again.');

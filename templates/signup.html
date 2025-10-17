@@ -413,7 +413,6 @@
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const confirmPasswordInput = document.getElementById('confirmPassword');
-        const isActiveCheckbox = document.getElementById('isActive');
 
         // Password validation
         const reqLength = document.getElementById('reqLength');
@@ -561,7 +560,7 @@
                     lastName: lastNameInput.value.trim(),
                     email: emailInput.value.trim(),
                     displayName: fullName,
-                    isActive: isActiveCheckbox.checked,
+                    isActive: true,
                     createdAt: serverTimestamp(),
                     lastLogin: serverTimestamp()
                 });
@@ -569,9 +568,9 @@
                 // Show success message
                 showAlert('Account created successfully! Redirecting...', 'success');
                 
-                // Redirect to chat after 2 seconds
+                // Redirect to chat page after 2 seconds
                 setTimeout(() => {
-                    window.location.href = '/chat';
+                    window.location.href = '/chat-page';
                 }, 2000);
                 
             } catch (error) {
