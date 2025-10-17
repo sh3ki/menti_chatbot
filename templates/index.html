@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menti - Your Mental Health Companion</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #E8F5E9 0%, #F1F8F4 50%, #E3F2E7 100%);
+            color: #0F0F0F;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .nav {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 20px rgba(44, 94, 49, 0.08);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            animation: slideDown 0.6s ease;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+        }
+
+        .nav-logo h1 {
+            color: #2C5E31;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 16px;
+        }
+
+        .nav-btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-family: inherit;
+        }
+
+        .btn-login {
+            background: transparent;
+            color: #2C5E31;
+            border: 2px solid #2C5E31;
+        }
+
+        .btn-login:hover {
+            background: #2C5E31;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(44, 94, 49, 0.3);
+        }
+
+        .btn-signup {
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            color: white;
+            box-shadow: 0 4px 16px rgba(44, 94, 49, 0.3);
+        }
+
+        .btn-signup:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(44, 94, 49, 0.4);
+        }
+
+        /* Hero Section */
+        .hero {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 80px 5% 60px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .hero-content {
+            animation: fadeInLeft 0.8s ease 0.2s both;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: rgba(44, 94, 49, 0.1);
+            color: #2C5E31;
+            padding: 8px 18px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            border: 1px solid rgba(44, 94, 49, 0.2);
+        }
+
+        .hero h2 {
+            font-size: 58px;
+            font-weight: 800;
+            line-height: 1.1;
+            color: #0F0F0F;
+            margin-bottom: 24px;
+            letter-spacing: -2px;
+        }
+
+        .hero h2 .highlight {
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 20px;
+            line-height: 1.6;
+            color: #28282B;
+            margin-bottom: 36px;
+            opacity: 0.85;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .cta-btn {
+            padding: 18px 40px;
+            border: none;
+            border-radius: 14px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            font-family: inherit;
+        }
+
+        .cta-primary {
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            color: white;
+            box-shadow: 0 8px 24px rgba(44, 94, 49, 0.3);
+        }
+
+        .cta-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(44, 94, 49, 0.4);
+        }
+
+        .cta-secondary {
+            background: white;
+            color: #2C5E31;
+            border: 2px solid #2C5E31;
+        }
+
+        .cta-secondary:hover {
+            background: #2C5E31;
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        /* Hero Visual */
+        .hero-visual {
+            position: relative;
+            animation: fadeInRight 0.8s ease 0.4s both;
+        }
+
+        .visual-card {
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 20px 60px rgba(44, 94, 49, 0.15);
+            position: relative;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .visual-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(135deg, #2C5E31, #3A7A40, #4A9B52);
+            border-radius: 24px;
+            z-index: -1;
+            opacity: 0.3;
+            filter: blur(20px);
+        }
+
+        .chat-preview {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .chat-bubble {
+            padding: 16px 20px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.5;
+            animation: slideInChat 0.6s ease both;
+        }
+
+        .user-bubble {
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            color: white;
+            align-self: flex-end;
+            max-width: 80%;
+            animation-delay: 0.6s;
+        }
+
+        .bot-bubble {
+            background: #F5F5F5;
+            color: #0F0F0F;
+            align-self: flex-start;
+            max-width: 85%;
+            animation-delay: 1s;
+        }
+
+        .bot-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #2C5E31;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .bot-badge img {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+        }
+
+        .bot-message-content {
+            display: block;
+            color: #0F0F0F;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 6px;
+            padding: 12px 16px;
+            background: #F5F5F5;
+            border-radius: 16px;
+            width: fit-content;
+            animation: slideInChat 0.6s ease both;
+            animation-delay: 1.4s;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #2C5E31;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        /* Features Section */
+        .features {
+            max-width: 1200px;
+            margin: 80px auto;
+            padding: 0 5%;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .section-header h3 {
+            font-size: 42px;
+            font-weight: 800;
+            color: #0F0F0F;
+            margin-bottom: 16px;
+            letter-spacing: -1px;
+        }
+
+        .section-header p {
+            font-size: 18px;
+            color: #28282B;
+            opacity: 0.8;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 32px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 36px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(44, 94, 49, 0.08);
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.6s ease both;
+            border: 1px solid rgba(44, 94, 49, 0.1);
+        }
+
+        .feature-card:nth-child(1) { animation-delay: 0.1s; }
+        .feature-card:nth-child(2) { animation-delay: 0.2s; }
+        .feature-card:nth-child(3) { animation-delay: 0.3s; }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 16px 48px rgba(44, 94, 49, 0.15);
+        }
+
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .feature-card h4 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0F0F0F;
+            margin-bottom: 12px;
+        }
+
+        .feature-card p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #28282B;
+            opacity: 0.8;
+        }
+
+        /* Stats Section */
+        .stats {
+            background: white;
+            padding: 60px 5%;
+            margin: 80px 0;
+            box-shadow: 0 8px 32px rgba(44, 94, 49, 0.08);
+        }
+
+        .stats-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 48px;
+            text-align: center;
+        }
+
+        .stat-item {
+            animation: fadeInUp 0.6s ease both;
+        }
+
+        .stat-item:nth-child(1) { animation-delay: 0.1s; }
+        .stat-item:nth-child(2) { animation-delay: 0.2s; }
+        .stat-item:nth-child(3) { animation-delay: 0.3s; }
+        .stat-item:nth-child(4) { animation-delay: 0.4s; }
+
+        .stat-number {
+            font-size: 48px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 16px;
+            color: #28282B;
+            opacity: 0.7;
+            font-weight: 500;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            max-width: 900px;
+            margin: 80px auto;
+            padding: 60px 5%;
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            border-radius: 32px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(44, 94, 49, 0.3);
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .cta-section h3 {
+            font-size: 42px;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+
+        .cta-section p {
+            font-size: 20px;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 36px;
+            line-height: 1.6;
+        }
+
+        .cta-section .cta-btn {
+            background: white;
+            color: #2C5E31;
+        }
+
+        .cta-section .cta-btn:hover {
+            background: #F5F5F5;
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Footer */
+        .footer {
+            background: white;
+            padding: 40px 5%;
+            text-align: center;
+            border-top: 1px solid #E0E0E0;
+            margin-top: 80px;
+        }
+
+        .footer p {
+            color: #28282B;
+            opacity: 0.6;
+            font-size: 15px;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: #2C5E31;
+            text-decoration: none;
+            font-weight: 500;
+            transition: opacity 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            opacity: 0.7;
+        }
+
+        /* Animations */
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInLeft {
+            from {
+                transform: translateX(-30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInRight {
+            from {
+                transform: translateX(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        @keyframes slideInChat {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.4;
+            }
+            30% {
+                transform: translateY(-10px);
+                opacity: 1;
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 968px) {
+            .hero {
+                grid-template-columns: 1fr;
+                gap: 40px;
+                padding: 60px 5% 40px;
+            }
+
+            .hero h2 {
+                font-size: 48px;
+            }
+
+            .hero-visual {
+                order: -1;
+            }
+
+            .nav-logo h1 {
+                font-size: 26px;
+            }
+
+            .logo-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 24px;
+            }
+
+            .cta-section h3 {
+                font-size: 32px;
+            }
+
+            .section-header h3 {
+                font-size: 36px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .hero h2 {
+                font-size: 38px;
+            }
+
+            .hero p {
+                font-size: 18px;
+            }
+
+            .nav-buttons {
+                gap: 8px;
+            }
+
+            .nav-btn {
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+
+            .cta-btn {
+                padding: 14px 32px;
+                font-size: 16px;
+            }
+
+            .feature-card {
+                padding: 28px;
+            }
+
+            .stats-container {
+                gap: 32px;
+            }
+
+            .stat-number {
+                font-size: 38px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-logo">
+            <img src="{{ url_for('static', filename='menti logo.png') }}" alt="Menti Logo" class="logo-icon">
+            <h1>Menti</h1>
+        </div>
+        <div class="nav-buttons">
+            <a href="/login" class="nav-btn btn-login">Login</a>
+            <a href="/signup" class="nav-btn btn-signup">Sign Up</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">✨ Your Mental Health Companion</div>
+            <h2>Your <span class="highlight">safe space</span> for mental wellness</h2>
+            <p>Talk to Menti anytime you need support. A compassionate AI companion that listens without judgment and provides comfort when things feel heavy.</p>
+            <div class="hero-cta">
+                <button onclick="tryAnonymously()" class="cta-btn cta-primary">Try Anonymously</button>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="visual-card">
+                <div class="chat-preview">
+                    <div class="chat-bubble user-bubble">
+                        I've been feeling anxious about everything lately...
+                    </div>
+                    <div class="chat-bubble bot-bubble">
+                        <div class="bot-badge">
+                            <img src="{{ url_for('static', filename='menti logo.png') }}" alt="Menti">
+                            Menti
+                        </div>
+                        <span class="bot-message-content">I hear you, and I'm here with you. Anxiety can feel so overwhelming, but you're not alone in this. Let's explore what's weighing on your mind together. What's been troubling you the most?</span>
+                    </div>
+                    <div class="typing-indicator">
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="section-header">
+            <h3>Why Choose Menti?</h3>
+            <p>Your trusted companion for mental health support</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <span class="feature-icon">🤗</span>
+                <h4>Always Available</h4>
+                <p>24/7 support whenever you need someone to talk to. No appointments, no waiting. Just open and start chatting.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🔒</span>
+                <h4>Private & Secure</h4>
+                <p>Your conversations are completely private. Share your feelings in a safe, judgment-free space.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">💡</span>
+                <h4>Empathetic Support</h4>
+                <p>Get meaningful advice and emotional comfort from an AI trained to understand and validate your feelings.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats">
+        <div class="stats-container">
+            <div class="stat-item">
+                <div class="stat-number">24/7</div>
+                <div class="stat-label">Always Available</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">100%</div>
+                <div class="stat-label">Private & Secure</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">∞</div>
+                <div class="stat-label">Unlimited Chats</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">0s</div>
+                <div class="stat-label">Response Time</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <h3>Ready to start your journey?</h3>
+        <p>Join Menti today and take the first step towards better mental wellness. Your feelings matter, and you deserve support.</p>
+        <button onclick="tryAnonymously()" class="cta-btn">Try Anonymously - It's Free</button>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>© 2025 Menti. Your mental health companion.</p>
+        <div class="footer-links">
+            <a href="#">About</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+            <a href="#">Contact</a>
+        </div>
+    </footer>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD8LY3VcAm4Z0vNJI1FfzUK5mMa5Bwe5uI",
+            authDomain: "menti-7b8a1.firebaseapp.com",
+            projectId: "menti-7b8a1",
+            storageBucket: "menti-7b8a1.firebasestorage.app",
+            messagingSenderId: "821671643682",
+            appId: "1:821671643682:web:87b2c0cd4e74c02745cea5"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Anonymous login function
+        window.tryAnonymously = async function() {
+            try {
+                // Show loading state
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = 'Connecting...';
+                btn.disabled = true;
+
+                // Sign in anonymously
+                await signInAnonymously(auth);
+                
+                // Redirect to chat page
+                window.location.href = '/chat-page';
+            } catch (error) {
+                console.error('Error signing in anonymously:', error);
+                alert('Failed to connect. Please try again.');
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
