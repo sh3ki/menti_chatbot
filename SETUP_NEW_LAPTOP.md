@@ -61,8 +61,8 @@ cd "C:\path\to\menti_chatbot"
 Create a new file called `.env` in the project root with the following content:
 
 ```env
-# OpenAI API Key
-OPENAI_API_KEY=your-openai-api-key-here
+# Groq API Key
+GROQ_API_KEY=your-groq-api-key-here
 
 # Flask Configuration
 FLASK_APP=app.py
@@ -74,7 +74,7 @@ FIREBASE_CREDENTIALS_PATH=firebase-credentials.json
 ```
 
 **⚠️ IMPORTANT:** Replace the placeholder values:
-- Get your **OpenAI API Key** from: https://platform.openai.com/api-keys
+- Get your **Groq API Key** from: https://console.groq.com/keys
 - Generate a **SECRET_KEY** (any random string, e.g., use a password generator)
 
 #### 4. Verify Firebase Credentials
@@ -145,10 +145,10 @@ pip install -r requirements.txt
 - Check that the file name matches exactly (case-sensitive)
 - Verify the file path in `.env` is correct
 
-### Problem: "OpenAI API error"
+### Problem: "Groq API error"
 **Solution:**
-- Check your `.env` file has the correct `OPENAI_API_KEY`
-- Verify your OpenAI account has credits
+- Check your `.env` file has the correct `GROQ_API_KEY`
+- Verify your Groq API key is valid at https://console.groq.com/keys
 - Check your internet connection
 
 ### Problem: Port 5000 already in use
@@ -212,7 +212,7 @@ env/
 
 - **Flask Documentation**: https://flask.palletsprojects.com/
 - **Firebase Console**: https://console.firebase.google.com/
-- **OpenAI Platform**: https://platform.openai.com/
+- **Groq Console**: https://console.groq.com/
 - **Python Download**: https://www.python.org/downloads/
 
 ---
