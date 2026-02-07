@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, render_template, session
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
+from groq import Groq
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime
@@ -25,17 +25,14 @@ CORS(app)
 # In-memory conversation storage (use Redis/database for production)
 conversation_history = {}
 
-# Initialize OpenAI Client (disable proxy to avoid errors)
-try:
-    import httpx
-    http_client = httpx.Client(proxy=None)
-    openai_client = OpenAI(
-        api_key=os.getenv('OPENAI_API_KEY'),
-        http_client=http_client
-    )
-except Exception as e:
-    print(f"⚠️ Warning initializing OpenAI with custom http_client: {e}")
-    openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+# Initialize Groq Client (Free & Unlimited)
+groq_api_key = os.getenv('GROQ_API_KEY')
+if not groq_api_key:
+    print("❌ ERROR: GROQ_API_KEY not found in environment variables!")
+    print("Please add GROQ_API_KEY to your .env file")
+else:
+    groq_client = Groq(api_key=groq_api_key)
+    print("✅ Groq client initialized successfully")
 
 # Initialize Firebase Admin SDK
 try:
@@ -244,12 +241,12 @@ def clear_history():
 
 def detect_emotion(message):
     """
-    Detect emotion from user message using OpenAI
+    Detect emotion from user message using Groq (Free & Unlimited)
     Returns: happy, sad, anxious, stressed, or neutral
     """
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
@@ -382,13 +379,16 @@ Remember: You are not a therapist - you are a caring companion, a trusted friend
             messages.extend(conversation_history[user_id])
             print(f"📝 Using conversation history with {len(conversation_history[user_id])} messages")
         else:
-            print(f"⚠️ No conversation history found for user: {user_id}")
+            # If no history exists, this shouldn't happen since we add the message before calling this function
+            # But as a fallback, add the current message
+            print(f"⚠️ No conversation history found for user: {user_id}, adding current message as fallback")
+            messages.append({"role": "user", "content": message})
         
-        # Debug: Print the messages being sent to OpenAI
-        print(f"🤖 Sending {len(messages)} messages to OpenAI (1 system + {len(messages)-1} conversation)")
+        # Debug: Print the messages being sent to Groq
+        print(f"🤖 Sending {len(messages)} messages to Groq (1 system + {len(messages)-1} conversation)")
         
-        response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             messages=messages,
             max_tokens=200,
             temperature=0.8
@@ -406,11 +406,11 @@ Remember: You are not a therapist - you are a caring companion, a trusted friend
 def generate_smart_title(user_message):
     """
     Generate a smart, concise title for a conversation based on the user's first message
-    Uses OpenAI to create an intelligent summary (3-6 words)
+    Uses Groq to create an intelligent summary (3-6 words) - Free & Unlimited
     """
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+        response = groq_client.chat.completions.create(
+            model="mixtral-8x7b-32768",
             messages=[
                 {
                     "role": "system",
@@ -756,7 +756,7 @@ def logout():
 
 if __name__ == '__main__':
     print("🚀 Starting Menti Chatbot Server...")
-    print(f"🔑 OpenAI API Key: {'✅ Configured' if os.getenv('OPENAI_API_KEY') else '❌ Missing'}")
+    print(f"🤖 Groq: {'✅ Configured' if os.getenv('GROQ_API_KEY') else '❌ Missing'}")
     print(f"🔥 Firebase: {'✅ Connected' if db else '⚠️  Not connected'}")
     app.run(debug=True, host='0.0.0.0', port=5000)
 
