@@ -7,7 +7,7 @@ Print this or keep it open while setting up on your new laptop!
 ## ✅ Pre-Transfer (Current Laptop)
 
 - [ ] Verify `firebase-credentials.json` is in the project folder
-- [ ] Save your OpenAI API key somewhere secure (you'll need it)
+- [ ] Save your Groq API key somewhere secure (you'll need it - or get a new one at https://console.groq.com/keys)
 - [ ] Zip the entire `menti_chatbot` folder
 - [ ] Transfer ZIP to new laptop (USB, email, cloud, etc.)
 
@@ -22,8 +22,7 @@ Print this or keep it open while setting up on your new laptop!
 
 ### 2. Create .env File
 - [ ] Create new file named `.env` in project root
-- [ ] Copy contents from `.env.example`
-- [ ] Add your OpenAI API key
+- [ ] Add your Groq API key (get at https://console.groq.com/keys)
 - [ ] Add a random SECRET_KEY
 
 ### 3. Install & Run
@@ -43,9 +42,9 @@ Print this or keep it open while setting up on your new laptop!
 
 ## 🔑 Information You'll Need
 
-**OpenAI API Key:**
-- Get from: https://platform.openai.com/api-keys
-- Paste into `.env` file
+**Groq API Key:**
+- Get from: https://console.groq.com/keys
+- Paste into `.env` file as `GROQ_API_KEY`
 
 **SECRET_KEY:**
 - Generate random string (20+ characters)
@@ -64,8 +63,8 @@ Print this or keep it open while setting up on your new laptop!
 ### Error: "Firebase credentials not found"
 → Check `firebase-credentials.json` is in folder
 
-### Error: "Invalid OpenAI API key"
-→ Check your `.env` file has correct key
+### Error: "Invalid Groq API key"
+→ Check your `.env` file has correct `GROQ_API_KEY`
 
 ---
 
