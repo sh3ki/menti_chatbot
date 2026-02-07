@@ -25,7 +25,7 @@ CORS(app)
 # In-memory conversation storage (use Redis/database for production)
 conversation_history = {}
 
-# Initialize Groq Client (Free & Unlimited)
+# Initialize Groq Client
 groq_api_key = os.getenv('GROQ_API_KEY')
 if not groq_api_key:
     print("❌ ERROR: GROQ_API_KEY not found in environment variables!")
@@ -241,7 +241,7 @@ def clear_history():
 
 def detect_emotion(message):
     """
-    Detect emotion from user message using Groq (Free & Unlimited)
+    Detect emotion from user message using Groq
     Returns: happy, sad, anxious, stressed, or neutral
     """
     try:
@@ -406,7 +406,7 @@ Remember: You are not a therapist - you are a caring companion, a trusted friend
 def generate_smart_title(user_message):
     """
     Generate a smart, concise title for a conversation based on the user's first message
-    Uses Groq to create an intelligent summary (3-6 words) - Free & Unlimited
+    Uses Groq to create an intelligent summary (3-6 words)
     """
     try:
         response = groq_client.chat.completions.create(
