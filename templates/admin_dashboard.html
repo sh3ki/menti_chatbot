@@ -585,12 +585,17 @@
         .badge-orange { background: #FFF3E0; color: #E65100; }
         .badge-yellow { background: #FFFDE7; color: #F57F17; }
 
-        /* Emotion colors */
-        .emotion-happy    { color: #2E7D32; background: #E8F5E9; }
-        .emotion-sad      { color: #1565C0; background: #E3F2FD; }
-        .emotion-anxious  { color: #E65100; background: #FFF3E0; }
-        .emotion-stressed { color: #C62828; background: #FFEBEE; }
-        .emotion-neutral  { color: #546E7A; background: #ECEFF1; }
+        /* Emotion colors — 10 categories */
+        .emotion-happy     { color: #2E7D32; background: #E8F5E9; }
+        .emotion-calm      { color: #00695C; background: #E0F2F1; }
+        .emotion-sad       { color: #1565C0; background: #E3F2FD; }
+        .emotion-anxious   { color: #E65100; background: #FFF3E0; }
+        .emotion-stressed  { color: #C62828; background: #FFEBEE; }
+        .emotion-angry     { color: #B71C1C; background: #FFCDD2; }
+        .emotion-confused  { color: #4527A0; background: #EDE7F6; }
+        .emotion-motivated { color: #E65100; background: #FFF8E1; }
+        .emotion-tired     { color: #37474F; background: #ECEFF1; }
+        .emotion-numb      { color: #4E342E; background: #EFEBE9; }
 
         /* ---- Risk pill ---- */
         .risk-high   { background: #FFEBEE; color: #B71C1C; font-weight: 700; }
@@ -786,6 +791,16 @@
             <span class="nav-badge" id="riskBadge">...</span>
         </button>
 
+        <button class="nav-item" data-section="crisis" onclick="switchSection('crisis', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Crisis Alerts
+            <span class="nav-badge" id="crisisBadge" style="display:none;background:#B71C1C;">0</span>
+        </button>
+
         <div class="sidebar-section-label">System</div>
 
         <button class="nav-item" data-section="activity" onclick="switchSection('activity', this)">
@@ -841,6 +856,14 @@
                     </div>
                     <div class="stat-value" id="statRiskAlerts">—</div>
                     <div class="stat-label">Risk Alerts (7d)</div>
+                </div>
+
+                <div class="stat-card red">
+                    <div class="stat-card-top">
+                        <div class="stat-icon">🚨</div>
+                    </div>
+                    <div class="stat-value" id="statCrisisAlerts">—</div>
+                    <div class="stat-label">Crisis Alerts (Total)</div>
                 </div>
 
                 <div class="stat-card">
@@ -1049,7 +1072,7 @@
                 <strong>📋 Risk Classification Guide</strong><br>
                 <strong>High Risk (🔴):</strong> 10+ negative messages in 7 days — requires immediate attention.<br>
                 <strong>Medium Risk (🟠):</strong> 5–9 negative messages in 7 days — monitor closely.<br>
-                Negative emotions tracked: <em>sad, anxious, stressed</em>.
+                Negative emotions tracked: <em>sad, anxious, stressed, angry, tired, numb</em>.
             </div>
         </div>
 
@@ -1092,11 +1115,16 @@
 <script>
 // ============================================================ CONSTANTS
 const EMOTION_COLORS = {
-    happy:    { bg: '#4CAF50', light: '#E8F5E9', text: '#2E7D32' },
-    sad:      { bg: '#2196F3', light: '#E3F2FD', text: '#1565C0' },
-    anxious:  { bg: '#FF9800', light: '#FFF3E0', text: '#E65100' },
-    stressed: { bg: '#F44336', light: '#FFEBEE', text: '#C62828' },
-    neutral:  { bg: '#90A4AE', light: '#ECEFF1', text: '#546E7A' }
+    happy:     { bg: '#4CAF50', light: '#E8F5E9', text: '#2E7D32' },
+    calm:      { bg: '#26A69A', light: '#E0F2F1', text: '#00695C' },
+    sad:       { bg: '#2196F3', light: '#E3F2FD', text: '#1565C0' },
+    anxious:   { bg: '#FF9800', light: '#FFF3E0', text: '#E65100' },
+    stressed:  { bg: '#F44336', light: '#FFEBEE', text: '#C62828' },
+    angry:     { bg: '#D32F2F', light: '#FFCDD2', text: '#B71C1C' },
+    confused:  { bg: '#7E57C2', light: '#EDE7F6', text: '#4527A0' },
+    motivated: { bg: '#FFB300', light: '#FFF8E1', text: '#E65100' },
+    tired:     { bg: '#607D8B', light: '#ECEFF1', text: '#37474F' },
+    numb:      { bg: '#8D6E63', light: '#EFEBE9', text: '#4E342E' }
 };
 
 // ============================================================ STATE
@@ -1163,7 +1191,7 @@ async function adminLogout() {
 function computeAndUpdateStats() {
     const today = _todayStr();
     const sevenDaysAgo = _daysAgo(7);
-    const emotionCounts = { happy:0, sad:0, anxious:0, stressed:0, neutral:0 };
+    const emotionCounts = { happy:0, calm:0, sad:0, anxious:0, stressed:0, angry:0, confused:0, motivated:0, tired:0, numb:0 };
     let messagesToday = 0;
     const activeToday = new Set();
     const riskUserNeg = {};
@@ -1179,7 +1207,7 @@ function computeAndUpdateStats() {
         const uid = log.userId || '';
         if (e in emotionCounts) emotionCounts[e]++;
         if (date === today) { messagesToday++; if (uid) activeToday.add(uid); }
-        if (['sad','anxious','stressed'].includes(e) && date >= sevenDaysAgo) {
+        if (['sad','anxious','stressed','angry','tired','numb'].includes(e) && date >= sevenDaysAgo) {
             riskUserNeg[uid] = (riskUserNeg[uid]||0)+1;
         }
     }
@@ -1255,7 +1283,7 @@ window.renderOverviewActivityFromState = renderOverviewActivityFromState;
 
 // ============================================================ RENDER EMOTIONS (from state)
 function renderEmotionsFromState() {
-    const EMOTION_KEYS = ['happy','sad','anxious','stressed','neutral'];
+    const EMOTION_KEYS = ['happy','calm','sad','anxious','stressed','angry','confused','motivated','tired','numb'];
     const thirtyAgo = _daysAgo(30);
     const today = new Date();
     const dateLabels = Array.from({length:30},(_,i)=>{ const d=new Date(today); d.setDate(d.getDate()-(29-i)); return d.toISOString().slice(0,10); });
@@ -1299,7 +1327,7 @@ function renderRiskFromState() {
     const userRisk = {};
     for (const [,log] of _logsMap) {
         const date=log.date||''; const e=log.emotion||'neutral'; const uid=log.userId||'';
-        if (!uid||!['sad','anxious','stressed'].includes(e)||date<sevenAgo) continue;
+        if (!uid||!['sad','anxious','stressed','angry','tired','numb'].includes(e)||date<sevenAgo) continue;
         if (!userRisk[uid]) userRisk[uid]={count:0,emotions:[],isAnonymous:log.isAnonymous||false,lastActive:'',allDates:[]};
         userRisk[uid].count++; userRisk[uid].emotions.push(e); userRisk[uid].allDates.push(date);
         const ts=log.timestamp||''; if(ts>userRisk[uid].lastActive) userRisk[uid].lastActive=ts;
@@ -1315,7 +1343,7 @@ function renderRiskFromState() {
         return;
     }
     alerts.sort((a,b)=>b[1].count-a[1].count);
-    const reasonMap={sad:'Recurring sadness',anxious:'Persistent anxiety',stressed:'Chronic stress'};
+    const reasonMap={sad:'Recurring sadness',anxious:'Persistent anxiety',stressed:'Chronic stress',angry:'Persistent anger/frustration',tired:'Chronic mental exhaustion',numb:'Emotional disconnection'};
     alerts.forEach(([uid,data])=>{
         const cnts={}; data.emotions.forEach(e=>cnts[e]=(cnts[e]||0)+1);
         const topEmotion=Object.entries(cnts).sort((a,b)=>b[1]-a[1])[0][0];
@@ -1614,7 +1642,11 @@ function sortTable(table, key) {
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 function emotionEmoji(e) {
-    return { happy:'😊', sad:'😢', anxious:'😰', stressed:'😤', neutral:'😐' }[e] || '❓';
+    return {
+        happy:'😊', calm:'😌', sad:'😢', anxious:'😰',
+        stressed:'😤', angry:'😠', confused:'😕',
+        motivated:'💪', tired:'😴', numb:'😶'
+    }[e] || '🫥';
 }
 function skeletonRows(rows, cols) {
     return Array.from({length: rows}, () =>
