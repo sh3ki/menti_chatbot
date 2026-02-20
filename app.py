@@ -3,14 +3,16 @@ Menti Chatbot - Main Flask Application
 Emotional Support Chatbot with Firebase Authentication and OpenAI Integration
 """
 
-from flask import Flask, request, jsonify, render_template, session
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for, Response
 from flask_cors import CORS
-import os
+from functools import wraps
+import os, json, queue, threading
 from dotenv import load_dotenv
 from groq import Groq
 import firebase_admin
-from firebase_admin import credentials, firestore
-from datetime import datetime
+from firebase_admin import credentials, firestore, auth as firebase_auth
+from datetime import datetime, timedelta
+import hashlib
 
 # Load environment variables
 load_dotenv()
@@ -24,6 +26,26 @@ CORS(app)
 
 # In-memory conversation storage (use Redis/database for production)
 conversation_history = {}
+
+# ==================== ADMIN CONFIGURATION ====================
+
+# Admin credentials - override with environment variables
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin@menti.com')
+_raw_admin_password = os.getenv('ADMIN_PASSWORD', 'Admin123!')
+# Store as SHA-256 hash for comparison
+ADMIN_PASSWORD_HASH = hashlib.sha256(_raw_admin_password.encode()).hexdigest()
+
+
+def admin_required(f):
+    """Decorator to protect admin routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_admin'):
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'error': 'Unauthorized'}), 401
+            return redirect('/admin/login')
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Initialize Groq Client
 groq_api_key = os.getenv('GROQ_API_KEY')
@@ -48,6 +70,530 @@ try:
 except Exception as e:
     print(f"⚠️  Firebase initialization error: {e}")
     db = None
+
+
+# ==================== ROUTES ====================
+
+# ==================== ADMIN ROUTES ====================
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login page and authentication"""
+    if request.method == 'GET':
+        if session.get('is_admin'):
+            return redirect('/admin/dashboard')
+        return render_template('admin_login.html')
+
+    # POST - handle login
+    data = request.get_json() if request.is_json else request.form
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+
+    # Hash the submitted password and compare
+    submitted_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    if username == ADMIN_USERNAME and submitted_hash == ADMIN_PASSWORD_HASH:
+        session['is_admin'] = True
+        session['admin_username'] = username
+        session.permanent = True
+        print(f'✅ Admin login successful: {username}')
+        return jsonify({'success': True, 'redirect': '/admin/dashboard'})
+    else:
+        print(f'❌ Admin login failed for username: {username}')
+        return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+
+
+@app.route('/admin/logout', methods=['POST'])
+def admin_logout():
+    """Admin logout"""
+    session.pop('is_admin', None)
+    session.pop('admin_username', None)
+    return jsonify({'success': True})
+
+
+@app.route('/admin/dashboard')
+@admin_required
+def admin_dashboard():
+    """Admin dashboard page"""
+    return render_template('admin_dashboard.html', admin_username=session.get('admin_username', 'Admin'))
+
+
+# ==================== ADMIN HELPER ====================
+
+def _fetch_all_emotion_logs():
+    """Fetch all emotion_logs documents from Firestore into a list of dicts.
+    Returns [] if db not available or on error."""
+    if not db:
+        return []
+    try:
+        return [doc.to_dict() for doc in db.collection('emotion_logs').stream()]
+    except Exception as e:
+        print(f'[admin] Error fetching emotion_logs: {e}')
+        return []
+
+
+def _fetch_all_conversations_meta():
+    """Fetch all conversations (top-level only, no sub-collections)."""
+    if not db:
+        return []
+    try:
+        return [doc.to_dict() for doc in db.collection('conversations').stream()]
+    except Exception as e:
+        print(f'[admin] Error fetching conversations: {e}')
+        return []
+
+
+def _list_all_auth_users():
+    """Return list of Firebase Auth UserRecord objects. Empty list on error."""
+    users = []
+    try:
+        page = firebase_auth.list_users()
+        while page:
+            users.extend(page.users)
+            page = page.get_next_page()
+    except Exception as e:
+        print(f'[admin] Error listing Firebase Auth users: {e}')
+    return users
+
+
+def _is_anonymous_auth_user(user):
+    """True if Firebase Auth user is anonymous (no linked providers)."""
+    return len(getattr(user, 'provider_data', [])) == 0
+
+
+# ==================== ADMIN API ROUTES ====================
+
+@app.route('/admin/api/stats')
+@admin_required
+def admin_api_stats():
+    """Return overall system statistics — all filtering done in Python."""
+    try:
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+
+        # ---- 1. Firebase Auth user counts ----
+        auth_users = _list_all_auth_users()
+        registered_users = [u for u in auth_users if not _is_anonymous_auth_user(u)]
+        new_today = sum(
+            1 for u in registered_users
+            if u.user_metadata.creation_timestamp and
+               datetime.fromtimestamp(u.user_metadata.creation_timestamp / 1000).strftime('%Y-%m-%d') == today_str
+        )
+        stats = {
+            'totalRegisteredUsers': 0,
+            'totalAnonymousUsers': 0,
+            'totalConversations': 0,
+            'totalMessages': 0,
+            'messagesToday': 0,
+            'activeUsersToday': 0,
+            'newUsersToday': 0,
+            'emotionCounts': {'happy': 0, 'sad': 0, 'anxious': 0, 'stressed': 0, 'neutral': 0},
+            'riskAlertCount': 0
+        }
+
+        # ---- 2. Populate stats from Auth ----
+        stats['totalRegisteredUsers'] = len(registered_users)
+        stats['newUsersToday'] = new_today
+
+        # ---- 3. Conversation count + anonymous distinct users ----
+        convs = _fetch_all_conversations_meta()
+        stats['totalConversations'] = len(convs)
+        anon_user_ids = set(
+            c.get('userId', '') for c in convs
+            if c.get('isAnonymous') and c.get('userId')
+        )
+        stats['totalAnonymousUsers'] = len(anon_user_ids)
+
+        # ---- 4. Emotion log stats (one pass, all in Python) ----
+        logs = _fetch_all_emotion_logs()
+        stats['totalMessages'] = len(logs)
+        active_today_set = set()
+        risk_user_neg = {}
+
+        for log in logs:
+            emotion = log.get('emotion', 'neutral')
+            date = log.get('date', '')
+            uid = log.get('userId', '')
+
+            if emotion in stats['emotionCounts']:
+                stats['emotionCounts'][emotion] += 1
+
+            if date == today_str:
+                stats['messagesToday'] += 1
+                if uid:
+                    active_today_set.add(uid)
+
+            if emotion in ('sad', 'anxious', 'stressed') and date >= seven_days_ago:
+                risk_user_neg[uid] = risk_user_neg.get(uid, 0) + 1
+
+        stats['activeUsersToday'] = len(active_today_set)
+        stats['riskAlertCount'] = sum(1 for cnt in risk_user_neg.values() if cnt >= 5)
+
+        return jsonify(stats)
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print(f'Error in admin_api_stats: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/users')
+@admin_required
+def admin_api_users():
+    """Return list of all users.
+    Query param ?type=all|registered|anonymous (default: all)
+    Results are sorted newest-first by createdAt / first seen.
+    """
+    try:
+        user_type = request.args.get('type', 'all').lower()  # all | registered | anonymous
+        seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+
+        # ---- Build per-user stats from emotion_logs (single pass) ----
+        logs = _fetch_all_emotion_logs()
+        user_log_stats = {}
+        for log in logs:
+            uid = log.get('userId', '')
+            if not uid:
+                continue
+            if uid not in user_log_stats:
+                user_log_stats[uid] = {
+                    'totalMessages': 0, 'negativeRecent': 0,
+                    'lastActive': '', 'isAnonymous': log.get('isAnonymous', False),
+                    'firstSeen': log.get('date', ''),
+                    'emotionCounts': {'happy': 0, 'sad': 0, 'anxious': 0, 'stressed': 0, 'neutral': 0}
+                }
+            user_log_stats[uid]['totalMessages'] += 1
+            ts = log.get('timestamp', '')
+            if ts > user_log_stats[uid]['lastActive']:
+                user_log_stats[uid]['lastActive'] = ts
+            date = log.get('date', '')
+            if date and (not user_log_stats[uid]['firstSeen'] or date < user_log_stats[uid]['firstSeen']):
+                user_log_stats[uid]['firstSeen'] = date
+            emotion = log.get('emotion', 'neutral')
+            if emotion in user_log_stats[uid]['emotionCounts']:
+                user_log_stats[uid]['emotionCounts'][emotion] += 1
+            if emotion in ('sad', 'anxious', 'stressed') and date >= seven_days_ago:
+                user_log_stats[uid]['negativeRecent'] += 1
+
+        def risk(neg):
+            return 'High' if neg >= 10 else 'Medium' if neg >= 5 else 'Low'
+
+        users_list = []
+
+        # ---- REGISTERED users (Firebase Auth with provider_data) ----
+        if user_type in ('all', 'registered'):
+            auth_users = _list_all_auth_users()
+            for user in auth_users:
+                if _is_anonymous_auth_user(user):
+                    continue  # skip anonymous auth entries here
+                uid = user.uid
+                created_ms = user.user_metadata.creation_timestamp
+                last_sign_in_ms = user.user_metadata.last_sign_in_timestamp
+                ustats = user_log_stats.get(uid, {})
+                neg = ustats.get('negativeRecent', 0)
+
+                # Determine provider label
+                providers = [p.provider_id for p in getattr(user, 'provider_data', [])]
+                provider_label = 'Google' if 'google.com' in providers else 'Email' if 'password' in providers else 'Other'
+
+                users_list.append({
+                    'uid': uid,
+                    'displayName': user.display_name or user.email or 'No Name',
+                    'email': user.email or 'N/A',
+                    'type': 'Registered',
+                    'provider': provider_label,
+                    'isAnonymous': False,
+                    'totalMessages': ustats.get('totalMessages', 0),
+                    'lastActive': ustats.get('lastActive', '')[:19].replace('T', ' ') if ustats.get('lastActive') else 'Never',
+                    'createdAt': datetime.fromtimestamp(created_ms / 1000).strftime('%Y-%m-%d %H:%M') if created_ms else 'N/A',
+                    'createdAtTs': created_ms or 0,
+                    'lastSignIn': datetime.fromtimestamp(last_sign_in_ms / 1000).strftime('%Y-%m-%d %H:%M') if last_sign_in_ms else 'Never',
+                    'riskLevel': risk(neg),
+                    'negativeRecent': neg,
+                    'emotionCounts': ustats.get('emotionCounts', {})
+                })
+
+        # ---- ANONYMOUS users ----
+        # Source: conversations collection (isAnonymous=True) + emotion_logs
+        if user_type in ('all', 'anonymous'):
+            convs = _fetch_all_conversations_meta()
+            # Collect unique anon user IDs and their earliest conversation date
+            anon_meta = {}
+            for c in convs:
+                if not c.get('isAnonymous'):
+                    continue
+                uid = c.get('userId', '')
+                if not uid:
+                    continue
+                created = c.get('createdAt', '')
+                if uid not in anon_meta or created < anon_meta[uid]:
+                    anon_meta[uid] = created
+
+            # Also pick up anonymous users who have emotion_log entries but may not have a conversation record
+            for uid, s in user_log_stats.items():
+                if s.get('isAnonymous') and uid not in anon_meta:
+                    anon_meta[uid] = s.get('firstSeen', '')
+
+            for uid, created_at in anon_meta.items():
+                ustats = user_log_stats.get(uid, {})
+                neg = ustats.get('negativeRecent', 0)
+                users_list.append({
+                    'uid': uid,
+                    'displayName': 'Anonymous User',
+                    'email': '—',
+                    'type': 'Anonymous',
+                    'provider': 'Guest',
+                    'isAnonymous': True,
+                    'totalMessages': ustats.get('totalMessages', 0),
+                    'lastActive': ustats.get('lastActive', '')[:19].replace('T', ' ') if ustats.get('lastActive') else 'Never',
+                    'createdAt': created_at[:19].replace('T', ' ') if created_at else 'N/A',
+                    'createdAtTs': 0,
+                    'lastSignIn': ustats.get('lastActive', '')[:19].replace('T', ' ') if ustats.get('lastActive') else 'Never',
+                    'riskLevel': risk(neg),
+                    'negativeRecent': neg,
+                    'emotionCounts': ustats.get('emotionCounts', {})
+                })
+
+        # Sort: registered by createdAtTs desc, anonymous by createdAt desc, then interleave newest-first
+        users_list.sort(key=lambda u: (u.get('createdAt') or ''), reverse=True)
+
+        return jsonify(users_list)
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print(f'Error in admin_api_users: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/emotions')
+@admin_required
+def admin_api_emotions():
+    """Return emotion trends for the last 30 days — all filtering in Python."""
+    try:
+        today = datetime.now()
+        date_labels = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(29, -1, -1)]
+        thirty_days_ago = date_labels[0]
+
+        emotion_keys = ['happy', 'sad', 'anxious', 'stressed', 'neutral']
+        # trends[emotion][date] = count
+        trends = {e: {d: 0 for d in date_labels} for e in emotion_keys}
+
+        logs = _fetch_all_emotion_logs()
+        for log in logs:
+            date = log.get('date', '')
+            emotion = log.get('emotion', 'neutral')
+            if date >= thirty_days_ago and date in trends.get(emotion, {}):
+                trends[emotion][date] += 1
+
+        datasets = {e: [trends[e][d] for d in date_labels] for e in emotion_keys}
+        short_labels = [d[5:] for d in date_labels]  # MM-DD
+
+        return jsonify({
+            'labels': short_labels,
+            'full_labels': date_labels,
+            'datasets': datasets,
+            'emotion_keys': emotion_keys
+        })
+    except Exception as e:
+        print(f'Error in admin_api_emotions: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/risk-alerts')
+@admin_required
+def admin_api_risk_alerts():
+    """Return at-risk users — 5+ negative messages in last 7 days."""
+    try:
+        from collections import Counter
+        seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+
+        # Aggregate from emotion_logs entirely in Python
+        logs = _fetch_all_emotion_logs()
+        user_risk = {}
+        for log in logs:
+            date = log.get('date', '')
+            emotion = log.get('emotion', 'neutral')
+            uid = log.get('userId', '')
+            if not uid or emotion not in ('sad', 'anxious', 'stressed') or date < seven_days_ago:
+                continue
+            if uid not in user_risk:
+                user_risk[uid] = {
+                    'count': 0, 'emotions': [], 'isAnonymous': log.get('isAnonymous', False),
+                    'lastActive': '', 'conversationId': log.get('conversationId', ''),
+                    'allDates': []
+                }
+            user_risk[uid]['count'] += 1
+            user_risk[uid]['emotions'].append(emotion)
+            user_risk[uid]['allDates'].append(date)
+            ts = log.get('timestamp', '')
+            if ts > user_risk[uid]['lastActive']:
+                user_risk[uid]['lastActive'] = ts
+
+        alerts = []
+        reason_map = {'sad': 'Recurring sadness', 'anxious': 'Persistent anxiety', 'stressed': 'Chronic stress'}
+        for uid, data in user_risk.items():
+            if data['count'] < 5:
+                continue
+            top_emotion = Counter(data['emotions']).most_common(1)[0][0]
+            risk_level = 'High' if data['count'] >= 10 else 'Medium'
+            display_name = uid[:8] + '...'
+            email = '—'
+            if not data['isAnonymous']:
+                try:
+                    auth_user = firebase_auth.get_user(uid)
+                    display_name = auth_user.display_name or auth_user.email or display_name
+                    email = auth_user.email or '—'
+                except Exception:
+                    pass
+            alerts.append({
+                'uid': uid,
+                'displayName': display_name,
+                'email': email,
+                'riskLevel': risk_level,
+                'reason': reason_map.get(top_emotion, 'Negative emotional pattern'),
+                'negativeCount': data['count'],
+                'dominantEmotion': top_emotion,
+                'lastActive': data['lastActive'][:19].replace('T', ' ') if data['lastActive'] else 'Unknown',
+                'isAnonymous': data['isAnonymous'],
+                'daysAffected': len(set(data['allDates']))
+            })
+
+        alerts.sort(key=lambda x: x['negativeCount'], reverse=True)
+        return jsonify(alerts)
+    except Exception as e:
+        print(f'Error in admin_api_risk_alerts: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/activity')
+@admin_required
+def admin_api_activity():
+    """Return recent activity — latest 100 emotion log entries, newest first."""
+    try:
+        logs = _fetch_all_emotion_logs()
+        # Sort by timestamp descending in Python
+        logs.sort(key=lambda l: l.get('timestamp', ''), reverse=True)
+        logs = logs[:100]
+
+        activity = []
+        for log in logs:
+            uid = log.get('userId', '')
+            ts = log.get('timestamp', '')
+            activity.append({
+                'userId': (uid[:14] + '...') if len(uid) > 14 else uid,
+                'fullUserId': uid,
+                'emotion': log.get('emotion', 'neutral'),
+                'timestamp': ts[:19].replace('T', ' ') if ts else 'Unknown',
+                'isAnonymous': log.get('isAnonymous', False),
+                'conversationId': log.get('conversationId', ''),
+                'date': log.get('date', '')
+            })
+        return jsonify(activity)
+    except Exception as e:
+        print(f'Error in admin_api_activity: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/messages-per-day')
+@admin_required
+def admin_api_messages_per_day():
+    """Return message counts per day for last 14 days — single fetch, Python aggregation."""
+    try:
+        today = datetime.now()
+        date_range = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(13, -1, -1)]
+        counts_map = {d: 0 for d in date_range}
+        fourteen_days_ago = date_range[0]
+
+        logs = _fetch_all_emotion_logs()
+        for log in logs:
+            date = log.get('date', '')
+            if date >= fourteen_days_ago and date in counts_map:
+                counts_map[date] += 1
+
+        labels = [(today - timedelta(days=i)).strftime('%b %d') for i in range(13, -1, -1)]
+        counts = [counts_map[d] for d in date_range]
+        return jsonify({'labels': labels, 'counts': counts})
+    except Exception as e:
+        print(f'Error in admin_api_messages_per_day: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/stream')
+@admin_required
+def admin_api_stream():
+    """Server-Sent Events stream — uses Firebase Admin SDK (bypasses Firestore rules).
+    Per-client Firestore on_snapshot listeners are created and torn down with the connection.
+    """
+    if not db:
+        def no_db():
+            yield 'event: error\ndata: {"msg": "Firestore not available"}\n\n'
+        return Response(no_db(), mimetype='text/event-stream')
+
+    client_q = queue.SimpleQueue()
+    is_first = {'logs': True, 'convs': True}
+
+    def _safe_dict(doc, change_type=None):
+        d = doc.to_dict() or {}
+        d['_docId'] = doc.id
+        if change_type:
+            d['_changeType'] = change_type
+        # Make Firestore timestamps JSON-serialisable
+        for k, v in list(d.items()):
+            if hasattr(v, 'isoformat'):
+                d[k] = v.isoformat()
+        return d
+
+    def on_logs(col_snapshot, changes, read_time):
+        try:
+            if is_first['logs']:
+                is_first['logs'] = False
+                batch = [_safe_dict(c.document) for c in changes]
+                client_q.put_nowait(f"event: logs_init\ndata: {json.dumps(batch)}\n\n")
+            else:
+                for c in changes:
+                    d = _safe_dict(c.document, c.type.name)
+                    client_q.put_nowait(f"event: logs_change\ndata: {json.dumps(d)}\n\n")
+        except Exception as ex:
+            print(f'[SSE] on_logs error: {ex}')
+
+    def on_convs(col_snapshot, changes, read_time):
+        try:
+            if is_first['convs']:
+                is_first['convs'] = False
+                batch = [_safe_dict(c.document) for c in changes]
+                client_q.put_nowait(f"event: convs_init\ndata: {json.dumps(batch)}\n\n")
+            else:
+                for c in changes:
+                    d = _safe_dict(c.document, c.type.name)
+                    client_q.put_nowait(f"event: convs_change\ndata: {json.dumps(d)}\n\n")
+        except Exception as ex:
+            print(f'[SSE] on_convs error: {ex}')
+
+    logs_watch = db.collection('emotion_logs').on_snapshot(on_logs)
+    convs_watch = db.collection('conversations').on_snapshot(on_convs)
+
+    def generate():
+        try:
+            yield "event: connected\ndata: {}\n\n"
+            while True:
+                try:
+                    msg = client_q.get(timeout=25)
+                    yield msg
+                except queue.Empty:
+                    yield ": heartbeat\n\n"  # keep connection alive
+        finally:
+            try: logs_watch.unsubscribe()
+            except Exception: pass
+            try: convs_watch.unsubscribe()
+            except Exception: pass
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
 
 
 # ==================== ROUTES ====================
@@ -102,7 +648,7 @@ def chat():
             
             if db and conversation_id:
                 try:
-                    store_chat_message(user_id, user_message, bot_reply, emotion, conversation_id)
+                    store_chat_message(user_id, user_message, bot_reply, emotion, conversation_id, is_anonymous=is_guest)
                     print(f"✅ Chat retroactively saved to conversation: {conversation_id}")
                 except Exception as e:
                     print(f"❌ Error storing chat: {e}")
@@ -152,7 +698,7 @@ def chat():
         # Guest data will be deleted on logout, logged-in data persists
         if db:
             try:
-                store_chat_message(user_id, user_message, bot_reply, emotion, conversation_id)
+                store_chat_message(user_id, user_message, bot_reply, emotion, conversation_id, is_anonymous=is_guest)
                 if is_guest:
                     print(f"💾 Guest chat stored temporarily (will be deleted on logout)")
                 else:
@@ -467,7 +1013,25 @@ Generate ONLY the title, nothing else."""
         return fallback_title
 
 
-def store_chat_message(user_id, user_message, bot_reply, emotion, conversation_id=None):
+def log_emotion(user_id, emotion, conversation_id, is_anonymous=False):
+    """Write a single emotion log entry for admin analytics"""
+    if not db:
+        return
+    try:
+        now = datetime.now()
+        db.collection('emotion_logs').document().set({
+            'userId': user_id,
+            'emotion': emotion,
+            'conversationId': conversation_id or '',
+            'isAnonymous': is_anonymous,
+            'timestamp': now.isoformat(),
+            'date': now.strftime('%Y-%m-%d')
+        })
+    except Exception as e:
+        print(f'Error writing emotion log: {e}')
+
+
+def store_chat_message(user_id, user_message, bot_reply, emotion, conversation_id=None, is_anonymous=False):
     """
     Store chat message in Firestore
     Structure: /conversations/{conversationID}/messages/{messageID}
@@ -477,6 +1041,9 @@ def store_chat_message(user_id, user_message, bot_reply, emotion, conversation_i
         return
     
     try:
+        # Log emotion for admin analytics
+        log_emotion(user_id, emotion, conversation_id, is_anonymous)
+
         # Use separate timestamps to ensure proper ordering
         user_timestamp = datetime.now().isoformat()
         
