@@ -812,6 +812,132 @@
             .welcome-message h2 {
                 font-size: 20px;
             }
+
+            .mode-selector-welcome {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .mode-card {
+                max-width: 100%;
+                width: 100%;
+            }
+
+            .header-mode-selector {
+                gap: 4px;
+            }
+
+            .header-mode-btn {
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+        }
+
+        /* ===== MODE SELECTOR — WELCOME SCREEN ===== */
+        .mode-selector-welcome {
+            display: flex;
+            gap: 14px;
+            margin-top: 28px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .mode-card {
+            flex: 1;
+            min-width: 155px;
+            max-width: 210px;
+            padding: 18px 16px;
+            border: 2px solid #E0E0E0;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.22s ease;
+            text-align: left;
+            background: #fff;
+            user-select: none;
+        }
+
+        .mode-card:hover {
+            border-color: #4FA858;
+            background: #F6FBF6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(44,94,49,0.10);
+        }
+
+        .mode-card.active {
+            border-color: #2C5E31;
+            background: #E8F5E9;
+            box-shadow: 0 4px 14px rgba(44,94,49,0.13);
+        }
+
+        .mode-card-icon {
+            font-size: 22px;
+            margin-bottom: 7px;
+        }
+
+        .mode-card-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: #2C5E31;
+            margin-bottom: 4px;
+        }
+
+        .mode-card-preview {
+            font-size: 11.5px;
+            color: #28282B;
+            opacity: 0.7;
+            margin-bottom: 10px;
+            font-style: italic;
+            line-height: 1.4;
+        }
+
+        .mode-card-bullets {
+            list-style: none;
+            font-size: 11.5px;
+            color: #28282B;
+            opacity: 0.8;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            line-height: 1.45;
+        }
+
+        .mode-card-bullets li::before {
+            content: "• ";
+            color: #4FA858;
+            font-weight: bold;
+        }
+
+        /* ===== MODE SELECTOR — HEADER ===== */
+        .header-mode-selector {
+            display: none;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .header-mode-btn {
+            padding: 7px 16px;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            background: transparent;
+            font-size: 13px;
+            font-weight: 600;
+            color: #28282B;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .header-mode-btn:hover {
+            border-color: #4FA858;
+            color: #2C5E31;
+            background: #F6FBF6;
+        }
+
+        .header-mode-btn.active {
+            background: #2C5E31;
+            border-color: #2C5E31;
+            color: white;
         }
     </style>
 </head>
@@ -828,6 +954,14 @@
             <h1>Menti</h1>
             <span class="user-info" id="userInfo">Loading...</span>
         </div>
+
+        <!-- Mode selector — shown in the header once a chat is active -->
+        <div class="header-mode-selector" id="headerModeSelector">
+            <button class="header-mode-btn active" id="headerBtn-friendly" onclick="selectMode('friendly')">💬 Friendly</button>
+            <button class="header-mode-btn" id="headerBtn-supportive" onclick="selectMode('supportive')">🤝 Supportive</button>
+            <button class="header-mode-btn" id="headerBtn-professional" onclick="selectMode('professional')">📋 Professional</button>
+        </div>
+
         <button class="logout-btn" id="logoutBtn">Logout</button>
     </div>
 
@@ -910,9 +1044,43 @@
         <div class="chat-container">
             <!-- Chat Messages -->
             <div class="chat-messages" id="chatMessages">
-                <div class="welcome-message">
-                    <h2>Hey there, friend 👋</h2>
-                    <p>I'm Menti, your mental health companion. I'm here to listen without judgment, offer comfort when things feel heavy, and be a supportive friend whenever you need someone to talk to. You're not alone. How are you feeling right now?</p>
+                <div class="welcome-message" id="welcomeMessage">
+                    <h2 id="welcomeTitle">Hey there, friend 👋</h2>
+                    <p id="welcomeText">I'm Menti, your mental health companion. I'm here to listen without judgment, offer comfort when things feel heavy, and be a supportive friend whenever you need someone to talk to. You're not alone. How are you feeling right now?</p>
+
+                    <!-- Mode selector cards — pick your conversation style -->
+                    <div class="mode-selector-welcome" id="modeSelectorWelcome">
+                        <div class="mode-card active" id="modeCard-friendly" onclick="selectMode('friendly')">
+                            <div class="mode-card-icon">💬</div>
+                            <div class="mode-card-name">Friendly Mode</div>
+                            <div class="mode-card-preview">Short, simple, safe to vent, not overwhelming.</div>
+                            <ul class="mode-card-bullets">
+                                <li>Casual, warm, and comforting tone</li>
+                                <li>Gentle language &amp; light encouragement</li>
+                                <li>Best for a relaxed, friend-like chat</li>
+                            </ul>
+                        </div>
+                        <div class="mode-card" id="modeCard-supportive" onclick="selectMode('supportive')">
+                            <div class="mode-card-icon">🤝</div>
+                            <div class="mode-card-name">Supportive Mode</div>
+                            <div class="mode-card-preview">Encouraging, motivating, helps you feel understood.</div>
+                            <ul class="mode-card-bullets">
+                                <li>Encouraging and motivational tone</li>
+                                <li>Focuses on validation &amp; confidence</li>
+                                <li>Helps you feel heard and supported</li>
+                            </ul>
+                        </div>
+                        <div class="mode-card" id="modeCard-professional" onclick="selectMode('professional')">
+                            <div class="mode-card-icon">📋</div>
+                            <div class="mode-card-name">Professional Mode</div>
+                            <div class="mode-card-preview">Detailed, structured, long responses, counselor-style.</div>
+                            <ul class="mode-card-bullets">
+                                <li>Calm, formal, counselor-like responses</li>
+                                <li>Structured, evidence-based guidance</li>
+                                <li>Ideal for serious reflection &amp; problem-solving</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -973,6 +1141,44 @@
         let isNewConversation = false; // Track if this is a brand new conversation
         let pendingConversationTitle = null; // Store first message for auto-title
         let showingArchived = false; // Track if we're showing archived view
+        let currentMode = 'friendly'; // Track selected conversation mode
+
+        // ===== MODE SELECTION =====
+        const modeContent = {
+            friendly: {
+                title: 'Hey there, friend 👋',
+                text: "I'm Menti, your mental health companion. I'm here to listen without judgment, offer comfort when things feel heavy, and be a supportive friend whenever you need someone to talk to. You're not alone. How are you feeling right now?"
+            },
+            supportive: {
+                title: "You're in good hands 🤝",
+                text: "I'm Menti, and I'm here to encourage and support you every step of the way. Whatever you're going through, you don't have to face it alone — I believe in you, and I'm ready to listen. What's on your mind?"
+            },
+            professional: {
+                title: "Welcome. I'm Menti 📋",
+                text: "I'm here to offer thoughtful, structured support for your mental and emotional well-being. Whether you're navigating stress, difficult emotions, or personal challenges, I'll provide calm, evidence-informed guidance. How can I support you today?"
+            }
+        };
+
+        window.selectMode = function(mode) {
+            currentMode = mode;
+
+            // Update welcome screen cards
+            document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active'));
+            const card = document.getElementById('modeCard-' + mode);
+            if (card) card.classList.add('active');
+
+            // Update header buttons
+            document.querySelectorAll('.header-mode-btn').forEach(b => b.classList.remove('active'));
+            const hBtn = document.getElementById('headerBtn-' + mode);
+            if (hBtn) hBtn.classList.add('active');
+
+            // Update welcome screen title and text
+            const content = modeContent[mode];
+            const titleEl = document.getElementById('welcomeTitle');
+            const textEl  = document.getElementById('welcomeText');
+            if (titleEl) titleEl.textContent = content.title;
+            if (textEl)  textEl.textContent  = content.text;
+        };
 
         // Check authentication
         onAuthStateChanged(auth, async (user) => {
@@ -1131,7 +1337,8 @@
                         message: message,
                         user_id: currentUser.uid,
                         is_guest: currentUser.isAnonymous,  // Send guest mode flag
-                        conversation_id: currentConversationId  // Include conversation ID for logged-in users
+                        conversation_id: currentConversationId,  // Include conversation ID for logged-in users
+                        mode: currentMode  // Pass selected conversation style mode
                     })
                 });
 
@@ -1209,24 +1416,31 @@
                 emotionTag.className = 'emotion-tag';
                 
                 const emotionEmojis = {
-                    'happy': '😊',
-                    'sad': '😢',
-                    'anxious': '😰',
-                    'stressed': '😓',
-                    'neutral': '😐'
+                    'happy':     '😊',
+                    'calm':      '😌',
+                    'sad':       '😢',
+                    'anxious':   '😰',
+                    'stressed':  '😤',
+                    'angry':     '😠',
+                    'confused':  '😕',
+                    'motivated': '💪',
+                    'tired':     '😴',
+                    'numb':      '😶'
                 };
                 
-                emotionTag.textContent = `${emotionEmojis[emotion] || '😐'} ${emotion}`;
+                emotionTag.textContent = `${emotionEmojis[emotion] || '🫥'} ${emotion}`;
                 contentDiv.appendChild(emotionTag);
             }
 
             messageDiv.appendChild(avatar);
             messageDiv.appendChild(contentDiv);
 
-            // Remove welcome message if exists
+            // Remove welcome message if exists, then reveal header mode selector
             const welcomeMessage = document.querySelector('.welcome-message');
             if (welcomeMessage) {
                 welcomeMessage.remove();
+                const headerModeSelector = document.getElementById('headerModeSelector');
+                if (headerModeSelector) headerModeSelector.style.display = 'flex';
             }
 
             chatMessages.appendChild(messageDiv);
@@ -1400,14 +1614,15 @@
             currentConversationId = null;
             isNewConversation = true;
             pendingConversationTitle = null;
+
+            // Hide header mode selector (welcome screen shows the cards instead)
+            const headerModeSelector = document.getElementById('headerModeSelector');
+            if (headerModeSelector) headerModeSelector.style.display = 'none';
             
-            // Clear chat messages
-            chatMessages.innerHTML = `
-                <div class="welcome-message">
-                    <h2>Hey there, friend 👋</h2>
-                    <p>I'm Menti, your mental health companion. I'm here to listen without judgment, offer comfort when things feel heavy, and be a supportive friend whenever you need someone to talk to. You're not alone. How are you feeling right now?</p>
-                </div>
-            `;
+            // Rebuild welcome message with mode cards
+            chatMessages.innerHTML = buildWelcomeHTML();
+            // Re-apply the active mode state to the newly created cards
+            selectMode(currentMode);
             
             // Update sidebar selection
             renderConversations();
@@ -1416,6 +1631,48 @@
             if (window.innerWidth <= 768) {
                 sidebar.classList.remove('show');
             }
+        }
+
+        // Build welcome message HTML (with mode selector cards)
+        function buildWelcomeHTML() {
+            return `
+                <div class="welcome-message" id="welcomeMessage">
+                    <h2 id="welcomeTitle"></h2>
+                    <p id="welcomeText"></p>
+                    <div class="mode-selector-welcome" id="modeSelectorWelcome">
+                        <div class="mode-card" id="modeCard-friendly" onclick="selectMode('friendly')">
+                            <div class="mode-card-icon">💬</div>
+                            <div class="mode-card-name">Friendly Mode</div>
+                            <div class="mode-card-preview">Short, simple, safe to vent, not overwhelming.</div>
+                            <ul class="mode-card-bullets">
+                                <li>Casual, warm, and comforting tone</li>
+                                <li>Gentle language &amp; light encouragement</li>
+                                <li>Best for a relaxed, friend-like chat</li>
+                            </ul>
+                        </div>
+                        <div class="mode-card" id="modeCard-supportive" onclick="selectMode('supportive')">
+                            <div class="mode-card-icon">🤝</div>
+                            <div class="mode-card-name">Supportive Mode</div>
+                            <div class="mode-card-preview">Encouraging, motivating, helps you feel understood.</div>
+                            <ul class="mode-card-bullets">
+                                <li>Encouraging and motivational tone</li>
+                                <li>Focuses on validation &amp; confidence</li>
+                                <li>Helps you feel heard and supported</li>
+                            </ul>
+                        </div>
+                        <div class="mode-card" id="modeCard-professional" onclick="selectMode('professional')">
+                            <div class="mode-card-icon">📋</div>
+                            <div class="mode-card-name">Professional Mode</div>
+                            <div class="mode-card-preview">Detailed, structured, long responses, counselor-style.</div>
+                            <ul class="mode-card-bullets">
+                                <li>Calm, formal, counselor-like responses</li>
+                                <li>Structured, evidence-based guidance</li>
+                                <li>Ideal for serious reflection &amp; problem-solving</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
         
         // Switch to a different conversation
@@ -1441,16 +1698,19 @@
                     
                     // Clear chat
                     chatMessages.innerHTML = '';
+
+                    const headerModeSelector = document.getElementById('headerModeSelector');
                     
                     // Render messages
                     if (messages.length === 0) {
-                        chatMessages.innerHTML = `
-                            <div class="welcome-message">
-                                <h2>Hey there, friend 👋</h2>
-                                <p>I'm Menti, your mental health companion. I'm here to listen without judgment, offer comfort when things feel heavy, and be a supportive friend whenever you need someone to talk to. You're not alone. How are you feeling right now?</p>
-                            </div>
-                        `;
+                        // Empty conversation: show welcome screen with mode cards
+                        chatMessages.innerHTML = buildWelcomeHTML();
+                        selectMode(currentMode);
+                        if (headerModeSelector) headerModeSelector.style.display = 'none';
                     } else {
+                        // Has messages: show header mode selector
+                        if (headerModeSelector) headerModeSelector.style.display = 'flex';
+
                         // Sort messages by timestamp to ensure correct order
                         messages.sort((a, b) => {
                             if (a.timestamp && b.timestamp) {
