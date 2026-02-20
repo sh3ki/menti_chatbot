@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menti — Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        /* ============================================================ RESET */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #F4F6F5;
+            color: #0F0F0F;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ============================================================ TOP BAR */
+        .topbar {
+            background: #FFFFFF;
+            border-bottom: 1px solid #E0E5E1;
+            padding: 0 28px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            z-index: 200;
+            box-shadow: 0 1px 8px rgba(44,94,49,0.06);
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .topbar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .topbar-logo img {
+            width: 36px;
+            height: 36px;
+            object-fit: contain;
+        }
+
+        .topbar-logo span {
+            font-size: 20px;
+            font-weight: 800;
+            color: #2C5E31;
+            letter-spacing: -0.5px;
+        }
+
+        .topbar-badge {
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .admin-info {
+            text-align: right;
+        }
+
+        .admin-info .name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0F0F0F;
+        }
+
+        .admin-info .role {
+            font-size: 11px;
+            color: #28282B;
+            opacity: 0.6;
+        }
+
+        .refresh-indicator {
+            font-size: 12px;
+            color: #2C5E31;
+            font-weight: 500;
+            opacity: 0.7;
+        }
+
+        .btn-logout {
+            padding: 9px 18px;
+            background: #FFF2F2;
+            color: #C62828;
+            border: 1px solid #FFCDD2;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-logout:hover {
+            background: #FFEBEE;
+            transform: translateY(-1px);
+        }
+
+        /* ============================================================ LAYOUT */
+        .layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ============================================================ SIDEBAR */
+        .sidebar {
+            width: 220px;
+            background: #FFFFFF;
+            border-right: 1px solid #E0E5E1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 12px;
+            gap: 4px;
+            flex-shrink: 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-section-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: #28282B;
+            opacity: 0.45;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            padding: 10px 10px 6px;
+            margin-top: 8px;
+        }
+
+        .sidebar-section-label:first-child { margin-top: 0; }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #28282B;
+            transition: all 0.2s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-family: inherit;
+        }
+
+        .nav-item:hover {
+            background: #F0F7F1;
+            color: #2C5E31;
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            color: white;
+            font-weight: 600;
+        }
+
+        .nav-item svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            background: #FF5252;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .nav-item.active .nav-badge {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* ============================================================ MAIN */
+        .main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px;
+        }
+
+        /* Section visibility */
+        .section { display: none; }
+        .section.active { display: block; }
+
+        /* ============================================================ PAGE HEADER */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h2 {
+            font-size: 24px;
+            font-weight: 800;
+            color: #0F0F0F;
+            letter-spacing: -0.5px;
+        }
+
+        .page-header p {
+            font-size: 14px;
+            color: #28282B;
+            opacity: 0.6;
+            margin-top: 4px;
+        }
+
+        /* ============================================================ STAT CARDS */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 22px 24px;
+            border: 1px solid #E8EDE9;
+            box-shadow: 0 2px 8px rgba(44,94,49,0.05);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(44,94,49,0.1);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #2C5E31, #3A7A40);
+        }
+
+        .stat-card.red::before  { background: linear-gradient(90deg, #e53935, #ef5350); }
+        .stat-card.blue::before { background: linear-gradient(90deg, #1976D2, #42A5F5); }
+        .stat-card.orange::before { background: linear-gradient(90deg, #E65100, #FF8F00); }
+
+        .stat-card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .stat-card.red .stat-icon    { background: linear-gradient(135deg, #FFEBEE, #FFCDD2); }
+        .stat-card.blue .stat-icon   { background: linear-gradient(135deg, #E3F2FD, #BBDEFB); }
+        .stat-card.orange .stat-icon { background: linear-gradient(135deg, #FFF3E0, #FFE0B2); }
+
+        .stat-change {
+            font-size: 11px;
+            font-weight: 600;
+            color: #2C5E31;
+            background: #E8F5E9;
+            padding: 3px 8px;
+            border-radius: 20px;
+        }
+
+        .stat-change.negative { color: #C62828; background: #FFEBEE; }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 800;
+            color: #0F0F0F;
+            letter-spacing: -1px;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #28282B;
+            opacity: 0.65;
+            font-weight: 500;
+        }
+
+        /* ============================================================ CHART GRID */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 16px;
+            padding: 22px 24px;
+            border: 1px solid #E8EDE9;
+            box-shadow: 0 2px 8px rgba(44,94,49,0.05);
+        }
+
+        .chart-card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .chart-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0F0F0F;
+        }
+
+        .chart-subtitle {
+            font-size: 12px;
+            color: #28282B;
+            opacity: 0.55;
+            margin-top: 2px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 220px;
+        }
+
+        .chart-container.tall {
+            height: 280px;
+        }
+
+        /* ============================================================ TABLE */
+        .table-card {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #E8EDE9;
+            box-shadow: 0 2px 8px rgba(44,94,49,0.05);
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .table-card-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid #E8EDE9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .table-card-header h3 {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #F4F6F5;
+            border: 1px solid #E0E5E1;
+            border-radius: 10px;
+            padding: 7px 12px;
+            font-size: 13px;
+            color: #28282B;
+        }
+
+        .search-box input {
+            border: none;
+            background: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 13px;
+            color: #0F0F0F;
+            width: 180px;
+        }
+
+        .search-box input::placeholder { color: #28282B; opacity: 0.5; }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            background: #F8FAF8;
+            padding: 11px 16px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #28282B;
+            opacity: 0.7;
+            text-align: left;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #E8EDE9;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        thead th:hover { background: #EFF4F0; }
+
+        tbody tr {
+            border-bottom: 1px solid #F0F4F1;
+            transition: background 0.15s;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: #F8FAF8; }
+
+        tbody td {
+            padding: 13px 16px;
+            font-size: 13px;
+            color: #28282B;
+            vertical-align: middle;
+        }
+
+        .user-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+            text-transform: uppercase;
+        }
+
+        .avatar.anon {
+            background: linear-gradient(135deg, #78909C, #90A4AE);
+        }
+
+        .user-cell .name {
+            font-weight: 600;
+            color: #0F0F0F;
+            font-size: 13px;
+        }
+
+        .user-cell .email {
+            font-size: 11px;
+            color: #28282B;
+            opacity: 0.6;
+        }
+
+        /* ---- Badges ---- */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge-green  { background: #E8F5E9; color: #2C5E31; }
+        .badge-blue   { background: #E3F2FD; color: #1565C0; }
+        .badge-gray   { background: #ECEFF1; color: #546E7A; }
+        .badge-red    { background: #FFEBEE; color: #C62828; }
+        .badge-orange { background: #FFF3E0; color: #E65100; }
+        .badge-yellow { background: #FFFDE7; color: #F57F17; }
+
+        /* Emotion colors */
+        .emotion-happy    { color: #2E7D32; background: #E8F5E9; }
+        .emotion-sad      { color: #1565C0; background: #E3F2FD; }
+        .emotion-anxious  { color: #E65100; background: #FFF3E0; }
+        .emotion-stressed { color: #C62828; background: #FFEBEE; }
+        .emotion-neutral  { color: #546E7A; background: #ECEFF1; }
+
+        /* ---- Risk pill ---- */
+        .risk-high   { background: #FFEBEE; color: #B71C1C; font-weight: 700; }
+        .risk-medium { background: #FFF3E0; color: #BF360C; font-weight: 700; }
+        .risk-low    { background: #E8F5E9; color: #1B5E20; }
+
+        /* ============================================================ EMPTY STATE */
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: #28282B;
+            opacity: 0.5;
+        }
+
+        .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+        .empty-state p { font-size: 14px; }
+
+        /* ============================================================ LOADING */
+        .skeleton {
+            background: linear-gradient(90deg, #F0F0F0 25%, #E0E0E0 50%, #F0F0F0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 8px;
+        }
+
+        @keyframes shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-row td { padding: 14px 16px; }
+        .skeleton-cell { height: 14px; border-radius: 6px; }
+
+        /* ============================================================ ACTIVITY LOG */
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 13px 24px;
+            border-bottom: 1px solid #F0F4F1;
+            transition: background 0.15s;
+        }
+
+        .activity-item:last-child { border-bottom: none; }
+        .activity-item:hover { background: #F8FAF8; }
+
+        .activity-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .activity-content { flex: 1; }
+        .activity-content .action { font-size: 13px; font-weight: 500; color: #0F0F0F; }
+        .activity-content .meta   { font-size: 11px; color: #28282B; opacity: 0.55; margin-top: 2px; }
+        .activity-time { font-size: 11px; color: #28282B; opacity: 0.5; white-space: nowrap; }
+
+        /* ============================================================ SCROLLBAR */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #CBD5CE; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9EAD9F; }
+
+        /* ============================================================ TOAST */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #0F0F0F;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(12px);
+            transition: all 0.3s;
+            z-index: 999;
+            pointer-events: none;
+        }
+
+        .toast.show { opacity: 1; transform: translateY(0); }
+
+        /* ============================================================ RESPONSIVE */
+        @media (max-width: 900px) {
+            .sidebar { width: 180px; }
+            .stat-grid { grid-template-columns: repeat(2, 1fr); }
+            .chart-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 640px) {
+            .sidebar { display: none; }
+            .main { padding: 16px; }
+            .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        }
+
+        /* ============================================================ USER TYPE TABS */
+        .user-tab {
+            padding: 5px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            border: 1.5px solid #D0DAD2;
+            border-radius: 20px;
+            background: #fff;
+            color: #4A7A50;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .user-tab:hover { border-color: #2C5E31; color: #2C5E31; }
+        .user-tab.active { background: #2C5E31; color: #fff; border-color: #2C5E31; }
+        .badge-anon { background: #FFF3E0; color: #E65100; border: 1px solid #FFCC80; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+        .badge-registered { background: #E8F5E9; color: #2C5E31; border: 1px solid #A5D6A7; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<!-- ================================================================ TOP BAR -->
+<div class="topbar">
+    <div class="topbar-left">
+        <a href="/" class="topbar-logo">
+            <img src="{{ url_for('static', filename='menti logo.png') }}" alt="Menti Logo">
+            <span>Menti</span>
+        </a>
+        <div class="topbar-badge">Admin</div>
+    </div>
+    <div class="topbar-right">
+        <span class="refresh-indicator" id="liveIndicator" style="display:flex;align-items:center;gap:6px;"><span id="liveDot" style="width:8px;height:8px;border-radius:50%;background:#2C5E31;display:inline-block;transition:opacity 0.3s;opacity:0.4;"></span>Live</span>
+        <div class="admin-info">
+            <div class="name">{{ admin_username }}</div>
+            <div class="role">System Administrator</div>
+        </div>
+        <button class="btn-logout" onclick="adminLogout()">Logout</button>
+    </div>
+</div>
+
+<!-- ================================================================ LAYOUT -->
+<div class="layout">
+
+    <!-- ============================================================ SIDEBAR -->
+    <nav class="sidebar">
+        <div class="sidebar-section-label">Main</div>
+
+        <button class="nav-item active" data-section="overview" onclick="switchSection('overview', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+            Overview
+        </button>
+
+        <button class="nav-item" data-section="users" onclick="switchSection('users', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            Users
+        </button>
+
+        <div class="sidebar-section-label">Analytics</div>
+
+        <button class="nav-item" data-section="emotions" onclick="switchSection('emotions', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Emotion Trends
+        </button>
+
+        <button class="nav-item" data-section="risk" onclick="switchSection('risk', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            Risk Alerts
+            <span class="nav-badge" id="riskBadge">...</span>
+        </button>
+
+        <div class="sidebar-section-label">System</div>
+
+        <button class="nav-item" data-section="activity" onclick="switchSection('activity', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Activity Log
+        </button>
+    </nav>
+
+    <!-- ============================================================ MAIN CONTENT -->
+    <main class="main">
+
+        <!-- ========================= OVERVIEW SECTION -->
+        <div class="section active" id="section-overview">
+            <div class="page-header">
+                <h2>Overview</h2>
+                <p>System-wide statistics and key metrics at a glance</p>
+            </div>
+
+            <!-- Stat Cards -->
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-card-top">
+                        <div class="stat-icon">👥</div>
+                        <span class="stat-change" id="newUsersChange">+0 today</span>
+                    </div>
+                    <div class="stat-value" id="statTotalUsers">—</div>
+                    <div class="stat-label">Registered Users</div>
+                </div>
+
+                <div class="stat-card blue">
+                    <div class="stat-card-top">
+                        <div class="stat-icon">💬</div>
+                        <span class="stat-change" id="msgTodayChange">today</span>
+                    </div>
+                    <div class="stat-value" id="statMessages">—</div>
+                    <div class="stat-label">Total Messages</div>
+                </div>
+
+                <div class="stat-card orange">
+                    <div class="stat-card-top">
+                        <div class="stat-icon">🟢</div>
+                    </div>
+                    <div class="stat-value" id="statActiveToday">—</div>
+                    <div class="stat-label">Active Users Today</div>
+                </div>
+
+                <div class="stat-card red">
+                    <div class="stat-card-top">
+                        <div class="stat-icon">⚠️</div>
+                    </div>
+                    <div class="stat-value" id="statRiskAlerts">—</div>
+                    <div class="stat-label">Risk Alerts (7d)</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-top">
+                        <div class="stat-icon">🗂️</div>
+                    </div>
+                    <div class="stat-value" id="statConversations">—</div>
+                    <div class="stat-label">Total Conversations</div>
+                </div>
+
+                <div class="stat-card blue">
+                    <div class="stat-card-top">
+                        <div class="stat-icon">👻</div>
+                    </div>
+                    <div class="stat-value" id="statAnonUsers">—</div>
+                    <div class="stat-label">Anonymous Users</div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">Emotion Distribution</div>
+                            <div class="chart-subtitle">All-time breakdown</div>
+                        </div>
+                    </div>
+                    <div class="chart-container" style="height:200px;">
+                        <canvas id="emotionPieChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">Messages Per Day</div>
+                            <div class="chart-subtitle">Last 14 days</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="messagesBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="table-card">
+                <div class="table-card-header">
+                    <h3>Recent Activity</h3>
+                    <span style="font-size:12px;color:#28282B;opacity:0.5;">Latest 20 interactions</span>
+                </div>
+                <div class="activity-list" id="overviewActivityList">
+                    <div class="empty-state"><div class="icon">⏳</div><p>Loading activity...</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================= USERS SECTION -->
+        <div class="section" id="section-users">
+            <div class="page-header">
+                <h2>User Management</h2>
+                <p>All users sorted newest-first — filter by account type</p>
+            </div>
+
+            <div class="table-card">
+                <div class="table-card-header">
+                    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                        <h3 style="margin:0;">Users <span id="userCount" style="font-size:13px;font-weight:500;opacity:0.5;"></span></h3>
+                        <!-- Type filter tabs -->
+                        <div style="display:flex;gap:6px;" id="userTypeTabs">
+                            <button class="user-tab active" data-type="all"       onclick="switchUserTab(this,'all')">All</button>
+                            <button class="user-tab"        data-type="registered" onclick="switchUserTab(this,'registered')">Registered</button>
+                            <button class="user-tab"        data-type="anonymous"  onclick="switchUserTab(this,'anonymous')">Anonymous</button>
+                        </div>
+                    </div>
+                    <div class="search-box">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" id="userSearch" placeholder="Search by name or email..." oninput="filterUsers()">
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('users','displayName')">User ↕</th>
+                                <th>Type</th>
+                                <th onclick="sortTable('users','totalMessages')">Messages ↕</th>
+                                <th onclick="sortTable('users','createdAt')">First Seen ↕</th>
+                                <th onclick="sortTable('users','lastActive')">Last Active ↕</th>
+                                <th onclick="sortTable('users','riskLevel')">Risk ↕</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr class="skeleton-row"><td colspan="6"><div class="skeleton skeleton-cell" style="width:80%"></div></td></tr>
+                            <tr class="skeleton-row"><td colspan="6"><div class="skeleton skeleton-cell" style="width:65%"></div></td></tr>
+                            <tr class="skeleton-row"><td colspan="6"><div class="skeleton skeleton-cell" style="width:72%"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================= EMOTIONS SECTION -->
+        <div class="section" id="section-emotions">
+            <div class="page-header">
+                <h2>Emotion Analytics</h2>
+                <p>Emotional trend data over time across all users</p>
+            </div>
+
+            <div class="chart-grid">
+                <div class="chart-card full-width">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">Emotion Trends — Last 30 Days</div>
+                            <div class="chart-subtitle">Message count per day by detected emotion</div>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;" id="emotionLegend"></div>
+                    </div>
+                    <div class="chart-container tall">
+                        <canvas id="emotionLineChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">Emotion Distribution</div>
+                            <div class="chart-subtitle">30-day breakdown</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="emotionDoughnutChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">Negative vs Positive</div>
+                            <div class="chart-subtitle">Wellbeing index</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="wellbeingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emotion Summary Table -->
+            <div class="table-card">
+                <div class="table-card-header"><h3>Emotion Message Counts (All Time)</h3></div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Emotion</th>
+                                <th>Total Messages</th>
+                                <th>% of All Messages</th>
+                                <th>Trend</th>
+                            </tr>
+                        </thead>
+                        <tbody id="emotionSummaryBody">
+                            <tr class="skeleton-row"><td colspan="4"><div class="skeleton skeleton-cell" style="width:60%"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================= RISK ALERTS SECTION -->
+        <div class="section" id="section-risk">
+            <div class="page-header">
+                <h2>Risk Alerts</h2>
+                <p>Users showing patterns of high negative emotional states in the last 7 days</p>
+            </div>
+
+            <div class="table-card">
+                <div class="table-card-header">
+                    <h3>At-Risk Users <span id="riskCount" style="font-size:13px;font-weight:500;opacity:0.5;"></span></h3>
+                    <span style="font-size:12px;color:#C62828;font-weight:500;">⚠️ 5+ negative messages in 7 days</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Risk Level</th>
+                                <th>Dominant Concern</th>
+                                <th>Neg. Messages (7d)</th>
+                                <th>Last Active</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="riskTableBody">
+                            <tr class="skeleton-row"><td colspan="6"><div class="skeleton skeleton-cell" style="width:70%"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Risk Info Box -->
+            <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:14px;padding:18px 22px;font-size:13px;color:#5D4037;line-height:1.7;">
+                <strong>📋 Risk Classification Guide</strong><br>
+                <strong>High Risk (🔴):</strong> 10+ negative messages in 7 days — requires immediate attention.<br>
+                <strong>Medium Risk (🟠):</strong> 5–9 negative messages in 7 days — monitor closely.<br>
+                Negative emotions tracked: <em>sad, anxious, stressed</em>.
+            </div>
+        </div>
+
+        <!-- ========================= ACTIVITY SECTION -->
+        <div class="section" id="section-activity">
+            <div class="page-header">
+                <h2>Activity Log</h2>
+                <p>Real-time log of all user interactions across the system</p>
+            </div>
+
+            <div class="table-card">
+                <div class="table-card-header">
+                    <h3>System Activity</h3>
+                    <button onclick="loadActivity()" style="font-size:12px;padding:7px 14px;border:1px solid #E0E5E1;border-radius:8px;background:white;cursor:pointer;font-family:inherit;color:#2C5E31;font-weight:600;">↻ Refresh</button>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Emotion Detected</th>
+                                <th>Type</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityTableBody">
+                            <tr class="skeleton-row"><td colspan="4"><div class="skeleton skeleton-cell" style="width:75%"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ================================================================ JAVASCRIPT -->
+<script>
+// ============================================================ CONSTANTS
+const EMOTION_COLORS = {
+    happy:    { bg: '#4CAF50', light: '#E8F5E9', text: '#2E7D32' },
+    sad:      { bg: '#2196F3', light: '#E3F2FD', text: '#1565C0' },
+    anxious:  { bg: '#FF9800', light: '#FFF3E0', text: '#E65100' },
+    stressed: { bg: '#F44336', light: '#FFEBEE', text: '#C62828' },
+    neutral:  { bg: '#90A4AE', light: '#ECEFF1', text: '#546E7A' }
+};
+
+// ============================================================ STATE
+let allUsers = [];
+let allActivity = [];
+let charts = {};
+// In-memory Maps — kept in sync by Firestore onSnapshot listeners
+const _logsMap = new Map();   // docId -> emotion_log data
+const _convsMap = new Map();  // docId -> conversation data
+window._logsMap = _logsMap;
+window._convsMap = _convsMap;
+function _todayStr() { return new Date().toISOString().slice(0,10); }
+function _daysAgo(n) { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+
+// ============================================================ SECTION SWITCHING
+function switchSection(name, el) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('section-' + name).classList.add('active');
+    el.classList.add('active');
+
+    // Render from in-memory state (populated by Firestore listeners)
+    if (name === 'users') loadUsers();
+    if (name === 'emotions') renderEmotionsFromState();
+    if (name === 'risk') renderRiskFromState();
+    if (name === 'activity') renderActivityFromState();
+}
+
+// ============================================================ TOAST
+function showToast(msg, dur = 3000) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ============================================================ LOGOUT
+async function adminLogout() {
+    try {
+        await fetch('/admin/logout', { method: 'POST' });
+    } catch(e) {}
+    window.location.href = '/admin/login';
+}
+
+// ============================================================ COMPUTE & UPDATE STATS (from in-memory state)
+function computeAndUpdateStats() {
+    const today = _todayStr();
+    const sevenDaysAgo = _daysAgo(7);
+    const emotionCounts = { happy:0, sad:0, anxious:0, stressed:0, neutral:0 };
+    let messagesToday = 0;
+    const activeToday = new Set();
+    const riskUserNeg = {};
+    const anonUids = new Set();
+
+    for (const [,c] of _convsMap) {
+        if (c.isAnonymous && c.userId) anonUids.add(c.userId);
+    }
+
+    for (const [,log] of _logsMap) {
+        const e = log.emotion || 'neutral';
+        const date = log.date || '';
+        const uid = log.userId || '';
+        if (e in emotionCounts) emotionCounts[e]++;
+        if (date === today) { messagesToday++; if (uid) activeToday.add(uid); }
+        if (['sad','anxious','stressed'].includes(e) && date >= sevenDaysAgo) {
+            riskUserNeg[uid] = (riskUserNeg[uid]||0)+1;
+        }
+    }
+    const riskCount = Object.values(riskUserNeg).filter(c=>c>=5).length;
+
+    const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+    set('statMessages',    _logsMap.size);
+    set('statActiveToday', activeToday.size);
+    set('statRiskAlerts',  riskCount);
+    set('statConversations', _convsMap.size);
+    set('statAnonUsers',   anonUids.size);
+    set('msgTodayChange',  messagesToday + ' today');
+
+    const rb = document.getElementById('riskBadge');
+    if (rb) { rb.textContent = riskCount; rb.style.display = riskCount > 0 ? 'inline' : 'none'; }
+
+    drawEmotionPie(emotionCounts);
+    renderMessagesBarFromState();
+
+    // Update whichever section is currently visible
+    const activeNav = document.querySelector('.nav-item.active');
+    const sec = activeNav ? activeNav.dataset.section : 'overview';
+    if (sec === 'overview') renderOverviewActivityFromState();
+    if (sec === 'activity') renderActivityFromState();
+    if (sec === 'risk')     renderRiskFromState();
+    if (sec === 'emotions') renderEmotionsFromState();
+
+    // Pulse live dot
+    const dot = document.getElementById('liveDot');
+    if (dot) { dot.style.opacity='1'; setTimeout(()=>{ dot.style.opacity='0.4'; },500); }
+}
+window.computeAndUpdateStats = computeAndUpdateStats;
+
+// ============================================================ RENDER MESSAGES BAR (from state)
+function renderMessagesBarFromState() {
+    const today = new Date();
+    const dateRange = Array.from({length:14},(_,i)=>{ const d=new Date(today); d.setDate(d.getDate()-(13-i)); return d.toISOString().slice(0,10); });
+    const counts = {}; dateRange.forEach(d=>counts[d]=0);
+    for (const [,log] of _logsMap) { const dt=log.date||''; if(dt in counts) counts[dt]++; }
+    const labels = Array.from({length:14},(_,i)=>{ const d=new Date(today); d.setDate(d.getDate()-(13-i)); return d.toLocaleDateString('en',{month:'short',day:'numeric'}); });
+    drawMessagesBar(labels, dateRange.map(d=>counts[d]));
+}
+window.renderMessagesBarFromState = renderMessagesBarFromState;
+
+// ============================================================ RENDER OVERVIEW ACTIVITY (from state)
+function renderOverviewActivityFromState() {
+    const list = document.getElementById('overviewActivityList');
+    if (!list) return;
+    const sorted = [..._logsMap.values()].sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
+    list.innerHTML = '';
+    if (sorted.length === 0) {
+        list.innerHTML = `<div class="empty-state"><div class="icon">📭</div><p>No activity recorded yet.</p></div>`;
+        return;
+    }
+    sorted.slice(0,20).forEach(item => {
+        const ec = EMOTION_COLORS[item.emotion||'neutral'] || EMOTION_COLORS.neutral;
+        const uid = item.userId||'';
+        const shortUid = uid.length>14 ? uid.slice(0,14)+'...' : uid;
+        const ts = (item.timestamp||'').slice(0,19).replace('T',' ');
+        const div = document.createElement('div'); div.className='activity-item';
+        div.innerHTML = `
+            <div class="activity-dot" style="background:${ec.bg}"></div>
+            <div class="activity-content">
+                <div class="action">${item.isAnonymous?'👻 Guest':'👤 User'} &mdash; <span style="color:${ec.text};font-weight:600;">${cap(item.emotion||'neutral')}</span> message sent</div>
+                <div class="meta">ID: ${shortUid}${item.conversationId?' · Conv: '+item.conversationId.slice(0,8)+'...':''}</div>
+            </div>
+            <div class="activity-time">${ts||'—'}</div>
+        `;
+        list.appendChild(div);
+    });
+}
+window.renderOverviewActivityFromState = renderOverviewActivityFromState;
+
+// ============================================================ RENDER EMOTIONS (from state)
+function renderEmotionsFromState() {
+    const EMOTION_KEYS = ['happy','sad','anxious','stressed','neutral'];
+    const thirtyAgo = _daysAgo(30);
+    const today = new Date();
+    const dateLabels = Array.from({length:30},(_,i)=>{ const d=new Date(today); d.setDate(d.getDate()-(29-i)); return d.toISOString().slice(0,10); });
+    const trends = {};
+    EMOTION_KEYS.forEach(e=>{ trends[e]={}; dateLabels.forEach(d=>trends[e][d]=0); });
+    for (const [,log] of _logsMap) {
+        const date=log.date||''; const e=log.emotion||'neutral';
+        if (date>=thirtyAgo && trends[e] && date in trends[e]) trends[e][date]++;
+    }
+    const datasets = {};
+    EMOTION_KEYS.forEach(e=>{ datasets[e]=dateLabels.map(d=>trends[e][d]); });
+    const shortLabels = dateLabels.map(d=>d.slice(5));
+    drawEmotionLine({ labels:shortLabels, full_labels:dateLabels, datasets, emotion_keys:EMOTION_KEYS });
+    const totals = {};
+    EMOTION_KEYS.forEach(e=>{ totals[e]=datasets[e].reduce((a,b)=>a+b,0); });
+    drawEmotionDoughnut(totals);
+    drawWellbeingChart(totals);
+    const tbody = document.getElementById('emotionSummaryBody');
+    if (tbody) {
+        tbody.innerHTML='';
+        const grandTotal = Object.values(totals).reduce((a,b)=>a+b,0);
+        [...EMOTION_KEYS].sort((a,b)=>totals[b]-totals[a]).forEach(e=>{
+            const pct=grandTotal>0?((totals[e]/grandTotal)*100).toFixed(1):'0.0';
+            const ec=EMOTION_COLORS[e]||EMOTION_COLORS.neutral;
+            const tr=document.createElement('tr');
+            tr.innerHTML=`<td><span class="badge emotion-${e}">${cap(e)}</span></td><td><strong>${totals[e]}</strong></td><td><div style="display:flex;align-items:center;gap:10px;"><div style="background:#E0E0E0;border-radius:4px;height:8px;flex:1;overflow:hidden;"><div style="background:${ec.bg};height:100%;width:${pct}%;border-radius:4px;"></div></div><span style="font-size:12px;color:#28282B;opacity:0.7;min-width:36px;">${pct}%</span></div></td><td style="font-size:18px;">${emotionEmoji(e)}</td>`;
+            tbody.appendChild(tr);
+        });
+    }
+    const legend = document.getElementById('emotionLegend');
+    if (legend) {
+        legend.innerHTML='';
+        EMOTION_KEYS.forEach(e=>{ const ec=EMOTION_COLORS[e]||EMOTION_COLORS.neutral; legend.innerHTML+=`<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;"><span style="width:10px;height:10px;border-radius:50%;background:${ec.bg};display:inline-block;"></span>${cap(e)}</span>`; });
+    }
+}
+window.renderEmotionsFromState = renderEmotionsFromState;
+
+// ============================================================ RENDER RISK ALERTS (from state)
+function renderRiskFromState() {
+    const sevenAgo = _daysAgo(7);
+    const userRisk = {};
+    for (const [,log] of _logsMap) {
+        const date=log.date||''; const e=log.emotion||'neutral'; const uid=log.userId||'';
+        if (!uid||!['sad','anxious','stressed'].includes(e)||date<sevenAgo) continue;
+        if (!userRisk[uid]) userRisk[uid]={count:0,emotions:[],isAnonymous:log.isAnonymous||false,lastActive:'',allDates:[]};
+        userRisk[uid].count++; userRisk[uid].emotions.push(e); userRisk[uid].allDates.push(date);
+        const ts=log.timestamp||''; if(ts>userRisk[uid].lastActive) userRisk[uid].lastActive=ts;
+    }
+    const tbody = document.getElementById('riskTableBody');
+    if (!tbody) return;
+    tbody.innerHTML='';
+    const alerts = Object.entries(userRisk).filter(([,d])=>d.count>=5);
+    const cnt = document.getElementById('riskCount');
+    if (cnt) cnt.textContent=`(${alerts.length})`;
+    if (alerts.length===0) {
+        tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="icon">✅</div><p>No at-risk users in the last 7 days.</p></div></td></tr>`;
+        return;
+    }
+    alerts.sort((a,b)=>b[1].count-a[1].count);
+    const reasonMap={sad:'Recurring sadness',anxious:'Persistent anxiety',stressed:'Chronic stress'};
+    alerts.forEach(([uid,data])=>{
+        const cnts={}; data.emotions.forEach(e=>cnts[e]=(cnts[e]||0)+1);
+        const topEmotion=Object.entries(cnts).sort((a,b)=>b[1]-a[1])[0][0];
+        const riskLevel=data.count>=10?'High':'Medium';
+        const riskClass=riskLevel==='High'?'risk-high':'risk-medium';
+        const shortUid=uid.length>10?uid.slice(0,10)+'...':uid;
+        const ts=data.lastActive?data.lastActive.slice(0,19).replace('T',' '):'Unknown';
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+            <td><div class="user-cell"><div class="avatar ${data.isAnonymous?'anon':''}">?</div><div><div class="name">${data.isAnonymous?'Guest':shortUid}</div><div class="email">${uid}</div></div></div></td>
+            <td><span class="badge ${riskClass}">${riskLevel==='High'?'🔴':'🟠'} ${riskLevel}</span></td>
+            <td><span class="badge emotion-${topEmotion}">${emotionEmoji(topEmotion)} ${reasonMap[topEmotion]||'Negative pattern'}</span></td>
+            <td><strong style="color:#C62828;">${data.count}</strong></td>
+            <td>${ts}</td>
+            <td><span class="badge ${data.isAnonymous?'badge-gray':'badge-green'}">${data.isAnonymous?'👻 Guest':'✅ Registered'}</span></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+window.renderRiskFromState = renderRiskFromState;
+
+// ============================================================ RENDER ACTIVITY LOG (from state)
+function renderActivityFromState() {
+    const tbody = document.getElementById('activityTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const sorted = [..._logsMap.values()].sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||'')).slice(0,100);
+    if (sorted.length===0) {
+        tbody.innerHTML=`<tr><td colspan="4"><div class="empty-state"><div class="icon">📭</div><p>No activity yet.</p></div></td></tr>`;
+        return;
+    }
+    sorted.forEach(item=>{
+        const ec=EMOTION_COLORS[item.emotion||'neutral']||EMOTION_COLORS.neutral;
+        const uid=item.userId||'';
+        const shortUid=uid.length>16?uid.slice(0,16)+'...':uid;
+        const ts=(item.timestamp||'').slice(0,19).replace('T',' ');
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+            <td><div class="user-cell"><div class="avatar ${item.isAnonymous?'anon':''}" style="width:28px;height:28px;font-size:11px;">${item.isAnonymous?'👻':uid.slice(0,2).toUpperCase()}</div><span style="font-size:12px;font-family:monospace;color:#28282B;opacity:0.8;">${shortUid}</span></div></td>
+            <td><span class="badge" style="background:${ec.light};color:${ec.text};">${emotionEmoji(item.emotion)} ${cap(item.emotion||'neutral')}</span></td>
+            <td><span class="badge ${item.isAnonymous?'badge-gray':'badge-green'}">${item.isAnonymous?'👻 Guest':'✅ Registered'}</span></td>
+            <td style="font-size:12px;color:#28282B;opacity:0.7;">${ts||'—'}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+window.renderActivityFromState = renderActivityFromState;
+
+// ============================================================ LOAD USERS
+let activeUserType = 'all';
+
+function switchUserTab(btn, type) {
+    document.querySelectorAll('.user-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    activeUserType = type;
+    loadUsers(type);
+}
+
+async function loadUsers(type) {
+    type = type || activeUserType || 'all';
+    const tbody = document.getElementById('usersTableBody');
+    tbody.innerHTML = skeletonRows(5, 6);
+    try {
+        const res = await fetch('/admin/api/users?type=' + encodeURIComponent(type));
+        if (!res.ok) { showToast('Failed to load users'); return; }
+        allUsers = await res.json();
+        document.getElementById('userCount').textContent = `(${allUsers.length})`;
+        renderUsersTable(allUsers);
+    } catch(e) { showToast('Error loading users'); console.error(e); }
+}
+
+function renderUsersTable(users) {
+    const tbody = document.getElementById('usersTableBody');
+    tbody.innerHTML = '';
+
+    if (users.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">👤</div><p>No users found.</p></div></td></tr>`;
+        return;
+    }
+
+    users.forEach(u => {
+        const initials = (u.displayName || 'U').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+        const riskClass = u.riskLevel === 'High' ? 'risk-high' : u.riskLevel === 'Medium' ? 'risk-medium' : 'risk-low';
+        const typeBadge = u.isAnonymous
+            ? `<span class="badge-anon">Guest</span>`
+            : `<span class="badge-registered">${esc(u.provider || 'Registered')}</span>`;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <div class="user-cell">
+                    <div class="avatar">${initials}</div>
+                    <div>
+                        <div class="name">${esc(u.displayName)}</div>
+                        <div class="email">${esc(u.email)}</div>
+                    </div>
+                </div>
+            </td>
+            <td>${typeBadge}</td>
+            <td><strong>${u.totalMessages}</strong></td>
+            <td>${u.createdAt || '—'}</td>
+            <td>${u.lastActive || '—'}</td>
+            <td><span class="badge ${riskClass}">${u.riskLevel}</span></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function filterUsers() {
+    const q = document.getElementById('userSearch').value.toLowerCase();
+    const filtered = allUsers.filter(u =>
+        (u.displayName || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q)
+    );
+    renderUsersTable(filtered);
+}
+
+// loadEmotions / loadRiskAlerts / loadActivity are now driven by Firestore onSnapshot
+// Use the render*FromState functions defined above. Aliases kept for compatibility:
+const loadEmotions    = () => renderEmotionsFromState();
+const loadRiskAlerts  = () => renderRiskFromState();
+const loadActivity    = () => renderActivityFromState();
+
+// ============================================================ CHART RENDERERS
+function drawEmotionPie(ec) {
+    const ctx = document.getElementById('emotionPieChart').getContext('2d');
+    if (charts.emotionPie) charts.emotionPie.destroy();
+
+    const keys = Object.keys(EMOTION_COLORS);
+    const values = keys.map(k => ec[k] || 0);
+    const total = values.reduce((a,b) => a+b, 0);
+
+    if (total === 0) {
+        // No data yet - show placeholder
+        charts.emotionPie = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels: ['No Data'], datasets: [{ data: [1], backgroundColor: ['#E0E0E0'], borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+        return;
+    }
+
+    charts.emotionPie = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: keys.map(cap),
+            datasets: [{
+                data: values,
+                backgroundColor: keys.map(k => EMOTION_COLORS[k].bg),
+                borderWidth: 2,
+                borderColor: '#FFFFFF',
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 12, font: { size: 11, family: 'Inter' }, boxWidth: 12 } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.label}: ${ctx.raw} (${((ctx.raw/total)*100).toFixed(1)}%)`
+                    }
+                }
+            }
+        }
+    });
+}
+
+function drawMessagesBar(labels, counts) {
+    const ctx = document.getElementById('messagesBarChart').getContext('2d');
+    if (charts.messagesBar) charts.messagesBar.destroy();
+    charts.messagesBar = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Messages',
+                data: counts,
+                backgroundColor: 'rgba(44, 94, 49, 0.75)',
+                borderRadius: 6,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 10, family:'Inter' }, maxRotation: 45 } },
+                y: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { font: { size: 10, family:'Inter' }, stepSize: 1 } }
+            }
+        }
+    });
+}
+
+function drawEmotionLine(data) {
+    const ctx = document.getElementById('emotionLineChart').getContext('2d');
+    if (charts.emotionLine) charts.emotionLine.destroy();
+
+    const datasets = data.emotion_keys.map(e => ({
+        label: cap(e),
+        data: data.datasets[e],
+        borderColor: EMOTION_COLORS[e].bg,
+        backgroundColor: EMOTION_COLORS[e].bg + '18',
+        fill: false,
+        tension: 0.4,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderWidth: 2
+    }));
+
+    charts.emotionLine = new Chart(ctx, {
+        type: 'line',
+        data: { labels: data.labels, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 11, family:'Inter' }, boxWidth: 12, padding: 16 } }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 10, family:'Inter' }, maxTicksLimit: 10 } },
+                y: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { font: { size: 10, family:'Inter' }, stepSize: 1 } }
+            }
+        }
+    });
+}
+
+function drawEmotionDoughnut(totals) {
+    const ctx = document.getElementById('emotionDoughnutChart').getContext('2d');
+    if (charts.emotionDoughnut) charts.emotionDoughnut.destroy();
+    const keys = Object.keys(EMOTION_COLORS);
+    const total = keys.reduce((s,k) => s+(totals[k]||0), 0);
+    charts.emotionDoughnut = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: keys.map(cap),
+            datasets: [{
+                data: keys.map(k => totals[k]||0),
+                backgroundColor: keys.map(k => EMOTION_COLORS[k].bg),
+                borderWidth: 2, borderColor: '#FFFFFF', hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '60%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 10, font: { size: 10, family:'Inter' }, boxWidth: 10 } },
+                tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}` } }
+            }
+        }
+    });
+}
+
+function drawWellbeingChart(totals) {
+    const ctx = document.getElementById('wellbeingChart').getContext('2d');
+    if (charts.wellbeing) charts.wellbeing.destroy();
+    const positive = (totals.happy||0);
+    const neutral  = (totals.neutral||0);
+    const negative = (totals.sad||0) + (totals.anxious||0) + (totals.stressed||0);
+    charts.wellbeing = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Positive', 'Neutral', 'Negative'],
+            datasets: [{
+                label: 'Messages',
+                data: [positive, neutral, negative],
+                backgroundColor: ['#4CAF50', '#90A4AE', '#F44336'],
+                borderRadius: 8, borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { font: { size: 10, family:'Inter' } } },
+                y: { grid: { display: false }, ticks: { font: { size: 12, family:'Inter', weight: '600' } } }
+            }
+        }
+    });
+}
+
+// ============================================================ TABLE SORT
+let sortState = {};
+function sortTable(table, key) {
+    if (table === 'users') {
+        const asc = sortState[key] !== 'asc';
+        sortState[key] = asc ? 'asc' : 'desc';
+        const sorted = [...allUsers].sort((a,b) => {
+            const av = a[key] || '', bv = b[key] || '';
+            if (typeof av === 'number') return asc ? av-bv : bv-av;
+            return asc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+        });
+        renderUsersTable(sorted);
+    }
+}
+
+// ============================================================ UTILS
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function emotionEmoji(e) {
+    return { happy:'😊', sad:'😢', anxious:'😰', stressed:'😤', neutral:'😐' }[e] || '❓';
+}
+function skeletonRows(rows, cols) {
+    return Array.from({length: rows}, () =>
+        `<tr class="skeleton-row">${Array.from({length: cols}, (_,i) =>
+            `<td><div class="skeleton skeleton-cell" style="width:${60+i*5}%"></div></td>`).join('')}</tr>`
+    ).join('');
+}
+
+// ============================================================ INIT
+// Only fetch registered user count (Firebase Auth) via REST — everything else comes from Firestore listeners
+(async function init() {
+    try {
+        const res = await fetch('/admin/api/stats');
+        if (res.status === 401) { window.location.href = '/admin/login'; return; }
+        const d = await res.json();
+        const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+        set('statTotalUsers',  d.totalRegisteredUsers ?? '—');
+        set('newUsersChange',  '+' + (d.newUsersToday ?? 0) + ' today');
+    } catch(e) { console.error('Auth stats fetch error:', e); }
+    // Firestore onSnapshot listeners (added below) will populate everything else
+})();
+</script>
+
+<!-- ================================================================ REALTIME LISTENER (SSE via Flask/Admin SDK — no Firebase client needed) -->
+<script>
+(function startSSE() {
+    const dot = document.getElementById('liveDot');
+    const ind = document.getElementById('liveIndicator');
+
+    function setLive(ok) {
+        if (!dot) return;
+        dot.style.background = ok ? '#2C5E31' : '#F44336';
+        dot.style.opacity = '1';
+        if (ind) ind.title = ok ? 'Connected — live' : 'Disconnected';
+    }
+
+    function connect() {
+        const es = new EventSource('/admin/api/stream');
+
+        es.addEventListener('connected', () => {
+            setLive(true);
+        });
+
+        // ---- Initial full snapshots ----
+        es.addEventListener('logs_init', e => {
+            const docs = JSON.parse(e.data);
+            docs.forEach(d => window._logsMap.set(d._docId, d));
+            window.computeAndUpdateStats();
+        });
+
+        es.addEventListener('convs_init', e => {
+            const docs = JSON.parse(e.data);
+            docs.forEach(d => window._convsMap.set(d._docId, d));
+            window.computeAndUpdateStats();
+        });
+
+        // ---- Incremental changes (only changed docs after initial snapshot) ----
+        es.addEventListener('logs_change', e => {
+            const d = JSON.parse(e.data);
+            if (d._changeType === 'REMOVED') {
+                window._logsMap.delete(d._docId);
+            } else {
+                window._logsMap.set(d._docId, d);
+            }
+            window.computeAndUpdateStats();
+        });
+
+        es.addEventListener('convs_change', e => {
+            const d = JSON.parse(e.data);
+            if (d._changeType === 'REMOVED') {
+                window._convsMap.delete(d._docId);
+            } else {
+                window._convsMap.set(d._docId, d);
+            }
+            window.computeAndUpdateStats();
+        });
+
+        es.onerror = () => {
+            setLive(false);
+            es.close();
+            // Reconnect after 5 s
+            setTimeout(connect, 5000);
+        };
+    }
+
+    connect();
+})();
+</script>
+</body>
+</html>
