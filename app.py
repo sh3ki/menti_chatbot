@@ -187,7 +187,7 @@ def admin_api_stats():
             'messagesToday': 0,
             'activeUsersToday': 0,
             'newUsersToday': 0,
-            'emotionCounts': {'happy': 0, 'sad': 0, 'anxious': 0, 'stressed': 0, 'neutral': 0},
+            'emotionCounts': {'happy': 0, 'calm': 0, 'sad': 0, 'anxious': 0, 'stressed': 0, 'angry': 0, 'confused': 0, 'motivated': 0, 'tired': 0, 'numb': 0},
             'riskAlertCount': 0
         }
 
@@ -223,7 +223,7 @@ def admin_api_stats():
                 if uid:
                     active_today_set.add(uid)
 
-            if emotion in ('sad', 'anxious', 'stressed') and date >= seven_days_ago:
+            if emotion in ('sad', 'anxious', 'stressed', 'angry', 'tired', 'numb') and date >= seven_days_ago:
                 risk_user_neg[uid] = risk_user_neg.get(uid, 0) + 1
 
         stats['activeUsersToday'] = len(active_today_set)
@@ -259,7 +259,7 @@ def admin_api_users():
                     'totalMessages': 0, 'negativeRecent': 0,
                     'lastActive': '', 'isAnonymous': log.get('isAnonymous', False),
                     'firstSeen': log.get('date', ''),
-                    'emotionCounts': {'happy': 0, 'sad': 0, 'anxious': 0, 'stressed': 0, 'neutral': 0}
+                    'emotionCounts': {'happy': 0, 'calm': 0, 'sad': 0, 'anxious': 0, 'stressed': 0, 'angry': 0, 'confused': 0, 'motivated': 0, 'tired': 0, 'numb': 0}
                 }
             user_log_stats[uid]['totalMessages'] += 1
             ts = log.get('timestamp', '')
@@ -271,7 +271,7 @@ def admin_api_users():
             emotion = log.get('emotion', 'neutral')
             if emotion in user_log_stats[uid]['emotionCounts']:
                 user_log_stats[uid]['emotionCounts'][emotion] += 1
-            if emotion in ('sad', 'anxious', 'stressed') and date >= seven_days_ago:
+            if emotion in ('sad', 'anxious', 'stressed', 'angry', 'tired', 'numb') and date >= seven_days_ago:
                 user_log_stats[uid]['negativeRecent'] += 1
 
         def risk(neg):
@@ -372,7 +372,7 @@ def admin_api_emotions():
         date_labels = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(29, -1, -1)]
         thirty_days_ago = date_labels[0]
 
-        emotion_keys = ['happy', 'sad', 'anxious', 'stressed', 'neutral']
+        emotion_keys = ['happy', 'calm', 'sad', 'anxious', 'stressed', 'angry', 'confused', 'motivated', 'tired', 'numb']
         # trends[emotion][date] = count
         trends = {e: {d: 0 for d in date_labels} for e in emotion_keys}
 
@@ -412,7 +412,7 @@ def admin_api_risk_alerts():
             date = log.get('date', '')
             emotion = log.get('emotion', 'neutral')
             uid = log.get('userId', '')
-            if not uid or emotion not in ('sad', 'anxious', 'stressed') or date < seven_days_ago:
+            if not uid or emotion not in ('sad', 'anxious', 'stressed', 'angry', 'tired', 'numb') or date < seven_days_ago:
                 continue
             if uid not in user_risk:
                 user_risk[uid] = {
@@ -428,7 +428,14 @@ def admin_api_risk_alerts():
                 user_risk[uid]['lastActive'] = ts
 
         alerts = []
-        reason_map = {'sad': 'Recurring sadness', 'anxious': 'Persistent anxiety', 'stressed': 'Chronic stress'}
+        reason_map = {
+            'sad':       'Recurring sadness',
+            'anxious':   'Persistent anxiety',
+            'stressed':  'Chronic stress',
+            'angry':     'Persistent anger/frustration',
+            'tired':     'Chronic mental exhaustion',
+            'numb':      'Emotional disconnection'
+        }
         for uid, data in user_risk.items():
             if data['count'] < 5:
                 continue
@@ -528,7 +535,7 @@ def admin_api_stream():
         return Response(no_db(), mimetype='text/event-stream')
 
     client_q = queue.SimpleQueue()
-    is_first = {'logs': True, 'convs': True}
+    is_first = {'logs': True, 'convs': True, 'crisis': True}
 
     def _safe_dict(doc, change_type=None):
         d = doc.to_dict() or {}
@@ -567,8 +574,22 @@ def admin_api_stream():
         except Exception as ex:
             print(f'[SSE] on_convs error: {ex}')
 
-    logs_watch = db.collection('emotion_logs').on_snapshot(on_logs)
-    convs_watch = db.collection('conversations').on_snapshot(on_convs)
+    def on_crisis(col_snapshot, changes, read_time):
+        try:
+            if is_first['crisis']:
+                is_first['crisis'] = False
+                batch = [_safe_dict(c.document) for c in changes]
+                client_q.put_nowait(f"event: crisis_init\ndata: {json.dumps(batch)}\n\n")
+            else:
+                for c in changes:
+                    d = _safe_dict(c.document, c.type.name)
+                    client_q.put_nowait(f"event: crisis_change\ndata: {json.dumps(d)}\n\n")
+        except Exception as ex:
+            print(f'[SSE] on_crisis error: {ex}')
+
+    logs_watch   = db.collection('emotion_logs').on_snapshot(on_logs)
+    convs_watch  = db.collection('conversations').on_snapshot(on_convs)
+    crisis_watch = db.collection('crisis_alerts').on_snapshot(on_crisis)
 
     def generate():
         try:
@@ -583,6 +604,8 @@ def admin_api_stream():
             try: logs_watch.unsubscribe()
             except Exception: pass
             try: convs_watch.unsubscribe()
+            except Exception: pass
+            try: crisis_watch.unsubscribe()
             except Exception: pass
 
     return Response(
@@ -640,6 +663,7 @@ def chat():
         is_guest = data.get('is_guest', False)  # Check if user is in guest mode
         conversation_id = data.get('conversation_id')  # Get conversation ID for logged-in users
         save_only = data.get('save_only', False)  # Flag to only save without generating response
+        mode = data.get('mode', 'friendly')  # Conversation style mode: friendly / supportive / professional
         
         # If save_only mode, just save the existing messages
         if save_only:
@@ -675,12 +699,23 @@ def chat():
             "content": user_message
         })
         
-        # Step 2: Detect emotion using OpenAI
+        # Step 2a: Detect emotion
         emotion = detect_emotion(user_message)
         print(f"😊 Detected emotion: {emotion}")
+
+        # Step 2b: Detect emotional masking / avoidance
+        is_masking = detect_emotional_masking(user_message)
+        if is_masking:
+            print(f"🎭 Emotional masking flag raised — will probe gently")
+
+        # Step 2c: Detect crisis signals (self-harm, suicide, homicide, medical, abuse)
+        is_crisis, crisis_type, crisis_severity = detect_crisis(user_message)
+        if is_crisis:
+            print(f"🚨 CRISIS DETECTED: {crisis_type} [{crisis_severity}]")
+            log_crisis_alert(user_id, user_message, crisis_type, crisis_severity, emotion, mode, is_anonymous=is_guest)
         
         # Step 3: Generate supportive response with conversation context
-        bot_reply = generate_supportive_response(user_message, emotion, user_id)
+        bot_reply = generate_supportive_response(user_message, emotion, user_id, is_masking=is_masking, mode=mode, is_crisis=is_crisis, crisis_type=crisis_type)
         
         # Step 4: Add bot response to history
         conversation_history[user_id].append({
@@ -689,10 +724,10 @@ def chat():
         })
         print(f"💬 Bot reply generated. Total messages in history: {len(conversation_history[user_id])}")
         
-        # Keep only last 20 messages (10 exchanges) to manage token usage
-        if len(conversation_history[user_id]) > 20:
-            conversation_history[user_id] = conversation_history[user_id][-20:]
-            print(f"✂️ Trimmed conversation history to last 20 messages")
+        # Keep only last 12 messages (6 exchanges) to manage token usage
+        if len(conversation_history[user_id]) > 12:
+            conversation_history[user_id] = conversation_history[user_id][-12:]
+            print(f"✂️ Trimmed conversation history to last 12 messages")
         
         # Step 5: Store chat in Firestore for BOTH guest and logged-in users
         # Guest data will be deleted on logout, logged-in data persists
@@ -787,8 +822,9 @@ def clear_history():
 
 def detect_emotion(message):
     """
-    Detect emotion from user message using Groq
-    Returns: happy, sad, anxious, stressed, or neutral
+    Detect emotion from user message using Groq.
+    Returns one of 10 emotion categories:
+    happy, calm, sad, anxious, stressed, angry, confused, motivated, tired, numb
     """
     try:
         response = groq_client.chat.completions.create(
@@ -796,157 +832,396 @@ def detect_emotion(message):
             messages=[
                 {
                     "role": "system",
-                    "content": """You are an emotion detection AI. Analyze the user's message and classify it into one of these emotions: happy, sad, anxious, stressed, or neutral.
-                    
-Only respond with ONE word: happy, sad, anxious, stressed, or neutral."""
+                    "content": """Classify the emotion in this message into ONE word only.
+Choices: happy, calm, sad, anxious, stressed, angry, confused, motivated, tired, numb
+Rules: pick the best match, never default to calm/numb unless clearly indicated, reply with ONE word."""
                 },
                 {
                     "role": "user",
                     "content": message
                 }
             ],
-            max_tokens=10,
-            temperature=0.3
+            max_tokens=5,
+            temperature=0.1
         )
         
         emotion = response.choices[0].message.content.strip().lower()
         
-        # Validate emotion
-        valid_emotions = ['happy', 'sad', 'anxious', 'stressed', 'neutral']
+        # Validate emotion — must be exactly one of the 10
+        valid_emotions = ['happy', 'calm', 'sad', 'anxious', 'stressed', 'angry', 'confused', 'motivated', 'tired', 'numb']
         if emotion not in valid_emotions:
-            emotion = 'neutral'
+            # Try partial match for minor model variance (e.g. 'calmness' -> 'calm')
+            matched = next((e for e in valid_emotions if e in emotion), None)
+            emotion = matched if matched else 'calm'
         
         return emotion
     
     except Exception as e:
         print(f"Error detecting emotion: {e}")
-        return 'neutral'
+        return 'calm'
 
 
-def generate_supportive_response(message, emotion, user_id):
+# ==================== EMOTIONAL MASKING DETECTION ====================
+
+import re as _re
+
+# Common emotional masking/avoidance patterns (fast pre-screen, no API call)
+_MASKING_PATTERNS = [
+    r"\bi'?m fine\b", r"\bi am fine\b",
+    r"\bit'?s okay\b", r"\bit is okay\b", r"\bit'?s ok\b",
+    r"\bdon'?t worry about me\b", r"\bdon'?t worry\b",
+    r"\bi'?m okay\b", r"\bi am okay\b",
+    r"\bi'?m alright\b", r"\bi am alright\b",
+    r"\bno worries\b", r"\bi'?m good\b", r"\bi am good\b",
+    r"\bdon'?t mind me\b", r"\bforget it\b", r"\bnever mind\b",
+    r"\bwhatever\b", r"\bi'?ll be fine\b", r"\bi'?ll be okay\b",
+    r"\bi'?ll manage\b", r"\bit doesn'?t matter\b",
+    r"\bit'?s nothing\b", r"\bno big deal\b",
+    r"\bnothing'?s wrong\b", r"\bi'?m just tired\b",
+    r"\bjust ignore me\b", r"\bi'?m used to it\b",
+    r"\bi can handle it\b", r"\bi'?ll be alright\b",
+    r"\bdoesn'?t matter\b", r"\bnot a big deal\b",
+    r"\bsame as always\b", r"\bsame old\b",
+]
+
+
+def detect_emotional_masking(message):
     """
-    Generate a comforting and supportive response based on detected emotion
-    with conversation history for context - FOCUSED ON MENTAL HEALTH SUPPORT
+    Detect if a user is emotionally masking or avoiding their true feelings.
+    Phase 1: Fast regex pre-screen for common dismissive/avoidant phrases.
+    Phase 2: AI check for subtle masking in short messages.
+    Returns True if emotional masking/avoidance is detected.
+    """
+    msg_lower = message.lower().strip()
+
+    # Phase 1 — fast regex check (no API cost)
+    for pattern in _MASKING_PATTERNS:
+        if _re.search(pattern, msg_lower):
+            print(f"🎭 Emotional masking detected via pattern: '{pattern}'")
+            return True
+
+    # Phase 2 — AI check for subtle masking (only for short messages)
+    if len(message.split()) <= 25:
+        try:
+            response = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Is this message emotional masking or avoidance? (e.g. 'I'm fine', 'never mind', downplaying real distress, deflecting). Answer YES or NO only."
+                    },
+                    {
+                        "role": "user",
+                        "content": message
+                    }
+                ],
+                max_tokens=3,
+                temperature=0.1
+            )
+            answer = response.choices[0].message.content.strip().upper()
+            is_masking = answer.startswith('YES')
+            if is_masking:
+                print(f"🎭 Emotional masking detected via AI analysis")
+            return is_masking
+        except Exception as e:
+            print(f"Masking detection error: {e}")
+
+    return False
+
+
+# ==================== CRISIS DETECTION ====================
+
+def detect_crisis(message):
+    """
+    Detect crisis indicators in a user message.
+    Phase 1: Fast regex check.
+    Phase 2: AI confirmation for subtle/ambiguous cases.
+    Returns: (is_crisis: bool, crisis_type: str, severity: str)
+      crisis_type: 'suicide' | 'self_harm' | 'homicide' | 'medical' | 'abuse'
+      severity:    'HIGH' | 'MEDIUM'
+    """
+    import re
+    text = message.lower().strip()
+
+    # --- Phase 1: Regex patterns ---
+    suicide_patterns = [
+        r'\bkill myself\b', r'\bend my life\b', r'\bwant to die\b', r'\bwanna die\b',
+        r'\bsuicide\b', r'\bsuicidal\b', r'\btake my (own )?life\b', r'\bnot want to (be here|live|exist)\b',
+        r'\bdon\'?t want to live\b', r'\bno reason to live\b', r'\bbetter off dead\b',
+        r'\bthinking of (ending|killing)\b', r'\bplan to kill\b', r"\bi('m| am) going to kill myself\b",
+    ]
+    self_harm_patterns = [
+        r'\bcut(ting)? (myself|me)\b', r'\bhurt(ing)? (myself|me)\b', r'\bself.?harm\b',
+        r'\bburning? (myself|my skin)\b', r'\bscratch(ing)? (myself|my skin)\b',
+        r'\bblood(ing)?\b.{0,30}\bmyself\b', r'\bpunch(ing)? (myself|a wall|the wall)\b',
+    ]
+    homicide_patterns = [
+        r'\bkill (someone|them|him|her|people)\b', r'\bmurder\b', r'\bwant to hurt (someone|them|him|her)\b',
+        r'\bgoing to (hurt|attack|stab|shoot)\b', r'\bhomicid\b',
+    ]
+    medical_patterns = [
+        r'\bcan\'?t breathe\b', r'\bcan not breathe\b', r'\bpanic attack\b',
+        r'\bheart attack\b', r'\bchest (pain|tightness|hurts?)\b', r'\bpassing out\b',
+        r'\bfainting\b', r'\boverdos(e|ing)\b', r'\bseizure\b',
+    ]
+    abuse_patterns = [
+        r'\b(being|getting) (abused|beaten|hit|assaulted|raped|molested)\b',
+        r'\b(someone|he|she|they) (hurt|hits|beats|abuses) me\b',
+        r'\bdomestic (violence|abuse)\b', r'\bsexual(ly)? (abuse|assault)\b',
+    ]
+
+    for pat in suicide_patterns:
+        if re.search(pat, text):
+            return True, 'suicide', 'HIGH'
+    for pat in self_harm_patterns:
+        if re.search(pat, text):
+            return True, 'self_harm', 'HIGH'
+    for pat in homicide_patterns:
+        if re.search(pat, text):
+            return True, 'homicide', 'HIGH'
+    for pat in medical_patterns:
+        if re.search(pat, text):
+            return True, 'medical', 'MEDIUM'
+    for pat in abuse_patterns:
+        if re.search(pat, text):
+            return True, 'abuse', 'MEDIUM'
+
+    # --- Phase 2: AI check for subtle messages (only if message < 60 words) ---
+    word_count = len(text.split())
+    if groq_client and word_count < 60:
+        try:
+            resp = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": (
+                        "You are a crisis detection system. Analyze the message for crisis signals: "
+                        "suicidal ideation, self-harm intent, homicidal thoughts, medical emergency, or active abuse. "
+                        "Reply with EXACTLY one of: SUICIDE / SELF_HARM / HOMICIDE / MEDICAL / ABUSE / NONE. "
+                        "Only flag explicit/clear intent — not vague emotional distress."
+                    )},
+                    {"role": "user", "content": message}
+                ],
+                max_tokens=5,
+                temperature=0.0
+            )
+            answer = resp.choices[0].message.content.strip().upper().split()[0]
+            type_map = {
+                'SUICIDE':   ('suicide',   'HIGH'),
+                'SELF_HARM': ('self_harm', 'HIGH'),
+                'HOMICIDE':  ('homicide',  'HIGH'),
+                'MEDICAL':   ('medical',   'MEDIUM'),
+                'ABUSE':     ('abuse',     'MEDIUM'),
+            }
+            if answer in type_map:
+                crisis_type, severity = type_map[answer]
+                print(f"🚨 Crisis detected via AI: {crisis_type} [{severity}]")
+                return True, crisis_type, severity
+        except Exception as e:
+            print(f"Crisis AI detection error: {e}")
+
+    return False, '', ''
+
+
+def log_crisis_alert(user_id, message, crisis_type, severity, emotion, mode, is_anonymous=False):
+    """Write a crisis alert to Firestore crisis_alerts collection."""
+    if not db:
+        return
+    try:
+        now = datetime.now()
+        # Store a truncated message snippet (max 200 chars) for privacy
+        snippet = message[:200] + ('...' if len(message) > 200 else '')
+        db.collection('crisis_alerts').document().set({
+            'userId':      user_id,
+            'isAnonymous': is_anonymous,
+            'crisisType':  crisis_type,
+            'severity':    severity,
+            'emotion':     emotion,
+            'mode':        mode,
+            'messageSnippet': snippet,
+            'timestamp':   now.isoformat(),
+            'date':        now.strftime('%Y-%m-%d'),
+            'reviewed':    False,
+        })
+        print(f"🚨 Crisis alert logged: {crisis_type} [{severity}] for user {user_id}")
+    except Exception as e:
+        print(f"Error logging crisis alert: {e}")
+
+
+def generate_supportive_response(message, emotion, user_id, is_masking=False, mode='friendly', is_crisis=False, crisis_type=None):
+    """
+    Generate a response shaped entirely by the selected mode.
+    Three distinct system prompts — mode drives everything.
+    Uses Listen → Empathize → Guide within each mode's own style.
     """
     try:
-        # Create emotion-specific mental health support prompts with deep empathy
-        emotion_prompts = {
-            'happy': "The user is experiencing happiness or positivity. CELEBRATE with them warmly! Share in their joy, validate how wonderful it feels to have good moments, and encourage them to savor and remember this feeling. Help them recognize what brought this positivity so they can nurture it. Remind them that these moments matter, especially after difficult times.",
-            
-            'sad': "The user is experiencing sadness or grief. Wrap them in comfort and deep empathy. Acknowledge that sadness is heavy and real. DON'T rush to 'fix' it - sit with them in their pain. Validate that it's okay to feel sad, that tears are healing, and that their feelings matter. Gently explore what's hurting them, offer emotional soothing, and remind them they don't have to carry this alone. Suggest gentle self-compassion and reaching out to loved ones.",
-            
-            'anxious': "The user is experiencing anxiety or worry. Offer a calming, grounding presence. Acknowledge that anxiety feels overwhelming and exhausting. Validate that their worries are real to them and that anxiety doesn't make them weak. Help them feel less alone in their fear. Gently guide them toward grounding techniques (deep breathing, focusing on present moment). Remind them that anxious thoughts are not facts, and they have the strength to cope with this.",
-            
-            'stressed': "The user is experiencing stress or feeling overwhelmed. Acknowledge how heavy and exhausting stress feels. Validate that they're carrying a lot and it makes total sense they feel this way. Offer comfort and understanding. Help them identify what's weighing on them most. Gently suggest breaking things into smaller steps, setting boundaries, or taking breaks. Remind them it's okay to ask for help and that they deserve rest and care.",
-            
-            'neutral': "The user's emotional state is unclear, but they reached out - that matters. Create a deeply warm and safe space. Let them know you're here to listen without judgment. Use gentle, open questions to help them explore how they're really feeling. Sometimes people need permission to be vulnerable - give them that. Show genuine interest in their well-being and let them set the pace of the conversation."
+        # Short emotion hints — injected into the mode prompts (token-efficient)
+        emotion_hints = {
+            'happy':     'User is joyful/positive. Celebrate with them warmly.',
+            'calm':      'User is peaceful/stable. Honor it gently, no disruption.',
+            'sad':       'User is hurting/grieving. Sit with them — do NOT rush to fix.',
+            'anxious':   'User is worried/fearful. Ground them calmly, validate the fear.',
+            'stressed':  'User is overwhelmed. Acknowledge the weight, offer small steps.',
+            'angry':     'User is angry/frustrated. Validate it, explore what is underneath.',
+            'confused':  'User is lost/uncertain. Be steady, help untangle one thing.',
+            'motivated': 'User is hopeful/driven. Match energy, celebrate and direct it.',
+            'tired':     'User is drained/exhausted. Lead with compassion, encourage rest.',
+            'numb':      'User feels empty/disconnected. Be still, no pressure, just presence.',
         }
-        
-        system_prompt = f"""You are Menti, a deeply empathetic and caring mental health companion who exists to be a comforting presence and trusted friend. You are someone's go-to buddy when they need support, understanding, and meaningful advice about their mental well-being.
 
-💙 WHO YOU ARE:
-You are a warm, compassionate companion who genuinely cares about mental health and emotional well-being. You're the friend who always has time to listen, who remembers what matters, and who offers comfort without judgment. You focus ONLY on mental health, emotional support, and well-being - nothing else.
+        # Masking note — compact, only injected when needed
+        masking_note = ""
+        if is_masking:
+            masking_note = (
+                "\nMASKING DETECTED: User seems to be brushing off real feelings "
+                "(e.g. 'I'm fine', 'It's okay'). Don't accept it at face value. "
+                "Gently acknowledge their words AND create a soft opening for them to share more. "
+                "No pressure — just a warm invitation.\n"
+            )
 
-❤️ YOUR HEART (Deep Empathy):
-- You FEEL with people, not just for them - you understand their pain deeply
-- Every word you speak radiates warmth, comfort, and genuine care
-- You create a safe space where vulnerability is welcomed and honored
-- You see the person behind the pain and remind them of their worth
-- You never minimize feelings - you validate and honor every emotion
-- You speak with tenderness, especially when someone is hurting
+        emotion_hint = emotion_hints.get(emotion, '')
+        active_emotion = 'masked' if is_masking else emotion
 
-🤗 YOUR ROLE (Comforting Companion):
-- You're a loyal friend who's always there, day or night
-- You provide emotional comfort like a warm hug through words
-- You remind people they're not alone in their struggles
-- You celebrate their small victories and progress
-- You're patient with their pace of healing
-- You make them feel seen, heard, and deeply understood
+        # ================================================================
+        # CRISIS OVERRIDE — fires for all modes when crisis detected
+        # ================================================================
+        crisis_type_labels = {
+            'suicide':   'suicidal ideation',
+            'self_harm': 'self-harm',
+            'homicide':  'homicidal thoughts',
+            'medical':   'medical emergency',
+            'abuse':     'abuse/assault',
+        }
+        if is_crisis and crisis_type:
+            crisis_label = crisis_type_labels.get(crisis_type, 'crisis situation')
+            if mode == 'friendly':
+                system_prompt = f"""You are Menti — a warm, caring best friend. The user has expressed {crisis_label}.
+YOUR MOST IMPORTANT JOB RIGHT NOW: Make them feel heard and safe — then gently connect them to real help.
+STEPS:
+1. Acknowledge their pain with deep warmth — 1 short sentence. No minimizing.
+2. Tell them you're really glad they shared this — they don't have to face it alone.
+3. Gently encourage them to reach out to the 988 Suicide & Crisis Lifeline (call or text 988 in the US). For medical emergencies, suggest calling 911.
+4. Ask one soft, caring question to keep them talking to you.
+TONE: Gentle, warm, zero judgment. Short — 3-4 sentences. No lists. Like a caring friend who truly cares."""
+            elif mode == 'supportive':
+                system_prompt = f"""You are Menti — an empowering, supportive companion. The user has expressed {crisis_label}.
+YOUR PRIORITY: Respond with strength and care — make them feel genuinely supported, then connect them to professional help.
+STEPS:
+1. Validate their courage in sharing — it takes strength. 1 sentence.
+2. Affirm that they matter and this is serious — 1 sentence.
+3. Encourage them to contact the 988 Suicide & Crisis Lifeline (call or text 988). For medical emergencies, recommend calling 911 immediately.
+4. One empowering question to keep them engaged.
+TONE: Warm, motivational, caring. 3-4 sentences. No lists. No clinical coldness."""
+            else:  # professional
+                system_prompt = f"""You are Menti — a calm, counselor-informed mental health companion. The user has expressed {crisis_label}.
+CLINICAL PRIORITY: Acknowledge, validate, safety-plan, and connect to immediate resources.
+STRUCTURE:
+1. Reflect what they shared with clinical empathy — no minimizing, no dismissal.
+2. Normalize reaching out while underscoring the seriousness.
+3. Provide the 988 Suicide & Crisis Lifeline (call or text 988 in the US) as the immediate resource. For imminent danger or medical emergency, recommend calling 911.
+4. If relevant, mention that professional support (therapist, counselor) can provide ongoing care.
+5. Ask one open-ended question to maintain connection and assess their immediate safety.
+TONE: Warm, measured, professional. 5-6 sentences. Structured paragraphs. No bullet lists."""
 
-� HOW YOU COMMUNICATE (Meaningful & Comforting):
-- Start with EMPATHY: "I hear how much pain you're in..." / "That sounds really hard..."
-- VALIDATE deeply: "It's completely understandable to feel this way..."
-- NORMALIZE struggles: "Many people experience this, and it doesn't make you weak..."
-- COMFORT genuinely: "You deserve to feel better, and it's okay to not be okay right now..."
-- ENCOURAGE hope: "Things can get better, even if it doesn't feel that way now..."
-- End with SUPPORT: "I'm here with you through this..." / "You don't have to face this alone..."
+            response_max_tokens = 220
 
-🎯 YOUR ADVICE (Meaningful & Morally Right):
-- Give practical, compassionate advice grounded in mental health best practices
-- Suggest healthy coping strategies: breathing exercises, journaling, self-care, reaching out
-- Encourage positive actions: talking to loved ones, seeking professional help when needed
-- Promote self-compassion and self-kindness above all
-- Guide toward healthy boundaries and self-respect
-- NEVER suggest anything harmful, avoidant, or morally questionable
-- Always prioritize their safety, dignity, and well-being
+            messages = [{"role": "system", "content": system_prompt}]
+            if user_id in conversation_history and conversation_history[user_id]:
+                messages.extend(conversation_history[user_id][-4:])
+            else:
+                messages.append({"role": "user", "content": message})
 
-✨ MENTAL HEALTH FOCUS (Your Only Topic):
-- You ONLY discuss mental health, emotions, feelings, and well-being
-- Topics you support: anxiety, depression, stress, loneliness, grief, trauma, relationships (emotional aspects), self-esteem, burnout, life transitions
-- If asked about other topics: Gently redirect to mental health with care
-- Example: "I'm here specifically to support your mental and emotional well-being. How are you feeling right now?"
+            response = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                max_tokens=response_max_tokens,
+                temperature=0.65
+            )
+            bot_reply = response.choices[0].message.content.strip()
+            print(f"🚨 [CRISIS-{mode}] Response: {bot_reply[:80]}...")
+            return bot_reply
 
-🌟 YOUR APPROACH:
-1. LISTEN with your whole heart - read between the lines
-2. VALIDATE their feelings completely - they need to feel heard
-3. EMPATHIZE deeply - show you truly understand their pain
-4. COMFORT with warmth - offer emotional soothing
-5. GUIDE gently - share meaningful advice and coping strategies
-6. ENCOURAGE hope - remind them healing is possible
-7. STAY PRESENT - be their steady companion through the journey
+        # ================================================================
+        # THREE FULLY SEPARATE MODE PROMPTS — mode-first, lean, distinct
+        # ================================================================
 
-⚠️ CRITICAL BOUNDARIES:
-- If someone mentions self-harm or suicide: Respond with deep care, express concern, and STRONGLY encourage immediate professional help (therapist, counselor, crisis hotline: 988 in US)
-- If someone needs clinical intervention: Gently encourage therapy or counseling
-- NEVER diagnose or prescribe medication
-- NEVER give advice that could harm them
-- NEVER dismiss or minimize serious concerns
+        if mode == 'friendly':
+            system_prompt = f"""You are Menti — a warm, caring best friend who genuinely listens and makes people feel better just by being there.
+Emotion detected: {active_emotion}. {emotion_hint}{masking_note}
+APPROACH — follow this order every time:
+1. LISTEN: Open with 1 sentence showing you truly heard them. Use their own words back. ("ugh, rejection really does sting...", "that sounds so exhausting...")
+2. EMPATHIZE: 1-2 sentences of genuine warmth and comfort. Make them feel less alone. Be human, not clinical.
+3. GUIDE: 1 gentle, casual suggestion or reframe — nothing overwhelming. Keep it light.
+4. End with ONE soft, curious question — show you actually want to know more.
+TONE RULES:
+- Casual bestie texting style. Contractions. Real words. Zero jargon.
+- Warm and cozy — like a hug through a message.
+- NO bullet points. NO lists. NO therapy-speak.
+- Total length: 3-4 sentences max. Short but full of heart.
+- If masking: acknowledge their words warmly, then gently leave a door open.
+Safety: If self-harm/suicide mentioned, respond with care and share 988 crisis line."""
 
-📝 YOUR RESPONSE STYLE:
-- 4-7 sentences (enough to be meaningful, not overwhelming)
-- Lead with empathy and validation ALWAYS
-- Balance comfort with actionable advice
-- Use warm, gentle, friend-like language (like talking to someone you deeply care about)
-- Be genuine and human - show emotion, show you care
-- Ask ONE caring follow-up question that shows you're invested
-- Reference their previous messages to show you remember and care
+            response_max_tokens = 110
 
-🎭 CURRENT EMOTIONAL CONTEXT:
-Emotion detected: {emotion}
-{emotion_prompts.get(emotion, emotion_prompts['neutral'])}
+        elif mode == 'supportive':
+            system_prompt = f"""You are Menti — an encouraging, empowering companion who makes people feel capable and understood.
+Emotion detected: {active_emotion}. {emotion_hint}{masking_note}
+APPROACH — follow this order every time:
+1. LISTEN: 1 sentence acknowledging exactly what they shared — show you heard every word.
+2. EMPATHIZE: 1 sentence of strong, genuine validation. Make them feel seen and NOT alone.
+3. GUIDE: 1 sentence affirming their strength + ONE clear, hopeful, actionable suggestion.
+4. End with 1 uplifting question that builds their confidence and invites reflection.
+TONE RULES:
+- Warm, motivational, like a supportive coach who believes in them completely.
+- NO bullet points. NO lists. Flowing sentences only.
+- Total length: 3-4 sentences. Meaningful but concise.
+- If masking: validate warmly, then gently invite them to share what's really going on.
+Safety: If self-harm/suicide mentioned, respond with deep care and share 988 crisis line."""
 
-Remember: You are not a therapist - you are a caring companion, a trusted friend, a comforting presence. Be the mental health buddy they need, offering empathy, comfort, and meaningful advice rooted in compassion and moral integrity. Make them feel less alone and more hopeful."""
-        
-        # Build messages array with conversation history
+            response_max_tokens = 130
+
+        else:  # professional
+            system_prompt = f"""You are Menti — a calm, knowledgeable mental health companion who speaks in a counselor-informed style.
+Emotion detected: {active_emotion}. {emotion_hint}{masking_note}
+APPROACH — follow this structure strictly every time:
+1. LISTEN: Acknowledge what they've shared with precise, empathetic language.
+2. EMPATHIZE: Validate their feelings and normalize their experience without minimizing.
+3. GUIDE: Reframe or provide brief psychoeducation, then name ONE specific, evidence-based coping strategy (e.g. box breathing, cognitive reframing, behavioral activation, grounding 5-4-3-2-1).
+4. If warranted, gently recommend professional support.
+5. End with a reflective, open-ended question that promotes self-awareness.
+TONE RULES:
+- Formal but warm. Measured and calm. No slang or casualness.
+- NO bullet points. NO lists. Structured flowing paragraphs.
+- Total length: 5-6 sentences. Thorough but not overwhelming.
+- If masking: acknowledge professionally then invite deeper reflection.
+Safety: If self-harm/suicide mentioned, respond with clinical care and provide 988 Suicide & Crisis Lifeline."""
+
+            response_max_tokens = 250
+
+        # Build messages: system prompt + trimmed conversation history
         messages = [{"role": "system", "content": system_prompt}]
-        
-        # Add conversation history (which already includes the current user message)
+
         if user_id in conversation_history and conversation_history[user_id]:
-            messages.extend(conversation_history[user_id])
-            print(f"📝 Using conversation history with {len(conversation_history[user_id])} messages")
+            # Use only last 8 messages (4 exchanges) to minimize tokens
+            trimmed = conversation_history[user_id][-8:]
+            messages.extend(trimmed)
+            print(f"📝 History: {len(trimmed)} msgs | Mode: {mode} | max_tokens: {response_max_tokens}")
         else:
-            # If no history exists, this shouldn't happen since we add the message before calling this function
-            # But as a fallback, add the current message
-            print(f"⚠️ No conversation history found for user: {user_id}, adding current message as fallback")
             messages.append({"role": "user", "content": message})
-        
-        # Debug: Print the messages being sent to Groq
-        print(f"🤖 Sending {len(messages)} messages to Groq (1 system + {len(messages)-1} conversation)")
-        
+
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
-            max_tokens=200,
-            temperature=0.8
+            max_tokens=response_max_tokens,
+            temperature=0.75
         )
-        
+
         bot_reply = response.choices[0].message.content.strip()
-        print(f"✅ Generated response: {bot_reply[:100]}...")
+        print(f"✅ [{mode}] Response: {bot_reply[:80]}...")
         return bot_reply
-    
+
     except Exception as e:
         print(f"Error generating response: {e}")
-        return "I'm here for you. Could you tell me more about what's on your mind? I really want to understand how you're feeling."
+        return "I'm here for you. Could you tell me more about what's on your mind?"
 
 
 def generate_smart_title(user_message):
@@ -956,7 +1231,7 @@ def generate_smart_title(user_message):
     """
     try:
         response = groq_client.chat.completions.create(
-            model="mixtral-8x7b-32768",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
