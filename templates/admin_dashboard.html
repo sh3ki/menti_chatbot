@@ -120,6 +120,77 @@
             transform: translateY(-1px);
         }
 
+        .admin-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 15, 15, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 16px;
+        }
+
+        .admin-modal-content {
+            width: 100%;
+            max-width: 420px;
+            background: #FFFFFF;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 16px 40px rgba(15, 15, 15, 0.22);
+            border: 1px solid #E0E5E1;
+        }
+
+        .admin-modal-content h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0F0F0F;
+            margin-bottom: 10px;
+        }
+
+        .admin-modal-content p {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #28282B;
+            opacity: 0.85;
+            margin-bottom: 18px;
+        }
+
+        .admin-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .admin-modal-btn {
+            border: 1px solid transparent;
+            border-radius: 10px;
+            padding: 9px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .admin-modal-cancel {
+            background: #FFFFFF;
+            color: #28282B;
+            border-color: #D0DAD2;
+        }
+
+        .admin-modal-cancel:hover {
+            background: #F7FAF8;
+        }
+
+        .admin-modal-confirm {
+            background: #C62828;
+            color: #FFFFFF;
+        }
+
+        .admin-modal-confirm:hover {
+            background: #B71C1C;
+        }
+
         /* ============================================================ LAYOUT */
         .layout {
             display: flex;
@@ -658,7 +729,18 @@
             <div class="name">{{ admin_username }}</div>
             <div class="role">System Administrator</div>
         </div>
-        <button class="btn-logout" onclick="adminLogout()">Logout</button>
+        <button class="btn-logout" onclick="showAdminLogoutModal()">Logout</button>
+    </div>
+</div>
+
+<div id="adminLogoutModal" class="admin-modal">
+    <div class="admin-modal-content">
+        <h3>Confirm Logout</h3>
+        <p>Are you sure you want to logout from the admin dashboard?</p>
+        <div class="admin-modal-actions">
+            <button class="admin-modal-btn admin-modal-cancel" onclick="hideAdminLogoutModal()">Cancel</button>
+            <button class="admin-modal-btn admin-modal-confirm" onclick="adminLogout()">Logout</button>
+        </div>
     </div>
 </div>
 
@@ -1052,7 +1134,25 @@ function showToast(msg, dur = 3000) {
 }
 
 // ============================================================ LOGOUT
+function showAdminLogoutModal() {
+    const modal = document.getElementById('adminLogoutModal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function hideAdminLogoutModal() {
+    const modal = document.getElementById('adminLogoutModal');
+    if (modal) modal.style.display = 'none';
+}
+
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('adminLogoutModal');
+    if (modal && event.target === modal) {
+        hideAdminLogoutModal();
+    }
+});
+
 async function adminLogout() {
+    hideAdminLogoutModal();
     try {
         await fetch('/admin/logout', { method: 'POST' });
     } catch(e) {}
