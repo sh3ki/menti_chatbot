@@ -837,7 +837,7 @@
             <h2>Confirm Logout</h2>
             <p>Are you sure you want to logout?</p>
             <div class="modal-buttons">
-                <button onclick="hideLogoutModal()" class="modal-btn cancel-btn">Cancel</button>
+                <button id="cancelLogoutBtn" class="modal-btn cancel-btn">Cancel</button>
                 <button id="confirmLogoutBtn" class="modal-btn confirm-btn">Logout</button>
             </div>
         </div>
@@ -1020,6 +1020,7 @@
 
         // Confirm logout button in modal
         const confirmLogoutBtn = document.getElementById('confirmLogoutBtn');
+        const cancelLogoutBtn = document.getElementById('cancelLogoutBtn');
         confirmLogoutBtn.addEventListener('click', async () => {
             hideLogoutModal();
             try {
@@ -1051,6 +1052,10 @@
             }
         });
 
+        cancelLogoutBtn.addEventListener('click', () => {
+            hideLogoutModal();
+        });
+
         // Modal functions
         function showLogoutModal() {
             document.getElementById('logoutModal').style.display = 'block';
@@ -1059,6 +1064,10 @@
         function hideLogoutModal() {
             document.getElementById('logoutModal').style.display = 'none';
         }
+
+        // Keep modal functions accessible if referenced from HTML
+        window.showLogoutModal = showLogoutModal;
+        window.hideLogoutModal = hideLogoutModal;
 
         // Close modal when clicking outside
         window.onclick = function(event) {
