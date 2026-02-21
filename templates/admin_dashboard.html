@@ -723,7 +723,66 @@
             .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
         }
 
-        /* ============================================================ USER TYPE TABS */
+        /* ============================================================ ADMIN MGMT */
+        .admin-form-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #E8EDE9;
+            box-shadow: 0 2px 8px rgba(44,94,49,0.05);
+            margin-bottom: 24px;
+        }
+        .admin-form-card h3 { font-size: 15px; font-weight: 700; color: #0F0F0F; margin-bottom: 16px; }
+        .admin-form-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+        .form-group label { font-size: 12px; font-weight: 600; color: #28282B; opacity: 0.75; letter-spacing: 0.4px; }
+        .form-input {
+            padding: 9px 14px;
+            border: 1.5px solid #D0DAD2;
+            border-radius: 10px;
+            font-size: 13px;
+            font-family: inherit;
+            color: #0F0F0F;
+            background: #FAFAFA;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+        .form-input:focus { border-color: #2C5E31; background: #fff; }
+        .btn-create-admin {
+            padding: 9px 20px;
+            background: linear-gradient(135deg, #2C5E31, #3A7A40);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: opacity 0.2s;
+        }
+        .btn-create-admin:hover { opacity: 0.88; }
+        .btn-create-admin:disabled { opacity: 0.5; cursor: default; }
+        .admin-row-primary { background: #F8FAF8; }
+        .btn-delete-admin {
+            padding: 4px 12px;
+            background: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #FFCDD2;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .btn-delete-admin:hover { background: #FFCDD2; }
+
         .user-tab {
             padding: 5px 14px;
             font-size: 12px;
@@ -834,6 +893,13 @@
                 <polyline points="12 6 12 12 16 14"/>
             </svg>
             Activity Log
+        </button>
+
+        <button class="nav-item" data-section="admins" onclick="switchSection('admins', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            Admin Accounts
         </button>
     </nav>
 
@@ -1257,6 +1323,54 @@
             </div>
         </div>
 
+        <!-- ========================= ADMINS SECTION -->
+        <div class="section" id="section-admins">
+            <div class="page-header">
+                <h2>Admin Accounts</h2>
+                <p>Manage who has access to this admin dashboard</p>
+            </div>
+
+            <!-- Create new admin form -->
+            <div class="admin-form-card">
+                <h3>Add New Admin</h3>
+                <div class="admin-form-row">
+                    <div class="form-group">
+                        <label>EMAIL ADDRESS</label>
+                        <input type="email" id="newAdminEmail" class="form-input" placeholder="admin@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>PASSWORD (min 8 characters)</label>
+                        <input type="password" id="newAdminPassword" class="form-input" placeholder="••••••••">
+                    </div>
+                    <button class="btn-create-admin" id="createAdminBtn" onclick="createAdmin()">Add Admin</button>
+                </div>
+            </div>
+
+            <!-- Admin list table -->
+            <div class="table-card">
+                <div class="table-card-header">
+                    <h3>All Admin Accounts</h3>
+                    <span id="adminCountLabel" style="font-size:12px;color:#28282B;opacity:0.5;">Loading...</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Type</th>
+                                <th>Created At</th>
+                                <th>Created By</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminsTableBody">
+                            <tr class="skeleton-row"><td colspan="5"><div class="skeleton skeleton-cell" style="width:60%"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </main>
 </div>
 
@@ -1265,6 +1379,7 @@
 <!-- ================================================================ JAVASCRIPT -->
 <script>
 // ============================================================ CONSTANTS
+const CURRENT_ADMIN_EMAIL = {{ admin_username | tojson }};
 const EMOTION_COLORS = {
     happy:     { bg: '#4CAF50', light: '#E8F5E9', text: '#2E7D32' },
     calm:      { bg: '#26A69A', light: '#E0F2F1', text: '#00695C' },
@@ -1314,6 +1429,7 @@ function switchSection(name, el) {
     if (name === 'risk') renderRiskFromState();
     if (name === 'crisis') renderCrisisFromState();
     if (name === 'activity') renderActivityFromState();
+    if (name === 'admins') loadAdmins();
 }
 
 // ============================================================ TOAST
@@ -2190,6 +2306,91 @@ function skeletonRows(rows, cols) {
 
     connect();
 })();
+
+// ============================================================ ADMIN MANAGEMENT
+async function loadAdmins() {
+    const tbody = document.getElementById('adminsTableBody');
+    tbody.innerHTML = '<tr class="skeleton-row"><td colspan="5"><div class="skeleton skeleton-cell" style="width:60%"></div></td></tr>';
+    try {
+        const res = await fetch('/admin/api/admins');
+        const admins = await res.json();
+        document.getElementById('adminCountLabel').textContent = admins.length + ' admin account' + (admins.length !== 1 ? 's' : '');
+        if (!admins.length) {
+            tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="icon">🛡️</div><p>No admin accounts found</p></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = admins.map(a => `
+            <tr class="${a.isPrimary ? 'admin-row-primary' : ''}">
+                <td>
+                    <div class="user-cell">
+                        <div class="avatar" style="background:linear-gradient(135deg,#2C5E31,#3A7A40);">${(a.email[0] || '?').toUpperCase()}</div>
+                        <div>
+                            <div class="name">${escHtml(a.email)}</div>
+                            ${a.isPrimary ? '<div class="email">Primary (env-var)</div>' : '<div class="email">Firestore admin</div>'}
+                        </div>
+                    </div>
+                </td>
+                <td>${a.isPrimary ? '<span class="badge badge-green">Primary</span>' : '<span class="badge badge-blue">Secondary</span>'}</td>
+                <td>${escHtml(a.createdAt || '—')}</td>
+                <td>${escHtml(a.createdBy || '—')}</td>
+                <td>${a.isPrimary ? '<span style="font-size:12px;color:#28282B;opacity:0.4;">Cannot remove</span>' : (a.email.toLowerCase() === CURRENT_ADMIN_EMAIL.toLowerCase() ? '<span style="font-size:12px;color:#28282B;opacity:0.4;">Your account</span>' : `<button class="btn-delete-admin" onclick="deleteAdmin('${a.id}', '${escHtml(a.email)}')">Remove</button>`)}</td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;font-size:13px;color:#C62828;">Failed to load admins</td></tr>';
+    }
+}
+
+async function createAdmin() {
+    const email = document.getElementById('newAdminEmail').value.trim();
+    const password = document.getElementById('newAdminPassword').value;
+    const btn = document.getElementById('createAdminBtn');
+    if (!email || !password) { showToast('Email and password are required.'); return; }
+    if (password.length < 8) { showToast('Password must be at least 8 characters.'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+    try {
+        const res = await fetch('/admin/api/admins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('✅ Admin added: ' + data.email);
+            document.getElementById('newAdminEmail').value = '';
+            document.getElementById('newAdminPassword').value = '';
+            loadAdmins();
+        } else {
+            showToast('❌ ' + (data.error || 'Failed to add admin'));
+        }
+    } catch (e) {
+        showToast('❌ Network error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add Admin';
+    }
+}
+
+async function deleteAdmin(id, email) {
+    if (!confirm(`Remove admin "${email}"? They will no longer be able to log in.`)) return;
+    try {
+        const res = await fetch(`/admin/api/admins/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Admin removed: ' + email);
+            loadAdmins();
+        } else {
+            showToast('❌ ' + (data.error || 'Failed to remove admin'));
+        }
+    } catch (e) {
+        showToast('❌ Network error');
+    }
+}
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 </script>
 </body>
 </html>
