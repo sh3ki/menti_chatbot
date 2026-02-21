@@ -285,6 +285,8 @@ def admin_api_users():
             for user in auth_users:
                 if _is_anonymous_auth_user(user):
                     continue  # skip anonymous auth entries here
+                if user.email and user.email.lower() == ADMIN_USERNAME.lower():
+                    continue  # exclude the admin account from user lists
                 uid = user.uid
                 created_ms = user.user_metadata.creation_timestamp
                 last_sign_in_ms = user.user_metadata.last_sign_in_timestamp
@@ -313,11 +315,21 @@ def admin_api_users():
                 })
 
         # ---- ANONYMOUS users ----
-        # Source: conversations collection (isAnonymous=True) + emotion_logs
+        # Sources: Firebase Auth anonymous accounts + conversations collection + emotion_logs
         if user_type in ('all', 'anonymous'):
+            # 1. Pull directly from Firebase Auth (signInAnonymously users)
+            auth_users_all = _list_all_auth_users()
+            anon_meta = {}  # uid -> ISO creation date string
+            for user in auth_users_all:
+                if not _is_anonymous_auth_user(user):
+                    continue
+                uid = user.uid
+                created_ms = user.user_metadata.creation_timestamp
+                created_str = datetime.fromtimestamp(created_ms / 1000).strftime('%Y-%m-%dT%H:%M:%S') if created_ms else ''
+                anon_meta[uid] = created_str
+
+            # 2. Also merge from conversations collection (may include users no longer in Auth)
             convs = _fetch_all_conversations_meta()
-            # Collect unique anon user IDs and their earliest conversation date
-            anon_meta = {}
             for c in convs:
                 if not c.get('isAnonymous'):
                     continue
@@ -325,10 +337,10 @@ def admin_api_users():
                 if not uid:
                     continue
                 created = c.get('createdAt', '')
-                if uid not in anon_meta or created < anon_meta[uid]:
+                if uid not in anon_meta or (created and created < anon_meta[uid]):
                     anon_meta[uid] = created
 
-            # Also pick up anonymous users who have emotion_log entries but may not have a conversation record
+            # 3. Also pick up anonymous users who only have emotion_log entries
             for uid, s in user_log_stats.items():
                 if s.get('isAnonymous') and uid not in anon_meta:
                     anon_meta[uid] = s.get('firstSeen', '')
@@ -336,10 +348,11 @@ def admin_api_users():
             for uid, created_at in anon_meta.items():
                 ustats = user_log_stats.get(uid, {})
                 neg = ustats.get('negativeRecent', 0)
+                short_uid = uid[:20] + ('...' if len(uid) > 20 else '')
                 users_list.append({
                     'uid': uid,
                     'displayName': 'Anonymous User',
-                    'email': '—',
+                    'email': short_uid,
                     'type': 'Anonymous',
                     'provider': 'Guest',
                     'isAnonymous': True,
@@ -446,14 +459,19 @@ def admin_api_risk_alerts():
             if not data['isAnonymous']:
                 try:
                     auth_user = firebase_auth.get_user(uid)
+                    # Skip admin account
+                    if auth_user.email and auth_user.email.lower() == ADMIN_USERNAME.lower():
+                        continue
                     display_name = auth_user.display_name or auth_user.email or display_name
                     email = auth_user.email or '—'
                 except Exception:
                     pass
+            initials = ''.join(w[0] for w in display_name.split()[:2]).upper() or '?'
             alerts.append({
                 'uid': uid,
                 'displayName': display_name,
                 'email': email,
+                'initials': initials,
                 'riskLevel': risk_level,
                 'reason': reason_map.get(top_emotion, 'Negative emotional pattern'),
                 'negativeCount': data['count'],
@@ -497,6 +515,54 @@ def admin_api_activity():
     except Exception as e:
         print(f'Error in admin_api_activity: {e}')
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/user-cache')
+@admin_required
+def admin_api_user_cache():
+    """Return uid → {name, email, isAnonymous, initials} for all known users.
+    Used client-side for display name resolution in activity, risk, and crisis tables."""
+    try:
+        cache = {}
+        auth_users_all = _list_all_auth_users()
+        for user in auth_users_all:
+            if _is_anonymous_auth_user(user):
+                # Anonymous Firebase Auth user
+                short_uid = user.uid[:16] + ('...' if len(user.uid) > 16 else '')
+                cache[user.uid] = {
+                    'name': 'Anonymous User',
+                    'email': short_uid,
+                    'isAnonymous': True,
+                    'initials': '?'
+                }
+            else:
+                # Registered user — exclude admin
+                if user.email and user.email.lower() == ADMIN_USERNAME.lower():
+                    continue
+                name = user.display_name or user.email or 'Unknown User'
+                initials = ''.join(w[0] for w in name.split()[:2]).upper() or 'U'
+                cache[user.uid] = {
+                    'name': name,
+                    'email': user.email or '—',
+                    'isAnonymous': False,
+                    'initials': initials
+                }
+        # Also add anonymous users from conversations that may not be in Auth anymore
+        convs = _fetch_all_conversations_meta()
+        for c in convs:
+            uid = c.get('userId', '')
+            if uid and c.get('isAnonymous') and uid not in cache:
+                short_uid = uid[:16] + ('...' if len(uid) > 16 else '')
+                cache[uid] = {
+                    'name': 'Anonymous User',
+                    'email': short_uid,
+                    'isAnonymous': True,
+                    'initials': '?'
+                }
+        return jsonify(cache)
+    except Exception as e:
+        print(f'Error in admin_api_user_cache: {e}')
+        return jsonify({})
 
 
 @app.route('/admin/api/messages-per-day')
@@ -940,7 +1006,6 @@ def detect_crisis(message):
       crisis_type: 'suicide' | 'self_harm' | 'homicide' | 'medical' | 'abuse'
       severity:    'HIGH' | 'MEDIUM'
     """
-    import re
     text = message.lower().strip()
 
     # --- Phase 1: Regex patterns ---
@@ -971,19 +1036,19 @@ def detect_crisis(message):
     ]
 
     for pat in suicide_patterns:
-        if re.search(pat, text):
+        if _re.search(pat, text):
             return True, 'suicide', 'HIGH'
     for pat in self_harm_patterns:
-        if re.search(pat, text):
+        if _re.search(pat, text):
             return True, 'self_harm', 'HIGH'
     for pat in homicide_patterns:
-        if re.search(pat, text):
+        if _re.search(pat, text):
             return True, 'homicide', 'HIGH'
     for pat in medical_patterns:
-        if re.search(pat, text):
+        if _re.search(pat, text):
             return True, 'medical', 'MEDIUM'
     for pat in abuse_patterns:
-        if re.search(pat, text):
+        if _re.search(pat, text):
             return True, 'abuse', 'MEDIUM'
 
     # --- Phase 2: AI check for subtle messages (only if message < 60 words) ---
