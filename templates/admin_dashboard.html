@@ -847,8 +847,8 @@
                 <p>System-wide statistics and key metrics at a glance</p>
             </div>
 
-            <!-- Stat Cards -->
-            <div class="stat-grid">
+            <!-- Stat Cards — Row 1: Users -->
+            <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px;">
                 <div class="stat-card">
                     <div class="stat-card-top">
                         <div class="stat-icon">👥</div>
@@ -860,11 +860,10 @@
 
                 <div class="stat-card blue">
                     <div class="stat-card-top">
-                        <div class="stat-icon">💬</div>
-                        <span class="stat-change" id="msgTodayChange">today</span>
+                        <div class="stat-icon">👻</div>
                     </div>
-                    <div class="stat-value" id="statMessages">—</div>
-                    <div class="stat-label">Total Messages</div>
+                    <div class="stat-value" id="statAnonUsers">—</div>
+                    <div class="stat-label">Anonymous Users</div>
                 </div>
 
                 <div class="stat-card orange">
@@ -874,7 +873,10 @@
                     <div class="stat-value" id="statActiveToday">—</div>
                     <div class="stat-label">Active Users Today</div>
                 </div>
+            </div>
 
+            <!-- Stat Cards — Row 2: Activity -->
+            <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
                 <div class="stat-card red">
                     <div class="stat-card-top">
                         <div class="stat-icon">⚠️</div>
@@ -888,7 +890,16 @@
                         <div class="stat-icon">🚨</div>
                     </div>
                     <div class="stat-value" id="statCrisisAlerts">—</div>
-                    <div class="stat-label">Crisis Alerts (Total)</div>
+                    <div class="stat-label">Crisis Alerts</div>
+                </div>
+
+                <div class="stat-card blue">
+                    <div class="stat-card-top">
+                        <div class="stat-icon">💬</div>
+                        <span class="stat-change" id="msgTodayChange">today</span>
+                    </div>
+                    <div class="stat-value" id="statMessages">—</div>
+                    <div class="stat-label">Total Messages</div>
                 </div>
 
                 <div class="stat-card">
@@ -898,18 +909,10 @@
                     <div class="stat-value" id="statConversations">—</div>
                     <div class="stat-label">Total Conversations</div>
                 </div>
-
-                <div class="stat-card blue">
-                    <div class="stat-card-top">
-                        <div class="stat-icon">👻</div>
-                    </div>
-                    <div class="stat-value" id="statAnonUsers">—</div>
-                    <div class="stat-label">Anonymous Users</div>
-                </div>
             </div>
 
-            <!-- Charts Row -->
-            <div class="chart-grid">
+            <!-- Charts Row 1 -->
+            <div class="chart-grid" style="margin-top:24px;">
                 <div class="chart-card">
                     <div class="chart-header">
                         <div>
@@ -935,15 +938,43 @@
                 </div>
             </div>
 
+            <!-- Charts Row 2 -->
+            <div class="chart-grid" style="margin-top:16px;">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">User Breakdown</div>
+                            <div class="chart-subtitle">Registered vs Anonymous</div>
+                        </div>
+                    </div>
+                    <div class="chart-container" style="height:200px;">
+                        <canvas id="overviewUserTypeChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">7-Day Wellbeing Trend</div>
+                            <div class="chart-subtitle">Positive vs Negative emotions daily</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="overviewWellbeingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <!-- Recent Activity -->
-            <div class="table-card">
+            <div class="table-card" style="margin-top:16px;">
                 <div class="table-card-header">
                     <h3>Recent Activity</h3>
-                    <span style="font-size:12px;color:#28282B;opacity:0.5;">Latest 20 interactions</span>
+                    <span style="font-size:12px;color:#28282B;opacity:0.5;" id="overviewActivityCount">Loading...</span>
                 </div>
                 <div class="activity-list" id="overviewActivityList">
                     <div class="empty-state"><div class="icon">⏳</div><p>Loading activity...</p></div>
                 </div>
+                <div class="pag-wrapper" id="overviewActivityPagination"></div>
             </div>
         </div>
 
@@ -1261,8 +1292,8 @@ window._crisisMap = _crisisMap;
 // User display-name cache (uid -> {name, email, isAnonymous, initials})
 window._userCache = {};
 // Pagination state
-const _pagState = { users: 1, risk: 1, crisis: 1, activity: 1 };
-const _PAGE_SIZE = { users: 15, risk: 10, crisis: 10, activity: 15 };
+const _pagState = { users: 1, risk: 1, crisis: 1, activity: 1, overviewActivity: 1 };
+const _PAGE_SIZE = { users: 15, risk: 10, crisis: 10, activity: 15, overviewActivity: 15 };
 // Cached sorted data for pagination (rebuilt in each renderXFromState call)
 let _riskData = [];
 let _crisisData = [];
@@ -1332,6 +1363,10 @@ function computeAndUpdateStats() {
     for (const [,c] of _convsMap) {
         if (c.isAnonymous && c.userId) anonUids.add(c.userId);
     }
+    // Also count Firebase Auth anonymous accounts loaded into _userCache
+    for (const [uid, u] of Object.entries(window._userCache || {})) {
+        if (u.isAnonymous) anonUids.add(uid);
+    }
 
     for (const [,log] of _logsMap) {
         const e = log.emotion || 'neutral';
@@ -1370,6 +1405,8 @@ function computeAndUpdateStats() {
 
     drawEmotionPie(emotionCounts);
     renderMessagesBarFromState();
+    drawOverviewUserTypeChart();
+    drawOverviewWellbeingTrend();
 
     // Update whichever section is currently visible
     const activeNav = document.querySelector('.nav-item.active');
@@ -1397,6 +1434,79 @@ function renderMessagesBarFromState() {
 }
 window.renderMessagesBarFromState = renderMessagesBarFromState;
 
+// ============================================================ OVERVIEW CHART — User Type Breakdown
+function drawOverviewUserTypeChart() {
+    const ctx = document.getElementById('overviewUserTypeChart');
+    if (!ctx) return;
+    if (charts.overviewUserType) charts.overviewUserType.destroy();
+    const cache = window._userCache || {};
+    const registered = Object.values(cache).filter(u => !u.isAnonymous).length;
+    const anon = Object.values(cache).filter(u => u.isAnonymous).length;
+    if (registered === 0 && anon === 0) return;
+    charts.overviewUserType = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Registered', 'Anonymous'],
+            datasets: [{ data: [registered, anon], backgroundColor: ['#2C5E31','#90A4AE'], borderWidth: 2, borderColor: '#fff' }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: { position: 'right', labels: { font: { size: 12 }, padding: 14, boxWidth: 12 } },
+                datalabels: {
+                    display: ctx2 => ctx2.dataset.data[ctx2.dataIndex] > 0,
+                    color: '#fff', font: { weight: 'bold', size: 12 },
+                    formatter: v => v
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+}
+window.drawOverviewUserTypeChart = drawOverviewUserTypeChart;
+
+// ============================================================ OVERVIEW CHART — 7-Day Wellbeing Trend
+function drawOverviewWellbeingTrend() {
+    const ctx = document.getElementById('overviewWellbeingChart');
+    if (!ctx) return;
+    if (charts.overviewWellbeing) charts.overviewWellbeing.destroy();
+    const today = new Date();
+    const days = Array.from({length:7},(_,i)=>{ const d=new Date(today); d.setDate(d.getDate()-(6-i)); return d.toISOString().slice(0,10); });
+    const pos = {}; const neg = {};
+    days.forEach(d=>{ pos[d]=0; neg[d]=0; });
+    const positiveSet = new Set(['happy','calm','motivated']);
+    const negativeSet = new Set(['sad','anxious','stressed','angry','tired','numb']);
+    for (const [,log] of _logsMap) {
+        const d = log.date||''; const e = log.emotion||'neutral';
+        if (d in pos) { if (positiveSet.has(e)) pos[d]++; if (negativeSet.has(e)) neg[d]++; }
+    }
+    const labels = days.map(d=>{ const dt=new Date(d); return dt.toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'}); });
+    charts.overviewWellbeing = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Positive', data: days.map(d=>pos[d]), borderColor: '#2C5E31', backgroundColor: 'rgba(44,94,49,0.1)', tension: 0.4, fill: true, pointRadius: 4 },
+                { label: 'Negative', data: days.map(d=>neg[d]), borderColor: '#C62828', backgroundColor: 'rgba(198,40,40,0.08)', tension: 0.4, fill: true, pointRadius: 4 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 12 } },
+                datalabels: { display: false }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 11 }, stepSize: 1 } }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+}
+window.drawOverviewWellbeingTrend = drawOverviewWellbeingTrend;
+
 // ============================================================ RENDER OVERVIEW ACTIVITY (from state)
 function renderOverviewActivityFromState() {
     const list = document.getElementById('overviewActivityList');
@@ -1405,9 +1515,18 @@ function renderOverviewActivityFromState() {
     list.innerHTML = '';
     if (sorted.length === 0) {
         list.innerHTML = `<div class="empty-state"><div class="icon">📭</div><p>No activity recorded yet.</p></div>`;
+        renderPagControls('overviewActivityPagination','overviewActivity',0);
+        const lbl = document.getElementById('overviewActivityCount');
+        if (lbl) lbl.textContent = '0 interactions';
         return;
     }
-    sorted.slice(0,20).forEach(item => {
+    const ps = _PAGE_SIZE.overviewActivity;
+    const page = _pagState.overviewActivity;
+    const start = (page - 1) * ps;
+    const pageItems = sorted.slice(start, start + ps);
+    const lbl = document.getElementById('overviewActivityCount');
+    if (lbl) lbl.textContent = sorted.length + ' total interactions';
+    pageItems.forEach(item => {
         const ec = EMOTION_COLORS[item.emotion||'neutral'] || EMOTION_COLORS.neutral;
         const uid = item.userId||'';
         const u = _resolveUser(uid, item.isAnonymous);
@@ -1423,6 +1542,7 @@ function renderOverviewActivityFromState() {
         `;
         list.appendChild(div);
     });
+    renderPagControls('overviewActivityPagination','overviewActivity',sorted.length);
 }
 window.renderOverviewActivityFromState = renderOverviewActivityFromState;
 
@@ -1716,10 +1836,11 @@ function renderPagControls(wrapperId, pageKey, total) {
 }
 function changePage(key, delta) {
     _pagState[key] = Math.max(1, _pagState[key] + delta);
-    if (key === 'users')    renderUsersTable(allUsers);
-    if (key === 'risk')     renderRiskFromState();
-    if (key === 'crisis')   renderCrisisFromState();
-    if (key === 'activity') renderActivityFromState();
+    if (key === 'users')           renderUsersTable(allUsers);
+    if (key === 'risk')            renderRiskFromState();
+    if (key === 'crisis')          renderCrisisFromState();
+    if (key === 'activity')        renderActivityFromState();
+    if (key === 'overviewActivity') renderOverviewActivityFromState();
 }
 function _resolveUser(uid, isAnonymous) {
     const cached = window._userCache[uid] || {};
@@ -1950,7 +2071,10 @@ function skeletonRows(rows, cols) {
     // Fetch user display-name cache
     try {
         const uc = await fetch('/admin/api/user-cache');
-        if (uc.ok) window._userCache = await uc.json();
+        if (uc.ok) {
+            window._userCache = await uc.json();
+            drawOverviewUserTypeChart(); // redraw now that cache is populated
+        }
     } catch(e) { console.error('User cache fetch error:', e); }
     // Firestore onSnapshot listeners (added below) will populate everything else
 })();
