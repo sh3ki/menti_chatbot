@@ -1521,6 +1521,8 @@ function renderOverviewActivityFromState() {
         return;
     }
     const ps = _PAGE_SIZE.overviewActivity;
+    const pages = Math.max(1, Math.ceil(sorted.length / ps));
+    if (_pagState.overviewActivity > pages) _pagState.overviewActivity = pages;
     const page = _pagState.overviewActivity;
     const start = (page - 1) * ps;
     const pageItems = sorted.slice(start, start + ps);
@@ -1622,7 +1624,10 @@ function renderRiskFromState() {
         return;
     }
     alerts.sort((a,b)=>b[1].count-a[1].count);
-    const ps=_PAGE_SIZE.risk, page=_pagState.risk, start=(page-1)*ps;
+    const ps=_PAGE_SIZE.risk;
+    const riskPages=Math.max(1,Math.ceil(alerts.length/ps));
+    if(_pagState.risk>riskPages)_pagState.risk=riskPages;
+    const page=_pagState.risk, start=(page-1)*ps;
     const pageAlerts=alerts.slice(start,start+ps);
     const reasonMap={sad:'Recurring sadness',anxious:'Persistent anxiety',stressed:'Chronic stress',angry:'Persistent anger/frustration',tired:'Chronic mental exhaustion',numb:'Emotional disconnection'};
     pageAlerts.forEach(([uid,data])=>{
@@ -1677,7 +1682,10 @@ function renderCrisisFromState() {
     const modeLabels = { friendly:'😊 Friendly', supportive:'💪 Supportive', professional:'🧠 Professional' };
 
     const sorted = [..._crisisMap.values()].sort((a,b) => (b.timestamp||'').localeCompare(a.timestamp||''));
-    const ps=_PAGE_SIZE.crisis, page=_pagState.crisis, start=(page-1)*ps;
+    const ps=_PAGE_SIZE.crisis;
+    const crisisPages=Math.max(1,Math.ceil(sorted.length/ps));
+    if(_pagState.crisis>crisisPages)_pagState.crisis=crisisPages;
+    const page=_pagState.crisis, start=(page-1)*ps;
     const pageAlerts=sorted.slice(start,start+ps);
     pageAlerts.forEach(alert => {
         const sev = alert.severity || 'MEDIUM';
@@ -1719,7 +1727,10 @@ function renderActivityFromState() {
         renderPagControls('activityPagination','activity',0);
         return;
     }
-    const ps=_PAGE_SIZE.activity, page=_pagState.activity, start=(page-1)*ps;
+    const ps=_PAGE_SIZE.activity;
+    const actPages=Math.max(1,Math.ceil(sorted.length/ps));
+    if(_pagState.activity>actPages)_pagState.activity=actPages;
+    const page=_pagState.activity, start=(page-1)*ps;
     const pageItems=sorted.slice(start,start+ps);
     pageItems.forEach(item=>{
         const ec=EMOTION_COLORS[item.emotion||'neutral']||EMOTION_COLORS.neutral;
@@ -1835,19 +1846,26 @@ function renderPagControls(wrapperId, pageKey, total) {
     </div>`;
 }
 function changePage(key, delta) {
-    _pagState[key] = Math.max(1, _pagState[key] + delta);
-    if (key === 'users')           renderUsersTable(allUsers);
-    if (key === 'risk')            renderRiskFromState();
-    if (key === 'crisis')          renderCrisisFromState();
-    if (key === 'activity')        renderActivityFromState();
+    const ps = _PAGE_SIZE[key] || 15;
+    let total = 0;
+    if (key === 'overviewActivity' || key === 'activity') total = _logsMap.size;
+    else if (key === 'crisis') total = _crisisMap.size;
+    else if (key === 'users') total = (allUsers || []).length;
+    // risk total computed inside render; just clamp to >= 1 here, render handles upper bound
+    const maxPage = total > 0 ? Math.max(1, Math.ceil(total / ps)) : 1;
+    _pagState[key] = Math.min(maxPage, Math.max(1, _pagState[key] + delta));
+    if (key === 'users')            renderUsersTable(allUsers);
+    if (key === 'risk')             renderRiskFromState();
+    if (key === 'crisis')           renderCrisisFromState();
+    if (key === 'activity')         renderActivityFromState();
     if (key === 'overviewActivity') renderOverviewActivityFromState();
 }
 function _resolveUser(uid, isAnonymous) {
     const cached = window._userCache[uid] || {};
     return {
-        name:     cached.name     || (isAnonymous ? 'Anonymous User' : uid.slice(0,12)+'...'),
-        email:    cached.email    || (isAnonymous ? uid.slice(0,18) : '—'),
-        initials: cached.initials || (isAnonymous ? '?' : uid.slice(0,2).toUpperCase()),
+        name:     cached.name     || (isAnonymous ? 'Anonymous User' : 'Unknown User'),
+        email:    cached.email    || (isAnonymous ? 'Anonymous' : '—'),
+        initials: cached.initials || (isAnonymous ? '?' : 'U'),
         isAnon:   cached.isAnonymous !== undefined ? cached.isAnonymous : (isAnonymous || false),
     };
 }
@@ -2073,7 +2091,12 @@ function skeletonRows(rows, cols) {
         const uc = await fetch('/admin/api/user-cache');
         if (uc.ok) {
             window._userCache = await uc.json();
-            drawOverviewUserTypeChart(); // redraw now that cache is populated
+            // Redraw everything that depends on user name/email resolution
+            drawOverviewUserTypeChart();
+            renderOverviewActivityFromState();
+            renderActivityFromState();
+            renderRiskFromState();
+            renderCrisisFromState();
         }
     } catch(e) { console.error('User cache fetch error:', e); }
     // Firestore onSnapshot listeners (added below) will populate everything else
