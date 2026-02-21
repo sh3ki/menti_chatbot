@@ -198,10 +198,12 @@ def admin_api_stats():
         # ---- 3. Conversation count + anonymous distinct users ----
         convs = _fetch_all_conversations_meta()
         stats['totalConversations'] = len(convs)
-        anon_user_ids = set(
-            c.get('userId', '') for c in convs
-            if c.get('isAnonymous') and c.get('userId')
-        )
+        # Count anonymous users from Firebase Auth directly (most accurate source)
+        anon_user_ids = set(u.uid for u in auth_users if _is_anonymous_auth_user(u))
+        # Also union in any anonymous users found only in conversations (edge cases)
+        for c in convs:
+            if c.get('isAnonymous') and c.get('userId'):
+                anon_user_ids.add(c['userId'])
         stats['totalAnonymousUsers'] = len(anon_user_ids)
 
         # ---- 4. Emotion log stats (one pass, all in Python) ----
