@@ -92,15 +92,31 @@ def admin_login():
     # Hash the submitted password and compare
     submitted_hash = hashlib.sha256(password.encode()).hexdigest()
 
-    if username == ADMIN_USERNAME and submitted_hash == ADMIN_PASSWORD_HASH:
+    # Check primary env-var admin first
+    if username.lower() == ADMIN_USERNAME.lower() and submitted_hash == ADMIN_PASSWORD_HASH:
         session['is_admin'] = True
         session['admin_username'] = username
         session.permanent = True
-        print(f'✅ Admin login successful: {username}')
+        print(f'✅ Admin login successful (primary): {username}')
         return jsonify({'success': True, 'redirect': '/admin/dashboard'})
-    else:
-        print(f'❌ Admin login failed for username: {username}')
-        return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+
+    # Check additional admins stored in Firestore
+    if db:
+        try:
+            docs = db.collection('admins').where('email', '==', username.lower()).limit(1).stream()
+            for doc in docs:
+                data = doc.to_dict()
+                if data.get('password_hash') == submitted_hash:
+                    session['is_admin'] = True
+                    session['admin_username'] = username.lower()
+                    session.permanent = True
+                    print(f'✅ Admin login successful (Firestore): {username}')
+                    return jsonify({'success': True, 'redirect': '/admin/dashboard'})
+        except Exception as e:
+            print(f'[admin] Firestore admin lookup error: {e}')
+
+    print(f'❌ Admin login failed for username: {username}')
+    return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
 
 
 @app.route('/admin/logout', methods=['POST'])
@@ -161,6 +177,20 @@ def _is_anonymous_auth_user(user):
     return len(getattr(user, 'provider_data', [])) == 0
 
 
+def _get_admin_emails():
+    """Return a set of all admin emails (env-var admin + Firestore admins collection)."""
+    emails = {ADMIN_USERNAME.lower()}
+    if db:
+        try:
+            for doc in db.collection('admins').stream():
+                data = doc.to_dict()
+                if data.get('email'):
+                    emails.add(data['email'].lower())
+        except Exception as e:
+            print(f'[admin] Error fetching admin list: {e}')
+    return emails
+
+
 # ==================== ADMIN API ROUTES ====================
 
 @app.route('/admin/api/stats')
@@ -174,11 +204,6 @@ def admin_api_stats():
         # ---- 1. Firebase Auth user counts ----
         auth_users = _list_all_auth_users()
         registered_users = [u for u in auth_users if not _is_anonymous_auth_user(u)]
-        new_today = sum(
-            1 for u in registered_users
-            if u.user_metadata.creation_timestamp and
-               datetime.fromtimestamp(u.user_metadata.creation_timestamp / 1000).strftime('%Y-%m-%d') == today_str
-        )
         stats = {
             'totalRegisteredUsers': 0,
             'totalAnonymousUsers': 0,
@@ -191,7 +216,14 @@ def admin_api_stats():
             'riskAlertCount': 0
         }
 
-        # ---- 2. Populate stats from Auth ----
+        # ---- 2. Populate stats from Auth (exclude all admin accounts) ----
+        admin_emails = _get_admin_emails()
+        registered_users = [u for u in registered_users if not (u.email and u.email.lower() in admin_emails)]
+        new_today = sum(
+            1 for u in registered_users
+            if u.user_metadata.creation_timestamp and
+               datetime.fromtimestamp(u.user_metadata.creation_timestamp / 1000).strftime('%Y-%m-%d') == today_str
+        )
         stats['totalRegisteredUsers'] = len(registered_users)
         stats['newUsersToday'] = new_today
 
@@ -284,11 +316,12 @@ def admin_api_users():
         # ---- REGISTERED users (Firebase Auth with provider_data) ----
         if user_type in ('all', 'registered'):
             auth_users = _list_all_auth_users()
+            admin_emails = _get_admin_emails()
             for user in auth_users:
                 if _is_anonymous_auth_user(user):
                     continue  # skip anonymous auth entries here
-                if user.email and user.email.lower() == ADMIN_USERNAME.lower():
-                    continue  # exclude the admin account from user lists
+                if user.email and user.email.lower() in admin_emails:
+                    continue  # exclude all admin accounts from user lists
                 uid = user.uid
                 created_ms = user.user_metadata.creation_timestamp
                 last_sign_in_ms = user.user_metadata.last_sign_in_timestamp
@@ -461,8 +494,9 @@ def admin_api_risk_alerts():
             if not data['isAnonymous']:
                 try:
                     auth_user = firebase_auth.get_user(uid)
-                    # Skip admin account
-                    if auth_user.email and auth_user.email.lower() == ADMIN_USERNAME.lower():
+                    # Skip all admin accounts
+                    admin_emails = _get_admin_emails()
+                    if auth_user.email and auth_user.email.lower() in admin_emails:
                         continue
                     display_name = auth_user.display_name or auth_user.email or display_name
                     email = auth_user.email or '—'
@@ -538,8 +572,8 @@ def admin_api_user_cache():
                     'initials': '?'
                 }
             else:
-                # Registered user — exclude admin
-                if user.email and user.email.lower() == ADMIN_USERNAME.lower():
+                # Registered user — exclude all admins
+                if user.email and user.email.lower() in _get_admin_emails():
                     continue
                 name = user.display_name or user.email or 'Unknown User'
                 initials = ''.join(w[0] for w in name.split()[:2]).upper() or 'U'
@@ -565,6 +599,78 @@ def admin_api_user_cache():
     except Exception as e:
         print(f'Error in admin_api_user_cache: {e}')
         return jsonify({})
+
+
+@app.route('/admin/api/admins', methods=['GET'])
+@admin_required
+def admin_api_admins_list():
+    """List all admin accounts (primary env admin + Firestore admins)."""
+    admins = [{'email': ADMIN_USERNAME, 'isPrimary': True, 'createdAt': 'System', 'createdBy': '—'}]
+    if db:
+        try:
+            for doc in db.collection('admins').stream():
+                data = doc.to_dict()
+                admins.append({
+                    'id': doc.id,
+                    'email': data.get('email', ''),
+                    'isPrimary': False,
+                    'createdAt': data.get('created_at', ''),
+                    'createdBy': data.get('created_by', '—')
+                })
+        except Exception as e:
+            print(f'[admin] Error listing admins: {e}')
+    return jsonify(admins)
+
+
+@app.route('/admin/api/admins', methods=['POST'])
+@admin_required
+def admin_api_admins_create():
+    """Create a new admin account and store in Firestore admins collection."""
+    if not db:
+        return jsonify({'error': 'Firestore not available'}), 503
+    data = request.get_json() or {}
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    if not email or not password:
+        return jsonify({'error': 'Email and password are required'}), 400
+    if len(password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+    # Check if already an admin
+    if email in _get_admin_emails():
+        return jsonify({'error': 'An admin with this email already exists'}), 409
+    try:
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        db.collection('admins').add({
+            'email': email,
+            'password_hash': password_hash,
+            'created_at': datetime.now().isoformat(),
+            'created_by': session.get('admin_username', 'unknown')
+        })
+        return jsonify({'success': True, 'email': email})
+    except Exception as e:
+        print(f'[admin] Error creating admin: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/admins/<doc_id>', methods=['DELETE'])
+@admin_required
+def admin_api_admins_delete(doc_id):
+    """Delete an admin from the Firestore admins collection (cannot delete primary env admin)."""
+    if not db:
+        return jsonify({'error': 'Firestore not available'}), 503
+    try:
+        doc_ref = db.collection('admins').document(doc_id)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return jsonify({'error': 'Admin not found'}), 404
+        email = doc.to_dict().get('email', '')
+        if email.lower() == ADMIN_USERNAME.lower():
+            return jsonify({'error': 'Cannot delete the primary admin account'}), 403
+        doc_ref.delete()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f'[admin] Error deleting admin: {e}')
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/admin/api/messages-per-day')
