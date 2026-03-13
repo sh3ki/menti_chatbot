@@ -895,6 +895,15 @@
             Activity Log
         </button>
 
+        <button class="nav-item" data-section="backups" onclick="switchSection('backups', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Backups
+        </button>
+
         <button class="nav-item" data-section="admins" onclick="switchSection('admins', this)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -1323,6 +1332,60 @@
             </div>
         </div>
 
+        <!-- ========================= BACKUPS SECTION -->
+        <div class="section" id="section-backups">
+            <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                <div>
+                    <h2>Database Backups</h2>
+                    <p>Create and download backups, then review backup history</p>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button id="backupNowBtn" onclick="triggerBackupNow()" style="font-size:13px;padding:9px 14px;border:1px solid #2C5E31;border-radius:10px;background:#2C5E31;color:#fff;cursor:pointer;font-family:inherit;font-weight:600;">Backup Now</button>
+                    <button onclick="refreshBackupHistory()" style="font-size:13px;padding:9px 14px;border:1px solid #D0DAD2;border-radius:10px;background:#fff;color:#2C5E31;cursor:pointer;font-family:inherit;font-weight:600;">Refresh</button>
+                </div>
+            </div>
+
+            <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px;">
+                <div class="stat-card">
+                    <div class="stat-card-top"><div class="stat-icon">🕒</div></div>
+                    <div class="stat-value" id="backupLastTime" style="font-size:22px;line-height:1.25;">—</div>
+                    <div class="stat-label">Last Backup</div>
+                </div>
+                <div class="stat-card blue">
+                    <div class="stat-card-top"><div class="stat-icon">📦</div></div>
+                    <div class="stat-value" id="backupTotalCount">—</div>
+                    <div class="stat-label">Total Backups Recorded</div>
+                </div>
+                <div class="stat-card orange">
+                    <div class="stat-card-top"><div class="stat-icon">📁</div></div>
+                    <div class="stat-value" id="backupLastSize">—</div>
+                    <div class="stat-label">Last Backup Size</div>
+                </div>
+            </div>
+
+            <div class="table-card">
+                <div class="table-card-header">
+                    <h3>Backup History</h3>
+                    <span id="backupHistoryCount" style="font-size:12px;color:#28282B;opacity:0.5;">Loading...</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Triggered By</th>
+                                <th>File Size</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backupHistoryBody">
+                            <tr class="skeleton-row"><td colspan="4"><div class="skeleton skeleton-cell" style="width:70%"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- ========================= ADMINS SECTION -->
         <div class="section" id="section-admins">
             <div class="page-header">
@@ -1396,6 +1459,7 @@ const EMOTION_COLORS = {
 // ============================================================ STATE
 let allUsers = [];
 let allActivity = [];
+let backupHistory = [];
 let charts = {};
 // In-memory Maps — kept in sync by Firestore onSnapshot listeners
 const _logsMap = new Map();   // docId -> emotion_log data
@@ -1429,6 +1493,7 @@ function switchSection(name, el) {
     if (name === 'risk') renderRiskFromState();
     if (name === 'crisis') renderCrisisFromState();
     if (name === 'activity') renderActivityFromState();
+    if (name === 'backups') loadBackups();
     if (name === 'admins') loadAdmins();
 }
 
@@ -1946,6 +2011,117 @@ const loadEmotions    = () => renderEmotionsFromState();
 const loadRiskAlerts  = () => renderRiskFromState();
 const loadCrisisAlerts = () => renderCrisisFromState();
 const loadActivity    = () => renderActivityFromState();
+
+// ============================================================ BACKUPS
+function formatBackupSize(bytes) {
+    if (!bytes || bytes <= 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatBackupDate(isoValue) {
+    if (!isoValue) return '—';
+    const d = new Date(isoValue);
+    if (Number.isNaN(d.getTime())) return isoValue;
+    return d.toLocaleString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+}
+
+async function refreshBackupHistory() {
+    const tbody = document.getElementById('backupHistoryBody');
+    const countLabel = document.getElementById('backupHistoryCount');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr class="skeleton-row"><td colspan="4"><div class="skeleton skeleton-cell" style="width:70%"></div></td></tr>';
+    if (countLabel) countLabel.textContent = 'Loading...';
+
+    try {
+        const res = await fetch('/admin/backup/history');
+        if (!res.ok) throw new Error('Failed to fetch backup history');
+        backupHistory = await res.json();
+
+        if (!backupHistory.length) {
+            tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="icon">📭</div><p>No backups recorded yet.</p></div></td></tr>';
+            if (countLabel) countLabel.textContent = '0 records';
+            document.getElementById('backupLastTime').textContent = '—';
+            document.getElementById('backupTotalCount').textContent = '0';
+            document.getElementById('backupLastSize').textContent = '—';
+            return;
+        }
+
+        const latest = backupHistory[0];
+        document.getElementById('backupLastTime').textContent = formatBackupDate(latest.createdAt || latest.timestamp);
+        document.getElementById('backupTotalCount').textContent = String(backupHistory.length);
+        document.getElementById('backupLastSize').textContent = formatBackupSize(latest.backupSize || latest.sizeBytes || 0);
+        if (countLabel) countLabel.textContent = `${backupHistory.length} record${backupHistory.length === 1 ? '' : 's'}`;
+
+        tbody.innerHTML = backupHistory.map((row) => {
+            const when = formatBackupDate(row.createdAt || row.timestamp);
+            const who = esc(row.triggeredBy || 'system');
+            const size = formatBackupSize(row.backupSize || row.sizeBytes || 0);
+            return `
+                <tr>
+                    <td>${when}</td>
+                    <td><span class="badge badge-blue">${who}</span></td>
+                    <td>${size}</td>
+                    <td><span class="badge badge-green">Completed</span></td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Backup history error:', error);
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;font-size:13px;color:#C62828;">Failed to load backup history.</td></tr>';
+        if (countLabel) countLabel.textContent = 'Error';
+    }
+}
+
+async function triggerBackupNow() {
+    const btn = document.getElementById('backupNowBtn');
+    if (!btn) return;
+
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+
+    try {
+        const res = await fetch('/admin/backup/now', { method: 'POST' });
+        if (!res.ok) throw new Error('Backup failed');
+
+        const blob = await res.blob();
+        const objectUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="([^"]+)"/i);
+        a.download = match ? match[1] : `menti_backup_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.json`;
+
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(objectUrl);
+
+        showToast('✅ Backup downloaded successfully');
+        await refreshBackupHistory();
+    } catch (error) {
+        console.error('Backup now error:', error);
+        showToast('❌ Failed to create backup');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+function loadBackups() {
+    refreshBackupHistory();
+}
+
+window.refreshBackupHistory = refreshBackupHistory;
+window.triggerBackupNow = triggerBackupNow;
+window.loadBackups = loadBackups;
 
 // ============================================================ PAGINATION
 function renderPagControls(wrapperId, pageKey, total) {
