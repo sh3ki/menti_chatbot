@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menti — Private Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1A1A2E;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            color: #E0E0E0;
+        }
+
+        /* ===== INCOGNITO BANNER ===== */
+        .incognito-banner {
+            background: linear-gradient(135deg, #2D1654, #1A0E3A);
+            border-bottom: 1px solid #4A2E7A;
+            padding: 8px 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: #C5A8FF;
+            flex-shrink: 0;
+        }
+        .incognito-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+        .incognito-banner strong { color: #D8BBFF; font-weight: 700; }
+
+        /* ===== HEADER ===== */
+        .header {
+            background: #16213E;
+            padding: 14px 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid #2A2A4A;
+            flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-logo { width: 34px; height: 34px; object-fit: contain; border-radius: 50%; filter: brightness(0.9); }
+        .header h1 { color: #A78BFA; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+        .incognito-pill {
+            background: #2D1654;
+            border: 1px solid #6D28D9;
+            color: #C4B5FD;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            letter-spacing: 0.3px;
+        }
+        .incognito-pill svg { width: 13px; height: 13px; }
+
+        .header-mode-selector { display: none; gap: 6px; align-items: center; }
+        .header-mode-btn {
+            padding: 6px 14px;
+            border: 1.5px solid #3D2B6B;
+            border-radius: 8px;
+            background: transparent;
+            font-size: 12px;
+            font-weight: 600;
+            color: #A78BFA;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        .header-mode-btn:hover { border-color: #7C3AED; color: #C4B5FD; background: #1E1040; }
+        .header-mode-btn.active { background: #4C1D95; border-color: #7C3AED; color: #E9D5FF; }
+
+        .exit-btn {
+            padding: 9px 18px;
+            background: #2D1654;
+            color: #C4B5FD;
+            border: 1px solid #6D28D9;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .exit-btn:hover { background: #3D1D7A; color: #E9D5FF; }
+        .exit-btn svg { width: 15px; height: 15px; }
+
+        /* ===== MAIN CONTAINER ===== */
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+
+        /* ===== CHAT CONTAINER ===== */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 860px;
+            width: 100%;
+            margin: 20px auto;
+            background: #16213E;
+            border-radius: 16px;
+            box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+            overflow: hidden;
+            border: 1px solid #2A2A4A;
+        }
+
+        /* ===== MESSAGES AREA ===== */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background: #0F0F23;
+        }
+        .chat-messages::-webkit-scrollbar { width: 5px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #3D2B6B; border-radius: 3px; }
+
+        /* ===== WELCOME ===== */
+        .welcome-message { text-align: center; padding: 44px 24px; color: #C4B5FD; }
+        .welcome-message h2 { color: #A78BFA; margin-bottom: 10px; font-size: 22px; font-weight: 700; }
+        .welcome-message p { color: #9CA3AF; line-height: 1.6; font-size: 14px; opacity: 0.9; max-width: 520px; margin: 0 auto 8px; }
+        .privacy-note {
+            margin-top: 16px;
+            display: inline-block;
+            background: #1E1040;
+            border: 1px solid #4C1D95;
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-size: 12px;
+            color: #A78BFA;
+            line-height: 1.5;
+        }
+        .privacy-note strong { color: #C4B5FD; }
+
+        /* ===== MODE CARDS ===== */
+        .mode-selector-welcome { display: flex; gap: 12px; margin-top: 24px; justify-content: center; flex-wrap: wrap; }
+        .mode-card {
+            flex: 1; min-width: 150px; max-width: 205px;
+            padding: 16px 14px;
+            border: 1.5px solid #2D1654;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.22s;
+            text-align: left;
+            background: #16213E;
+            user-select: none;
+        }
+        .mode-card:hover { border-color: #7C3AED; background: #1E1040; transform: translateY(-2px); box-shadow: 0 4px 14px rgba(109,40,217,0.2); }
+        .mode-card.active { border-color: #7C3AED; background: #1E1040; box-shadow: 0 4px 14px rgba(109,40,217,0.25); }
+        .mode-card-icon { font-size: 20px; margin-bottom: 6px; }
+        .mode-card-name { font-size: 13px; font-weight: 700; color: #A78BFA; margin-bottom: 3px; }
+        .mode-card-preview { font-size: 11px; color: #6B7280; margin-bottom: 8px; font-style: italic; line-height: 1.4; }
+        .mode-card-bullets { list-style: none; font-size: 11px; color: #9CA3AF; display: flex; flex-direction: column; gap: 3px; }
+        .mode-card-bullets li::before { content: "• "; color: #7C3AED; font-weight: bold; }
+
+        /* ===== MESSAGES ===== */
+        .message { display: flex; align-items: flex-end; gap: 12px; animation: slideIn 0.3s ease-out; }
+        .message.user { flex-direction: row-reverse; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.55;
+            word-wrap: break-word;
+        }
+        .message.bot .message-content { background: #1E1B3A; color: #D1D5DB; border: 1px solid #2D1654; border-bottom-left-radius: 4px; }
+        .message.user .message-content { background: #4C1D95; color: #F5F3FF; border-bottom-right-radius: 4px; }
+
+        .message-avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; flex-shrink: 0; overflow: hidden;
+        }
+        .message.bot .message-avatar { background: #1E1B3A; border: 2px solid #2D1654; padding: 0; }
+        .message.bot .message-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .message.user .message-avatar { background: #4C1D95; border: 2px solid #6D28D9; }
+        .message.user .message-avatar svg { width: 17px; height: 17px; }
+
+        .emotion-tag { font-size: 10px; color: #8B5CF6; margin-top: 5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8; }
+
+        /* ===== TYPING ===== */
+        .typing-indicator { display: none; align-items: center; gap: 10px; padding: 12px 16px; background: #1E1B3A; border-radius: 16px; max-width: 80px; border-bottom-left-radius: 4px; border: 1px solid #2D1654; }
+        .typing-indicator.show { display: flex; }
+        .typing-dots { display: flex; gap: 4px; }
+        .typing-dots span { width: 7px; height: 7px; background: #7C3AED; border-radius: 50%; animation: bounce 1.4s infinite; }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-7px); } }
+
+        /* ===== INPUT ===== */
+        .chat-input-container {
+            padding: 16px 20px;
+            background: #16213E;
+            border-top: 1px solid #2A2A4A;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .chat-input {
+            flex: 1; padding: 13px 16px;
+            border: 1.5px solid #2D1654;
+            border-radius: 12px;
+            font-size: 14px; outline: none;
+            transition: all 0.2s;
+            background: #0F0F23;
+            color: #E5E7EB;
+            font-family: inherit;
+        }
+        .chat-input::placeholder { color: #6B7280; }
+        .chat-input:focus { border-color: #7C3AED; background: #12122A; }
+        .send-btn {
+            padding: 13px 22px;
+            background: #4C1D95;
+            color: #E9D5FF;
+            border: none; border-radius: 12px;
+            cursor: pointer; font-size: 14px; font-weight: 600;
+            transition: all 0.2s; font-family: inherit;
+        }
+        .send-btn:hover:not(:disabled) { background: #5B21B6; transform: translateY(-1px); }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ===== EXIT MODAL ===== */
+        .modal {
+            display: none; position: fixed; z-index: 1000; inset: 0;
+            background: rgba(0,0,0,0.7);
+        }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content {
+            background: #1E1B3A; border: 1px solid #4C1D95;
+            border-radius: 16px; padding: 28px; width: 90%; max-width: 400px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+        }
+        .modal-content h2 { color: #E9D5FF; margin-bottom: 12px; font-size: 20px; font-weight: 700; }
+        .modal-content p { color: #9CA3AF; font-size: 14px; line-height: 1.55; margin-bottom: 22px; }
+        .modal-content p strong { color: #C4B5FD; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+        .modal-btn {
+            padding: 10px 20px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .cancel-btn { background: #2D1654; color: #C4B5FD; border: 1px solid #4C1D95; }
+        .cancel-btn:hover { background: #3D1D7A; }
+        .confirm-btn { background: #6D28D9; color: white; }
+        .confirm-btn:hover { background: #5B21B6; }
+    </style>
+</head>
+<body>
+    <!-- Privacy Banner -->
+    <div class="incognito-banner">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4c1.4 0 2.8 1.1 2.8 2.5v1H9.2v-1C9.2 6.1 10.6 5 12 5zm3 13H9v-5h1v-1c0-1.1.9-2 2-2s2 .9 2 2v1h1v5z"/></svg>
+        <span><strong>Private Mode Active</strong> — Messages in this session will not be saved. Crisis detection remains active for your safety.</span>
+    </div>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <img src="/static/menti logo.png" alt="Menti Logo" class="header-logo">
+            <h1>Menti</h1>
+            <div class="incognito-pill">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/></svg>
+                Private
+            </div>
+        </div>
+
+        <div class="header-mode-selector" id="headerModeSelector">
+            <button class="header-mode-btn active" id="headerBtn-friendly" onclick="selectMode('friendly')">💬 Friendly</button>
+            <button class="header-mode-btn" id="headerBtn-supportive" onclick="selectMode('supportive')">🤝 Supportive</button>
+            <button class="header-mode-btn" id="headerBtn-professional" onclick="selectMode('professional')">📋 Professional</button>
+        </div>
+
+        <button class="exit-btn" id="exitBtn">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+            Exit Private Mode
+        </button>
+    </div>
+
+    <!-- Exit Confirmation Modal -->
+    <div id="exitModal" class="modal">
+        <div class="modal-content">
+            <h2>Exit Private Mode?</h2>
+            <p>All messages in this private session will be <strong>permanently deleted</strong> and cannot be recovered. This is by design.</p>
+            <div class="modal-buttons">
+                <button class="modal-btn cancel-btn" id="cancelExitBtn">Stay</button>
+                <button class="modal-btn confirm-btn" id="confirmExitBtn">Exit &amp; Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message" id="welcomeMessage">
+                    <h2 id="welcomeTitle">Private Mode 🕵️</h2>
+                    <p id="welcomeText">This is a private conversation. Nothing here will be stored after you leave. I'm still here to listen — what's on your mind?</p>
+                    <div class="privacy-note">
+                        🔒 <strong>Privacy Promise:</strong> No chat history • No emotion logs • No journal entries<br>
+                        ⚠️ Crisis detection remains active for your safety. Emergency resources will always be shared.
+                    </div>
+                    <div class="mode-selector-welcome" id="modeSelectorWelcome">
+                        <div class="mode-card active" id="modeCard-friendly" onclick="selectMode('friendly')">
+                            <div class="mode-card-icon">💬</div>
+                            <div class="mode-card-name">Friendly Mode</div>
+                            <div class="mode-card-preview">Short, simple, safe to vent.</div>
+                            <ul class="mode-card-bullets"><li>Casual warm tone</li><li>Light encouragement</li><li>Friend-like chat</li></ul>
+                        </div>
+                        <div class="mode-card" id="modeCard-supportive" onclick="selectMode('supportive')">
+                            <div class="mode-card-icon">🤝</div>
+                            <div class="mode-card-name">Supportive Mode</div>
+                            <div class="mode-card-preview">Encouraging and validating.</div>
+                            <ul class="mode-card-bullets"><li>Motivational tone</li><li>Validation &amp; confidence</li><li>Feel heard</li></ul>
+                        </div>
+                        <div class="mode-card" id="modeCard-professional" onclick="selectMode('professional')">
+                            <div class="mode-card-icon">📋</div>
+                            <div class="mode-card-name">Professional Mode</div>
+                            <div class="mode-card-preview">Structured, counselor-style.</div>
+                            <ul class="mode-card-bullets"><li>Calm formal guidance</li><li>Evidence-based</li><li>Deep reflection</li></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-container">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Type your message here... (private)" autocomplete="off">
+                <button class="send-btn" id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
+            authDomain: "menti-7b8a1.firebaseapp.com",
+            projectId: "menti-7b8a1",
+            storageBucket: "menti-7b8a1.firebasestorage.app",
+            messagingSenderId: "164612023817",
+            appId: "1:164612023817:web:c0437146e86951377f3ad8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput    = document.getElementById('chatInput');
+        const sendBtn      = document.getElementById('sendBtn');
+        const exitBtn      = document.getElementById('exitBtn');
+        const exitModal    = document.getElementById('exitModal');
+
+        let currentUser  = null;
+        let currentMode  = 'friendly';
+        // Generate a unique incognito session ID for cleanup
+        const sessionId  = 'incognito_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        let incognitoConvId = null;
+
+        // ===== MODE SELECTION =====
+        const modeContent = {
+            friendly:     { title: 'Private Mode 🕵️', text: "This is a private conversation. Nothing here will be stored after you leave. What's on your mind?" },
+            supportive:   { title: 'Private & Supported 🤝', text: "Your privacy is protected here. I'm here to encourage and support you freely. What would you like to share?" },
+            professional: { title: 'Private Session 📋', text: "This is a confidential private session. Nothing is stored. I'm ready to provide calm, structured support." }
+        };
+
+        window.selectMode = function(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active'));
+            const card = document.getElementById('modeCard-' + mode);
+            if (card) card.classList.add('active');
+            document.querySelectorAll('.header-mode-btn').forEach(b => b.classList.remove('active'));
+            const hBtn = document.getElementById('headerBtn-' + mode);
+            if (hBtn) hBtn.classList.add('active');
+            const c = modeContent[mode];
+            const ti = document.getElementById('welcomeTitle');
+            const te = document.getElementById('welcomeText');
+            if (ti) ti.textContent = c.title;
+            if (te) te.textContent = c.text;
+        };
+
+        // ===== AUTH =====
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+            } else {
+                window.location.href = '/';
+            }
+        });
+
+        // ===== EXIT =====
+        exitBtn.addEventListener('click', () => { exitModal.classList.add('show'); });
+        document.getElementById('cancelExitBtn').addEventListener('click', () => { exitModal.classList.remove('show'); });
+        document.getElementById('confirmExitBtn').addEventListener('click', async () => {
+            await cleanupAndExit();
+        });
+
+        async function cleanupAndExit() {
+            try {
+                await fetch('/incognito/cleanup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUser ? currentUser.uid : '',
+                        session_id: sessionId
+                    })
+                });
+            } catch (e) { console.warn('Cleanup error:', e); }
+            window.location.href = '/chat-page';
+        }
+
+        // Cleanup when page is closed/navigated away
+        window.addEventListener('pagehide', () => {
+            const payload = JSON.stringify({ user_id: currentUser ? currentUser.uid : '', session_id: sessionId });
+            navigator.sendBeacon('/incognito/cleanup', new Blob([payload], { type: 'application/json' }));
+        });
+
+        // ===== SEND MESSAGE =====
+        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+        sendBtn.addEventListener('click', sendMessage);
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || !currentUser) return;
+
+            chatInput.disabled = true;
+            sendBtn.disabled   = true;
+            addMessage(message, 'user');
+            chatInput.value = '';
+            showTypingIndicator();
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message:         message,
+                        user_id:         currentUser.uid,
+                        is_guest:        true,          // treat as guest so no permanent logs
+                        is_incognito:    true,
+                        conversation_id: incognitoConvId,
+                        mode:            currentMode
+                    })
+                });
+                if (!response.ok) throw new Error('Network response not ok');
+                const data = await response.json();
+                hideTypingIndicator();
+                addMessage(data.reply, 'bot', data.emotion);
+
+                // Create a temporary conv id for this session (first message)
+                if (!incognitoConvId && data.conversation_id) {
+                    incognitoConvId = data.conversation_id;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                hideTypingIndicator();
+                addMessage('Sorry, something went wrong. Please try again.', 'bot');
+            } finally {
+                chatInput.disabled = false;
+                sendBtn.disabled   = false;
+                chatInput.focus();
+            }
+        }
+
+        function addMessage(text, sender, emotion = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            if (sender === 'bot') {
+                const img = document.createElement('img');
+                img.src = '/static/menti logo.png'; img.alt = 'Menti';
+                avatar.appendChild(img);
+            } else {
+                avatar.innerHTML = '<svg viewBox="0 0 24 24" fill="#E9D5FF"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+            }
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = text;
+
+            if (emotion && sender === 'bot') {
+                const emotionEmojis = { happy:'😊', calm:'😌', sad:'😢', anxious:'😰', stressed:'😤', angry:'😠', confused:'😕', motivated:'💪', tired:'😴', numb:'😶' };
+                const tag = document.createElement('div');
+                tag.className = 'emotion-tag';
+                tag.textContent = `${emotionEmojis[emotion] || '🫥'} ${emotion}`;
+                contentDiv.appendChild(tag);
+            }
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+
+            const welcome = document.querySelector('.welcome-message');
+            if (welcome) {
+                welcome.remove();
+                document.getElementById('headerModeSelector').style.display = 'flex';
+            }
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const div = document.createElement('div');
+            div.className = 'message bot'; div.id = 'typingIndicator';
+            const avatar = document.createElement('div'); avatar.className = 'message-avatar';
+            const img = document.createElement('img'); img.src = '/static/menti logo.png'; img.alt = 'Menti';
+            avatar.appendChild(img);
+            const tc = document.createElement('div'); tc.className = 'typing-indicator show';
+            tc.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+            div.appendChild(avatar); div.appendChild(tc);
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const ti = document.getElementById('typingIndicator');
+            if (ti) ti.remove();
+        }
+
+        window.addEventListener('load', () => chatInput.focus());
+    </script>
+</body>
+</html>
