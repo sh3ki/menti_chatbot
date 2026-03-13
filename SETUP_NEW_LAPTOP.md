@@ -39,11 +39,32 @@ When zipping the project folder, make sure to include:
 Make sure you have:
 - **Python 3.8 or higher** installed ([Download Python](https://www.python.org/downloads/))
   - During installation, check "Add Python to PATH"
+- **Git** installed ([Download Git](https://git-scm.com/downloads))
 - **Internet connection** (to install dependencies)
 
 ### Installation Steps
 
-#### 1. Extract the ZIP File
+#### Option A: Clone from GitHub (Recommended)
+
+If you want to set up directly from GitHub instead of using ZIP transfer:
+
+```powershell
+# Go to where you want to keep the project
+cd "C:\Users\YourName\Documents"
+
+# Clone the repository
+git clone https://github.com/sh3ki/menti_chatbot.git
+
+# Enter the project folder
+cd menti_chatbot
+```
+
+Then continue to Step 3 below (create your `.env` file).
+
+#### Option B: Extract the ZIP File
+
+Use this only if you are transferring files manually from another laptop.
+
 ```powershell
 # Extract to your desired location, for example:
 # C:\Users\YourName\Documents\menti_chatbot
@@ -165,6 +186,9 @@ app.run(debug=True, port=5001)  # Use port 5001 instead
 ## 📝 Quick Command Reference
 
 ```powershell
+# Clone from GitHub
+git clone https://github.com/sh3ki/menti_chatbot.git
+
 # Navigate to project folder
 cd "C:\path\to\menti_chatbot"
 
