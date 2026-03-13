@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menti — My Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #F0F0F0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            color: #0F0F0F;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            background: #FFFFFF;
+            padding: 16px 24px;
+            box-shadow: 0 2px 8px rgba(15,15,15,0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid #E0E0E0;
+            flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .sidebar-toggle {
+            display: none;
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            color: #2C5E31;
+        }
+        .header-logo { width: 36px; height: 36px; object-fit: contain; }
+        .header h1 { color: #2C5E31; font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+
+        /* ===== HEADER RIGHT / PROFILE DROPDOWN ===== */
+        .header-right { display: flex; align-items: center; gap: 10px; }
+        .incognito-topbar-btn {
+            display: none; align-items: center; gap: 6px;
+            padding: 8px 14px; background: #F3F0FF; color: #5B21B6;
+            border: 1.5px solid #DDD6FE; border-radius: 10px;
+            cursor: pointer; font-size: 13px; font-weight: 600;
+            transition: all 0.2s; font-family: inherit;
+        }
+        .incognito-topbar-btn:hover { background: #EDE9FE; border-color: #C4B5FD; }
+        .incognito-topbar-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+        .profile-menu-wrap { position: relative; display: none; }
+        .profile-menu-trigger {
+            display: flex; align-items: center; gap: 8px;
+            padding: 5px 10px 5px 5px; background: none;
+            border: 1.5px solid #E0E0E0; border-radius: 22px;
+            cursor: pointer; font-family: inherit;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .profile-menu-trigger:hover,
+        .profile-menu-wrap.open .profile-menu-trigger { border-color: #4FA858; background: #F6FBF6; }
+        .header-avatar {
+            width: 30px; height: 30px; border-radius: 50%;
+            background: #E8F5E9; display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; color: #2C5E31; overflow: hidden; flex-shrink: 0;
+        }
+        .header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .header-name {
+            font-size: 13px; font-weight: 600; color: #28282B;
+            max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .header-chevron { width: 14px; height: 14px; color: #28282B; opacity: 0.5; transition: transform 0.2s; flex-shrink: 0; }
+        .profile-menu-wrap.open .header-chevron { transform: rotate(180deg); }
+        .profile-dropdown {
+            display: none; position: absolute; right: 0; top: calc(100% + 8px);
+            background: #FFFFFF; border: 1px solid #E8E8E8; border-radius: 12px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.12); min-width: 196px;
+            z-index: 300; overflow: hidden; padding: 4px 0;
+        }
+        .profile-menu-wrap.open .profile-dropdown { display: block; }
+        .profile-dropdown-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 11px 16px; font-size: 13px; font-weight: 500; color: #28282B;
+            text-decoration: none; transition: background 0.15s;
+            width: 100%; text-align: left; background: none; border: none;
+            cursor: pointer; font-family: inherit;
+        }
+        .profile-dropdown-item:hover { background: #F8F8F8; color: #2C5E31; }
+        .profile-dropdown-item.active-page { color: #2C5E31; background: #F0F7F1; font-weight: 600; }
+        .profile-dropdown-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+        .profile-dropdown-logout { color: #C62828; }
+        .profile-dropdown-logout:hover { background: #FFF5F5 !important; color: #C62828 !important; }
+        .profile-dropdown-divider { height: 1px; background: #F0F0F0; margin: 4px 0; }
+
+        /* ===== MAIN LAYOUT ===== */
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 280px; background: #FFFFFF;
+            border-right: 1px solid #E0E0E0;
+            display: flex; flex-direction: column; flex-shrink: 0;
+            transition: transform 0.3s ease;
+        }
+        .sidebar.hidden {
+            transform: translateX(-100%);
+            position: absolute;
+            height: calc(100% - 70px);
+            z-index: 500;
+        }
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #E0E0E0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .new-chat-btn {
+            width: 100%; padding: 12px 16px; background: #2C5E31; color: white;
+            border: none; border-radius: 10px; font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s ease;
+            display: flex; align-items: center; gap: 8px; font-family: inherit;
+        }
+        .new-chat-btn:hover { background: #234A27; }
+        .new-chat-btn svg { width: 18px; height: 18px; }
+        .toggle-archived-btn {
+            width: 100%;
+            padding: 10px 16px;
+            background: #F0F0F0;
+            color: #28282B;
+            border: 1px solid #E0E0E0;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+        .toggle-archived-btn:hover { background: #E8E8E8; border-color: #D0D0D0; }
+        .toggle-archived-btn svg { width: 16px; height: 16px; }
+        .toggle-archived-btn.active { background: #E8F5E9; color: #2C5E31; border-color: #4FA858; }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
+        .sidebar-section { margin-bottom: 16px; }
+        .sidebar-section-title {
+            font-size: 12px; font-weight: 600; color: #28282B;
+            opacity: 0.5; text-transform: uppercase; letter-spacing: 0.5px;
+            padding: 0 4px; margin-bottom: 6px;
+        }
+        .conv-item {
+            padding: 10px 12px; border-radius: 8px; cursor: pointer;
+            font-size: 13px; font-weight: 500; color: #28282B;
+            transition: background 0.15s;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .conv-item:hover { background: #F0F0F0; }
+        .empty-state { font-size: 12px; color: #28282B; opacity: 0.4; padding: 8px 4px; }
+
+        /* ===== PAGE CONTENT ===== */
+        .page-content { flex: 1; overflow-y: auto; padding: 28px 32px; }
+        .page-title { font-size: 22px; font-weight: 800; color: #0F0F0F; margin-bottom: 24px; }
+
+        /* ===== CARDS ===== */
+        .card {
+            background: #FFFFFF;
+            border-radius: 16px;
+            border: 1px solid #E8E8E8;
+            box-shadow: 0 2px 10px rgba(44,94,49,0.05);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            padding: 20px 24px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .card-header h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0F0F0F;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-body { padding: 20px 24px 24px; }
+
+        /* ===== PROFILE HERO ===== */
+        .profile-hero {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 24px;
+        }
+        .avatar-wrapper { position: relative; flex-shrink: 0; }
+        .avatar-img {
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #E8F5E9;
+            background: #E8F5E9;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px; font-weight: 700; color: #2C5E31;
+            overflow: hidden;
+        }
+        .avatar-img img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-change-btn {
+            position: absolute; bottom: 0; right: 0;
+            width: 28px; height: 28px;
+            background: #2C5E31; color: white;
+            border-radius: 50%; border: 2px solid white;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .avatar-change-btn:hover { background: #234A27; }
+        .avatar-change-btn svg { width: 14px; height: 14px; }
+        .profile-info h3 { font-size: 20px; font-weight: 700; color: #0F0F0F; margin-bottom: 3px; }
+        .profile-info p { font-size: 13px; color: #28282B; opacity: 0.7; }
+
+        /* ===== FORM ===== */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-label { font-size: 13px; font-weight: 600; color: #28282B; }
+        .form-input {
+            padding: 11px 14px;
+            border: 1.5px solid #E0E0E0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            color: #0F0F0F;
+            transition: border-color 0.2s;
+            background: #FAFAFA;
+        }
+        .form-input:focus { outline: none; border-color: #4FA858; background: #FFFFFF; }
+        .form-input:disabled { background: #F5F5F5; color: #888; cursor: not-allowed; }
+        .form-hint { font-size: 11.5px; color: #28282B; opacity: 0.55; }
+
+        .btn {
+            padding: 11px 22px;
+            border: none; border-radius: 10px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #2C5E31; color: white; }
+        .btn-primary:hover { background: #234A27; transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: #F0F0F0; color: #28282B; }
+        .btn-secondary:hover { background: #E8E8E8; }
+        .btn-danger { background: #FFF2F2; color: #C62828; border: 1px solid #FFCDD2; }
+        .btn-danger:hover { background: #FFEBEE; }
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+        .save-status {
+            font-size: 13px;
+            color: #2C5E31;
+            font-weight: 600;
+            display: none;
+            align-items: center;
+            gap: 6px;
+        }
+        .save-status.show { display: flex; }
+        .save-status.error { color: #C62828; }
+
+        /* ===== DATA SECTION ===== */
+        .data-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .data-stat {
+            background: #F8FAF8;
+            border: 1px solid #E8EDE9;
+            border-radius: 12px;
+            padding: 14px 20px;
+            text-align: center;
+            min-width: 110px;
+        }
+        .data-stat-value { font-size: 24px; font-weight: 800; color: #2C5E31; line-height: 1; }
+        .data-stat-label { font-size: 12px; color: #28282B; opacity: 0.65; margin-top: 3px; }
+
+        /* ===== DATA PREVIEW TABLE ===== */
+        .data-preview {
+            display: none;
+            margin-top: 16px;
+            border: 1px solid #E8E8E8;
+            border-radius: 12px;
+            overflow: hidden;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .data-preview.show { display: block; }
+        .data-conv {
+            border-bottom: 1px solid #F0F0F0;
+        }
+        .data-conv:last-child { border-bottom: none; }
+        .data-conv-header {
+            padding: 12px 16px;
+            background: #F8FAF8;
+            font-size: 13px;
+            font-weight: 600;
+            color: #2C5E31;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .data-conv-header span { font-size: 11px; color: #28282B; opacity: 0.55; font-weight: 400; }
+        .data-msg {
+            padding: 8px 16px;
+            display: flex;
+            gap: 10px;
+            font-size: 13px;
+            border-bottom: 1px solid #F8F8F8;
+        }
+        .data-msg:last-child { border-bottom: none; }
+        .data-msg-sender {
+            flex-shrink: 0;
+            width: 42px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #2C5E31;
+            padding-top: 1px;
+        }
+        .data-msg-sender.bot { color: #999; }
+        .data-msg-text { color: #28282B; line-height: 1.5; flex: 1; }
+
+        /* ===== MODAL ===== */
+        .modal {
+            display: none; position: fixed; inset: 0; z-index: 1000;
+            background: rgba(15,15,15,0.5);
+        }
+        .modal.show { display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .modal-content {
+            background: white; border-radius: 16px; padding: 28px;
+            width: 100%; max-width: 420px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+        }
+        .modal-content h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+        .modal-content p { font-size: 14px; color: #28282B; opacity: 0.8; line-height: 1.55; margin-bottom: 20px; }
+        .modal-content .form-input { margin-bottom: 10px; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+        /* ===== PFP MODAL ===== */
+        #pfpInput { display: none; }
+        .pfp-preview {
+            width: 72px; height: 72px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #E0E0E0;
+            margin: 10px auto 14px;
+            display: block;
+        }
+        .pfp-upload-area {
+            border: 2px dashed #E0E0E0;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            margin-bottom: 14px;
+        }
+        .pfp-upload-area:hover { border-color: #4FA858; }
+        .pfp-upload-area p { font-size: 13px; color: #28282B; opacity: 0.7; margin-top: 4px; }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
+            background: #2C5E31; color: white;
+            padding: 12px 24px; border-radius: 10px;
+            font-size: 14px; font-weight: 600;
+            box-shadow: 0 8px 24px rgba(44,94,49,0.3);
+            z-index: 9999;
+            transition: transform 0.35s ease;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.error { background: #C62828; }
+
+        /* ===== SECURITY SECTION ===== */
+        .security-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 13px 0; border-bottom: 1px solid #F0F0F0;
+        }
+        .security-item:last-child { border-bottom: none; }
+        .security-item-info { flex: 1; }
+        .security-item-title { font-size: 14px; font-weight: 600; color: #0F0F0F; }
+        .security-item-desc { font-size: 12px; color: #28282B; opacity: 0.6; margin-top: 2px; }
+        .verified-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #E8F5E9; color: #2C5E31;
+            font-size: 11px; font-weight: 700;
+            padding: 3px 9px; border-radius: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 69px;
+                bottom: 0;
+                z-index: 500;
+                transform: translateX(-100%);
+            }
+            .sidebar.show { transform: translateX(0); }
+            .sidebar-toggle { display: block; }
+            .page-content { padding: 20px 16px; }
+            .header { padding: 14px 16px; }
+            .header-name { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+                </svg>
+            </button>
+            <img src="/static/menti logo.png" alt="Menti" class="header-logo">
+            <h1>Menti</h1>
+        </div>
+        <!-- Header right: incognito + profile dropdown -->
+        <div class="header-right">
+            <button class="incognito-topbar-btn" id="incognitoTopBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                Private
+            </button>
+            <div class="profile-menu-wrap" id="profileMenuWrap">
+                <button class="profile-menu-trigger" id="profileMenuTrigger">
+                    <div class="header-avatar" id="headerAvatar"><span>?</span></div>
+                    <span class="header-name" id="headerName">Loading...</span>
+                    <svg class="header-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                </button>
+                <div class="profile-dropdown">
+                    <a class="profile-dropdown-item" id="progressNavLink" href="#">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                        My Progress
+                    </a>
+                    <a class="profile-dropdown-item" id="planNavLink" href="#">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm1 16H8v-2h7v2zm1-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                        Personalized Plan
+                    </a>
+                    <a class="profile-dropdown-item" id="journalNavLink" href="#">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-2-9H7V8h10v2zm0 4H7v-2h10v2z"/></svg>
+                        My Journal
+                    </a>
+                    <a class="profile-dropdown-item" href="/offline-resources">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 18H4V6h16v12zm0-14H4c-1.1 0-2 .9-2 2v14h20V6c0-1.1-.9-2-2-2zm-7 13h-2v2h2v-2z"/></svg>
+                        Offline Resources
+                    </a>
+                    <a class="profile-dropdown-item active-page" href="/profile">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        Profile Settings
+                    </a>
+                    <div class="profile-dropdown-divider"></div>
+                    <button class="profile-dropdown-item profile-dropdown-logout" id="logoutBtn">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logout Modal -->
+    <div id="logoutModal" class="modal">
+        <div class="modal-content">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to logout?</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancelLogoutBtn">Cancel</button>
+                <button class="btn btn-primary" id="confirmLogoutBtn">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" onclick="window.location.href='/chat-page'">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                    New Chat
+                </button>
+                <button class="toggle-archived-btn" id="toggleArchivedBtn" type="button" onclick="toggleArchivedView()">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+                    </svg>
+                    <span id="toggleArchivedText">Show Archived</span>
+                </button>
+            </div>
+            <div class="sidebar-content">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title" id="chatsTitle">Active Chats</div>
+                    <div id="convList"><div class="empty-state">Loading...</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Content -->
+        <div class="page-content">
+        <div class="page-title">👤 Profile Settings</div>
+
+        <!-- Profile Picture & Name Hero -->
+        <div class="card">
+            <div class="profile-hero">
+                <div class="avatar-wrapper">
+                    <div class="avatar-img" id="avatarDisplay">
+                        <span id="avatarInitials">?</span>
+                    </div>
+                    <button class="avatar-change-btn" id="openPfpModal" title="Change photo">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    </button>
+                </div>
+                <div class="profile-info">
+                    <h3 id="heroName">Loading...</h3>
+                    <p id="heroEmail">—</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Details -->
+        <div class="card">
+            <div class="card-header"><h2>✏️ Account Details</h2></div>
+            <div class="card-body">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" class="form-input" id="fieldName" placeholder="Your name" autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Birthday</label>
+                        <input type="date" class="form-input" id="fieldBirthday">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-input" id="fieldEmail" disabled>
+                        <span class="form-hint">Email changes require re-authentication. Use the security section below.</span>
+                    </div>
+                </div>
+                <div class="btn-row" style="margin-top: 16px;">
+                    <button class="btn btn-primary" id="saveProfileBtn">Save Changes</button>
+                    <span class="save-status" id="saveStatus">✓ Saved successfully</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security -->
+        <div class="card">
+            <div class="card-header"><h2>🔒 Security</h2></div>
+            <div class="card-body">
+                <div class="security-item">
+                    <div class="security-item-info">
+                        <div class="security-item-title">Email Verification</div>
+                        <div class="security-item-desc">Verify your email to protect your account.</div>
+                    </div>
+                    <span class="verified-badge" id="emailVerifiedBadge" style="display:none;">✓ Verified</span>
+                    <button class="btn btn-secondary" id="verifyEmailBtn" style="display:none;">Send Verification</button>
+                </div>
+                <div class="security-item">
+                    <div class="security-item-info">
+                        <div class="security-item-title">Password Reset</div>
+                        <div class="security-item-desc">Send a password reset link to your email.</div>
+                    </div>
+                    <button class="btn btn-secondary" id="resetPasswordBtn">Send Reset Link</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Personal Data -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📁 My Personal Data</h2>
+            </div>
+            <div class="card-body">
+                <p style="font-size:13px; color:#28282B; opacity:0.7; margin-bottom:16px;">
+                    Your personal data includes all conversations and messages. You can view, download, or permanently delete them.
+                </p>
+                <div class="data-stats">
+                    <div class="data-stat"><div class="data-stat-value" id="statConvs">—</div><div class="data-stat-label">Conversations</div></div>
+                    <div class="data-stat"><div class="data-stat-value" id="statMsgs">—</div><div class="data-stat-label">Total Messages</div></div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-secondary" id="viewDataBtn">👁 View Data</button>
+                    <button class="btn btn-secondary" id="downloadDataBtn">⬇ Download</button>
+                    <button class="btn btn-danger" id="deleteDataBtn">🗑 Delete All Data</button>
+                </div>
+                <!-- Data Preview -->
+                <div class="data-preview" id="dataPreview"></div>
+            </div>
+        </div>
+
+    </div><!-- /main -->
+
+    <!-- PFP Modal -->
+    <div class="modal" id="pfpModal">
+        <div class="modal-content">
+            <h3>Change Profile Picture</h3>
+            <div class="pfp-upload-area" id="pfpUploadArea">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="#4FA858"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8.5 12.5L8 12l-4 5h12l-3.5-4.5z"/></svg>
+                <p>Click to choose a photo, or paste a URL below</p>
+            </div>
+            <input type="file" id="pfpInput" accept="image/*">
+            <input type="url" class="form-input" id="pfpUrlInput" placeholder="Or paste image URL (https://...)">
+            <img class="pfp-preview" id="pfpPreviewImg" src="" alt="" style="display:none;">
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancelPfpBtn">Cancel</button>
+                <button class="btn btn-primary" id="savePfpBtn">Save Photo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Data Confirmation Modal -->
+    <div class="modal" id="deleteDataModal">
+        <div class="modal-content">
+            <h3>🗑 Delete All My Data</h3>
+            <p>This will <strong>permanently delete</strong> all your conversations, messages, emotion logs, and activity records. This action <strong>cannot be undone</strong>.</p>
+            <p>Type <strong>DELETE</strong> below to confirm:</p>
+            <input type="text" class="form-input" id="deleteConfirmInput" placeholder="Type DELETE here">
+            <div class="modal-actions" style="margin-top: 14px;">
+                <button class="btn btn-secondary" id="cancelDeleteBtn">Cancel</button>
+                <button class="btn btn-danger" id="confirmDeleteBtn">Permanently Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import {
+            getAuth, onAuthStateChanged, signOut,
+            sendEmailVerification, sendPasswordResetEmail
+        } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
+            authDomain: "menti-7b8a1.firebaseapp.com",
+            projectId: "menti-7b8a1",
+            storageBucket: "menti-7b8a1.firebasestorage.app",
+            messagingSenderId: "164612023817",
+            appId: "1:164612023817:web:c0437146e86951377f3ad8"
+        };
+
+        const app  = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        let currentUser = null;
+        let personalData = null;
+        let cacheMeta = null;
+        let showingArchived = sessionStorage.getItem('menti_sidebar_show_archived') === '1';
+
+        const CACHE_NS = 'menti_cache_v1';
+        function cacheKey(type, uid) { return `${CACHE_NS}:${type}:${uid}`; }
+        function readCache(key) {
+            try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; }
+        }
+        function writeCache(key, value) {
+            try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+        }
+        function readSessionCache(key) {
+            try { return JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (_) { return null; }
+        }
+        function writeSessionCache(key, value) {
+            try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+        }
+        function clearUserCache(uid) {
+            try {
+                localStorage.removeItem(cacheKey('conversations', uid));
+                localStorage.removeItem(cacheKey('profile', uid));
+                localStorage.removeItem(cacheKey('userdata', uid));
+            } catch (_) {}
+        }
+        async function getCacheMeta(uid) {
+            try {
+                const res = await fetch(`/user/cache-meta/${encodeURIComponent(uid)}`);
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (_) {
+                return null;
+            }
+        }
+
+        // ===== TOAST =====
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast' + (isError ? ' error' : '');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3200);
+        }
+
+        // ===== AUTH =====
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) { window.location.href = '/'; return; }
+            if (user.isAnonymous) { window.location.href = '/chat-page'; return; }
+            currentUser = user;
+            updateHeaderProfile(user);
+            cacheMeta = await getCacheMeta(user.uid);
+            applySidebarViewState();
+            await loadSidebarConversations(user.uid);
+            await loadProfile();
+            await loadDataStats();
+        });
+
+        function applySidebarViewState() {
+            const toggleBtn = document.getElementById('toggleArchivedBtn');
+            const toggleText = document.getElementById('toggleArchivedText');
+            const chatsTitle = document.getElementById('chatsTitle');
+            if (!toggleBtn || !toggleText || !chatsTitle) return;
+            if (showingArchived) {
+                toggleBtn.classList.add('active');
+                toggleText.textContent = 'Show Active';
+                chatsTitle.textContent = 'Archived Chats';
+            } else {
+                toggleBtn.classList.remove('active');
+                toggleText.textContent = 'Show Archived';
+                chatsTitle.textContent = 'Active Chats';
+            }
+        }
+
+        window.toggleArchivedView = function() {
+            showingArchived = !showingArchived;
+            sessionStorage.setItem('menti_sidebar_show_archived', showingArchived ? '1' : '0');
+            applySidebarViewState();
+            if (currentUser) loadSidebarConversations(currentUser.uid);
+        };
+
+        // ===== LOAD PROFILE =====
+
+                // ===== HEADER PROFILE =====
+                function updateHeaderProfile(user) {
+                    const wrap = document.getElementById('profileMenuWrap');
+                    const incogBtn = document.getElementById('incognitoTopBtn');
+                    if (wrap) wrap.style.display = 'flex';
+                    if (incogBtn) incogBtn.style.display = 'flex';
+                    const name = user.displayName || user.email || 'User';
+                    const nameEl = document.getElementById('headerName');
+                    if (nameEl) nameEl.textContent = name;
+                    const avatarEl = document.getElementById('headerAvatar');
+                    if (avatarEl) {
+                        if (user.photoURL) {
+                            avatarEl.innerHTML = `<img src="${escHtml(user.photoURL)}" alt="Avatar" onerror="this.parentNode.innerHTML='<span>${name.slice(0,1).toUpperCase()}</span>'">`;
+                        } else {
+                            const initials = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0,2) || '?';
+                            avatarEl.innerHTML = `<span>${initials}</span>`;
+                        }
+                    }
+                    const progressLink = document.getElementById('progressNavLink');
+                    if (progressLink) progressLink.href = `/progress/${user.uid}`;
+                    const planLink = document.getElementById('planNavLink');
+                    if (planLink) planLink.href = `/personalized-plan/${user.uid}`;
+                    const journalLink = document.getElementById('journalNavLink');
+                    if (journalLink) journalLink.href = `/journal/${user.uid}`;
+                }
+                const profileMenuWrap    = document.getElementById('profileMenuWrap');
+                const profileMenuTrigger = document.getElementById('profileMenuTrigger');
+                if (profileMenuTrigger) {
+                    profileMenuTrigger.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        profileMenuWrap.classList.toggle('open');
+                    });
+                }
+                document.addEventListener('click', (e) => {
+                    if (profileMenuWrap && !profileMenuWrap.contains(e.target)) {
+                        profileMenuWrap.classList.remove('open');
+                    }
+                });
+                document.getElementById('incognitoTopBtn').addEventListener('click', () => {
+                    window.location.href = '/incognito';
+                });
+
+                sidebarToggle.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) {
+                        sidebar.classList.toggle('show');
+                    } else {
+                        sidebar.classList.toggle('hidden');
+                    }
+                });
+
+                // ===== LOGOUT =====
+                document.getElementById('logoutBtn').addEventListener('click', () => {
+                    document.getElementById('logoutModal').classList.add('show');
+                    profileMenuWrap.classList.remove('open');
+                });
+                document.getElementById('cancelLogoutBtn').addEventListener('click', () => {
+                    document.getElementById('logoutModal').classList.remove('show');
+                });
+                document.getElementById('confirmLogoutBtn').addEventListener('click', async () => {
+                    document.getElementById('logoutModal').classList.remove('show');
+                    try {
+                        await fetch('/logout', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ user_id: currentUser?.uid, is_guest: false })
+                        });
+                    } catch (_) {}
+                    await signOut(auth);
+                    window.location.href = '/';
+                });
+
+                // ===== SIDEBAR CONVERSATIONS =====
+                async function loadSidebarConversations(uid) {
+                    const listEl = document.getElementById('convList');
+                    const scope = showingArchived ? 'archived' : 'active';
+                    const key = cacheKey('conversations', `${uid}:${scope}`);
+                    const cached = readCache(key);
+                    const sessionKey = `menti_sidebar_cache:${uid}:${scope}`;
+                    const sessionCached = readSessionCache(sessionKey);
+
+                    if (sessionCached?.data && Array.isArray(sessionCached.data)) {
+                        renderSidebarConversations(sessionCached.data);
+                        if ((Date.now() - (sessionCached.ts || 0)) < 60000) return;
+                    }
+
+                    if (cached?.data && Array.isArray(cached.data)) {
+                        renderSidebarConversations(cached.data);
+                        if (cacheMeta?.revision && cached.revision === cacheMeta.revision) return;
+                    }
+
+                    try {
+                        const res = await fetch(`/conversations?user_id=${encodeURIComponent(uid)}&is_guest=false&is_archived=${showingArchived}`);
+                        if (!res.ok) throw new Error('Failed to fetch conversations');
+                        const conversations = await res.json();
+                        renderSidebarConversations(conversations || []);
+                        writeCache(key, { revision: cacheMeta?.revision || null, data: conversations || [] });
+                        writeSessionCache(sessionKey, { ts: Date.now(), data: conversations || [] });
+                    } catch (e) {
+                        console.error('Sidebar load error:', e);
+                        if (!cached?.data) listEl.innerHTML = '<div class="empty-state">Could not load chats</div>';
+                    }
+                }
+
+        function renderSidebarConversations(conversations) {
+            const listEl = document.getElementById('convList');
+            if (!Array.isArray(conversations) || conversations.length === 0) {
+                listEl.innerHTML = '<div class="empty-state">No conversations yet</div>';
+                return;
+            }
+            listEl.innerHTML = conversations.map((d) => {
+                const title = d.title || 'Untitled';
+                return `<div class="conv-item" onclick="window.location.href='/chat-page'" title="${escHtml(title)}">${escHtml(title)}</div>`;
+            }).join('');
+        }
+
+        async function loadProfile() {
+            const key = cacheKey('profile', currentUser.uid);
+            const cached = readCache(key);
+            if (cached?.data) {
+                populateProfile(cached.data);
+                if (cacheMeta?.revision && cached.revision === cacheMeta.revision) return;
+            }
+            try {
+                const res = await fetch(`/user/profile/${currentUser.uid}`);
+                const data = await res.json();
+                populateProfile(data);
+                writeCache(key, { revision: cacheMeta?.revision || null, data });
+            } catch (e) { console.error('Profile load error:', e); }
+        }
+
+        function populateProfile(data) {
+            document.getElementById('fieldName').value    = data.displayName || currentUser.displayName || '';
+            document.getElementById('fieldEmail').value   = data.email       || currentUser.email       || '';
+            document.getElementById('fieldBirthday').value = data.birthday   || '';
+            document.getElementById('heroName').textContent  = data.displayName || currentUser.displayName || 'No Name';
+            document.getElementById('heroEmail').textContent = data.email       || currentUser.email       || '';
+
+            const photoURL = data.photoURL || currentUser.photoURL || '';
+            setAvatar(data.displayName || currentUser.displayName || '', photoURL);
+
+            if (currentUser.emailVerified) {
+                document.getElementById('emailVerifiedBadge').style.display = 'inline-flex';
+            } else {
+                document.getElementById('verifyEmailBtn').style.display = 'block';
+            }
+        }
+
+        function setAvatar(name, photoURL) {
+            const el = document.getElementById('avatarDisplay');
+            if (photoURL) {
+                el.innerHTML = `<img src="${escHtml(photoURL)}" alt="Avatar" onerror="this.style.display='none'">`;
+            } else {
+                const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+                el.innerHTML = `<span id="avatarInitials" style="
+                    width:80px;height:80px;border-radius:50%;background:#E8F5E9;
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:28px;font-weight:700;color:#2C5E31;">${initials}</span>`;
+            }
+        }
+
+        function escHtml(str) { return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+        // ===== SAVE PROFILE =====
+        document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('saveProfileBtn');
+            const status = document.getElementById('saveStatus');
+            btn.disabled = true;
+            status.classList.remove('show', 'error');
+
+            const displayName = document.getElementById('fieldName').value.trim();
+            const birthday    = document.getElementById('fieldBirthday').value;
+
+            try {
+                const res = await fetch(`/user/profile/${currentUser.uid}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ displayName, birthday })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    document.getElementById('heroName').textContent = displayName || 'No Name';
+                    setAvatar(displayName, document.getElementById('pfpUrlInput')?.value || currentUser.photoURL || '');
+                    clearUserCache(currentUser.uid);
+                    status.className = 'save-status show';
+                    status.textContent = '✓ Saved successfully';
+                    showToast('Profile updated!');
+                } else {
+                    throw new Error(result.error || 'Update failed');
+                }
+            } catch (e) {
+                status.className = 'save-status show error';
+                status.textContent = '✗ ' + (e.message || 'Error saving');
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => status.classList.remove('show'), 3000);
+            }
+        });
+
+        // ===== SECURITY =====
+        document.getElementById('verifyEmailBtn').addEventListener('click', async () => {
+            try {
+                await sendEmailVerification(currentUser);
+                showToast('Verification email sent! Check your inbox.');
+            } catch (e) { showToast('Error: ' + e.message, true); }
+        });
+
+        document.getElementById('resetPasswordBtn').addEventListener('click', async () => {
+            const email = currentUser.email;
+            if (!email) { showToast('No email address found.', true); return; }
+            try {
+                await sendPasswordResetEmail(auth, email);
+                showToast('Password reset email sent to ' + email);
+            } catch (e) { showToast('Error: ' + e.message, true); }
+        });
+
+        // ===== PFP MODAL =====
+        const pfpModal     = document.getElementById('pfpModal');
+        const pfpInput     = document.getElementById('pfpInput');
+        const pfpUrlInput  = document.getElementById('pfpUrlInput');
+        const pfpPreviewImg = document.getElementById('pfpPreviewImg');
+
+        document.getElementById('openPfpModal').addEventListener('click', () => pfpModal.classList.add('show'));
+        document.getElementById('cancelPfpBtn').addEventListener('click', () => pfpModal.classList.remove('show'));
+        document.getElementById('pfpUploadArea').addEventListener('click', () => pfpInput.click());
+
+        pfpInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) { showToast('Please select an image file.', true); return; }
+            if (file.size > 2 * 1024 * 1024) { showToast('Image must be under 2MB.', true); return; }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                pfpPreviewImg.src = ev.target.result;
+                pfpPreviewImg.style.display = 'block';
+                pfpUrlInput.value = '';
+            };
+            reader.readAsDataURL(file);
+        });
+
+        pfpUrlInput.addEventListener('input', () => {
+            const url = pfpUrlInput.value.trim();
+            if (url.startsWith('https://') || url.startsWith('http://')) {
+                pfpPreviewImg.src = url;
+                pfpPreviewImg.style.display = 'block';
+                pfpInput.value = '';
+            }
+        });
+
+        document.getElementById('savePfpBtn').addEventListener('click', async () => {
+            let photoURL = pfpUrlInput.value.trim();
+            // If file was selected instead, use the data URL
+            if (!photoURL && pfpPreviewImg.src && pfpPreviewImg.src.startsWith('data:')) {
+                photoURL = pfpPreviewImg.src;
+            }
+            if (!photoURL) { showToast('No photo selected.', true); return; }
+            // Basic URL validation for external URLs
+            if (photoURL.startsWith('http') && !/^https?:\/\/[\w\-.]+(\/[\w\-./?%&=]*)?$/.test(photoURL)) {
+                showToast('Invalid URL format.', true); return;
+            }
+            try {
+                const res = await fetch(`/user/profile/${currentUser.uid}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photoURL })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    setAvatar(document.getElementById('fieldName').value || '', photoURL);
+                    pfpModal.classList.remove('show');
+                    clearUserCache(currentUser.uid);
+                    showToast('Profile photo updated!');
+                }
+            } catch (e) { showToast('Error saving photo.', true); }
+        });
+
+        // ===== DATA STATS =====
+        async function loadDataStats() {
+            const key = cacheKey('userdata', currentUser.uid);
+            const cached = readCache(key);
+            if (cached?.data) {
+                populateDataStats(cached.data);
+                if (cacheMeta?.revision && cached.revision === cacheMeta.revision) return;
+            }
+            try {
+                const res = await fetch(`/user/data/${currentUser.uid}`);
+                const data = await res.json();
+                populateDataStats(data);
+                writeCache(key, { revision: cacheMeta?.revision || null, data });
+            } catch (e) { console.error('Data stats error:', e); }
+        }
+
+        function populateDataStats(data) {
+            personalData = data;
+            const totalMsgs = (data.conversations || []).reduce((s, c) => s + (c.messages?.length || 0), 0);
+            document.getElementById('statConvs').textContent = data.totalConversations || 0;
+            document.getElementById('statMsgs').textContent  = totalMsgs;
+        }
+
+        // ===== VIEW DATA =====
+        const dataPreview = document.getElementById('dataPreview');
+        document.getElementById('viewDataBtn').addEventListener('click', () => {
+            if (dataPreview.classList.contains('show')) {
+                dataPreview.classList.remove('show');
+                document.getElementById('viewDataBtn').textContent = '👁 View Data';
+                return;
+            }
+            if (!personalData || !personalData.conversations) { showToast('No data loaded yet.', true); return; }
+            renderDataPreview(personalData.conversations);
+            dataPreview.classList.add('show');
+            document.getElementById('viewDataBtn').textContent = '▲ Hide Data';
+        });
+
+        function renderDataPreview(conversations) {
+            if (!conversations.length) {
+                dataPreview.innerHTML = '<div style="padding:20px;text-align:center;color:#888;font-size:13px;">No conversations found.</div>';
+                return;
+            }
+            dataPreview.innerHTML = conversations.map(conv => {
+                const msgs = (conv.messages || []).map(m => `
+                    <div class="data-msg">
+                        <div class="data-msg-sender ${m.sender === 'bot' ? 'bot' : ''}">${m.sender === 'bot' ? 'Menti' : 'You'}</div>
+                        <div class="data-msg-text">${escHtml(m.message || '')}</div>
+                    </div>
+                `).join('');
+                return `
+                    <div class="data-conv">
+                        <div class="data-conv-header">
+                            ${escHtml(conv.title || 'Untitled')}
+                            <span>${(conv.createdAt || '').slice(0,10)} · ${conv.messages?.length || 0} messages</span>
+                        </div>
+                        ${msgs}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ===== DOWNLOAD DATA =====
+        document.getElementById('downloadDataBtn').addEventListener('click', async () => {
+            if (!personalData) { showToast('Loading data...'); await loadDataStats(); }
+            if (!personalData?.conversations?.length) { showToast('No data to download.'); return; }
+
+            const lines = [];
+            lines.push('MENTI PERSONAL DATA EXPORT');
+            lines.push(`Exported: ${new Date().toLocaleString()}`);
+            lines.push(`Total Conversations: ${personalData.conversations.length}`);
+            lines.push('='.repeat(60));
+
+            personalData.conversations.forEach((conv, i) => {
+                lines.push('');
+                lines.push(`CONVERSATION ${i + 1}: ${conv.title || 'Untitled'}`);
+                lines.push(`Created: ${conv.createdAt || 'Unknown'}`);
+                lines.push('-'.repeat(40));
+                (conv.messages || []).forEach(m => {
+                    const sender = m.sender === 'bot' ? 'Menti' : 'You';
+                    const time   = (m.timestamp || '').replace('T', ' ').slice(0, 19);
+                    lines.push(`[${time}] ${sender}: ${m.message || ''}`);
+                });
+            });
+
+            const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `menti_data_${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Download started!');
+        });
+
+        // ===== DELETE DATA =====
+        const deleteDataModal = document.getElementById('deleteDataModal');
+        document.getElementById('deleteDataBtn').addEventListener('click', () => {
+            document.getElementById('deleteConfirmInput').value = '';
+            deleteDataModal.classList.add('show');
+        });
+        document.getElementById('cancelDeleteBtn').addEventListener('click', () => deleteDataModal.classList.remove('show'));
+
+        document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+            const input = document.getElementById('deleteConfirmInput').value.trim();
+            if (input !== 'DELETE') {
+                showToast('Type DELETE to confirm.', true); return;
+            }
+            const btn = document.getElementById('confirmDeleteBtn');
+            btn.disabled = true; btn.textContent = 'Deleting...';
+            try {
+                const res = await fetch(`/user/data/${currentUser.uid}/delete`, { method: 'DELETE' });
+                const result = await res.json();
+                if (result.success) {
+                    deleteDataModal.classList.remove('show');
+                    personalData = { conversations: [], totalConversations: 0 };
+                    clearUserCache(currentUser.uid);
+                    document.getElementById('statConvs').textContent = '0';
+                    document.getElementById('statMsgs').textContent  = '0';
+                    dataPreview.classList.remove('show');
+                    dataPreview.innerHTML = '';
+                    document.getElementById('viewDataBtn').textContent = '👁 View Data';
+                    showToast('All personal data deleted.');
+                } else {
+                    throw new Error(result.error || 'Delete failed');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, true);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Permanently Delete';
+            }
+        });
+
+        // Close modals on backdrop click
+        [pfpModal, deleteDataModal].forEach(m => {
+            m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('show'); });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 && sidebar.classList.contains('show')) {
+                const clickedInsideSidebar = sidebar.contains(e.target);
+                const clickedToggle = sidebarToggle.contains(e.target);
+                if (!clickedInsideSidebar && !clickedToggle) {
+                    sidebar.classList.remove('show');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
