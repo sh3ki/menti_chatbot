@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menti - Personalized Plan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #F0F0F0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; color: #0F0F0F; }
+        .header { background: #FFFFFF; padding: 16px 24px; border-bottom: 1px solid #E0E0E0; display: flex; justify-content: space-between; align-items: center; z-index: 100; flex-shrink: 0; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .sidebar-toggle { display: none; background: none; border: none; padding: 8px; cursor: pointer; color: #2C5E31; }
+        .header-logo { width: 36px; height: 36px; object-fit: contain; }
+        .header h1 { color: #2C5E31; font-size: 22px; font-weight: 700; }
+
+        .header-right { display: flex; align-items: center; gap: 10px; }
+        .incognito-topbar-btn {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #F3F0FF;
+            color: #5B21B6;
+            border: 1.5px solid #DDD6FE;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .incognito-topbar-btn:hover { background: #EDE9FE; border-color: #C4B5FD; }
+        .incognito-topbar-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+        .profile-menu-wrap { position: relative; display: none; }
+        .profile-menu-trigger { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 5px; border: 1.5px solid #E0E0E0; border-radius: 22px; background: none; cursor: pointer; }
+        .header-avatar { width: 30px; height: 30px; border-radius: 50%; background: #E8F5E9; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #2C5E31; overflow: hidden; }
+        .header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .header-name { font-size: 13px; font-weight: 600; color: #28282B; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .header-chevron { width: 14px; height: 14px; color: #28282B; opacity: 0.5; transition: transform 0.2s; }
+        .profile-menu-wrap.open .header-chevron { transform: rotate(180deg); }
+        .profile-dropdown { display: none; position: absolute; right: 0; top: calc(100% + 8px); background: #FFFFFF; border: 1px solid #E8E8E8; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.12); min-width: 210px; z-index: 300; padding: 4px 0; }
+        .profile-menu-wrap.open .profile-dropdown { display: block; }
+        .profile-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 11px 16px; font-size: 13px; font-weight: 500; color: #28282B; text-decoration: none; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-family: inherit; }
+        .profile-dropdown-item.active-page { color: #2C5E31; background: #F0F7F1; font-weight: 600; }
+        .profile-dropdown-divider { height: 1px; background: #F0F0F0; margin: 4px 0; }
+        .profile-dropdown-logout { color: #C62828; }
+
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 280px; background: #FFFFFF; border-right: 1px solid #E0E0E0; display: flex; flex-direction: column; transition: transform 0.3s ease; flex-shrink: 0; }
+        .sidebar.hidden { transform: translateX(-100%); position: absolute; height: calc(100% - 70px); z-index: 500; }
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #E0E0E0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .new-chat-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: #2C5E31;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+        .new-chat-btn:hover { background: #234A27; }
+        .new-chat-btn svg { width: 18px; height: 18px; }
+        .toggle-archived-btn {
+            width: 100%;
+            padding: 10px 16px;
+            background: #F0F0F0;
+            color: #28282B;
+            border: 1px solid #E0E0E0;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+        .toggle-archived-btn:hover { background: #E8E8E8; border-color: #D0D0D0; }
+        .toggle-archived-btn svg { width: 16px; height: 16px; }
+        .toggle-archived-btn.active { background: #E8F5E9; color: #2C5E31; border-color: #4FA858; }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
+        .sidebar-section-title { font-size: 12px; font-weight: 600; color: #28282B; opacity: 0.5; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 4px; margin-bottom: 6px; }
+        .conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: #28282B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .conv-item:hover { background: #F0F0F0; }
+        .empty-state { font-size: 12px; color: #28282B; opacity: 0.4; padding: 8px 4px; }
+
+        .page-content { flex: 1; overflow-y: auto; padding: 28px 32px; }
+        .page-title { font-size: 24px; font-weight: 800; margin-bottom: 10px; }
+        .page-subtitle { color: #666; font-size: 14px; margin-bottom: 22px; }
+        .status-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .status-badge { padding: 6px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+        .status-active { background: #E8F5E9; color: #2C5E31; }
+        .status-paused { background: #FFF3E0; color: #B45309; }
+
+        .plan-card { background: #FFFFFF; border: 1px solid #E8E8E8; border-radius: 14px; padding: 20px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .section-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+        .muted { color: #666; font-size: 13px; }
+        .goal-item { border: 1px solid #E8E8E8; border-radius: 10px; padding: 12px; margin-bottom: 8px; background: #FAFAFA; }
+        .goal-item input, .goal-item textarea, .editor-input, .editor-textarea {
+            width: 100%; border: 1px solid #DDD; border-radius: 8px; font-family: inherit; font-size: 13px; padding: 9px 10px; margin-top: 6px; background: #FFF;
+        }
+        .goal-item textarea, .editor-textarea { resize: vertical; min-height: 64px; }
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+        .btn { padding: 10px 16px; border: none; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; }
+        .btn-primary { background: #2C5E31; color: #FFF; }
+        .btn-secondary { background: #F0F0F0; color: #28282B; }
+        .btn-warning { background: #FFF3E0; color: #B45309; }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .link-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+
+        .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: #2C5E31; color: #fff; padding: 10px 16px; border-radius: 10px; display: none; z-index: 2000; }
+        .toast.show { display: block; }
+        .toast.error { background: #C62828; }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15,15,15,0.5); z-index: 1000; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: #fff; border-radius: 14px; padding: 22px; width: 90%; max-width: 380px; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; left: 0; top: 69px; bottom: 0; z-index: 500; transform: translateX(-100%); }
+            .sidebar.show { transform: translateX(0); }
+            .sidebar-toggle { display: block; }
+            .page-content { padding: 20px 16px; }
+            .header-name { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </button>
+            <img src="/static/menti logo.png" alt="Menti" class="header-logo">
+            <h1>Menti</h1>
+        </div>
+        <div class="header-right">
+            <button class="incognito-topbar-btn" id="incognitoTopBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                Private
+            </button>
+            <div class="profile-menu-wrap" id="profileMenuWrap">
+                <button class="profile-menu-trigger" id="profileMenuTrigger">
+                    <div class="header-avatar" id="headerAvatar"><span>?</span></div>
+                    <span class="header-name" id="headerName">Loading...</span>
+                    <svg class="header-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                </button>
+                <div class="profile-dropdown" id="profileDropdown">
+                    <a class="profile-dropdown-item" id="progressNavLink" href="#">My Progress</a>
+                    <a class="profile-dropdown-item active-page" id="planNavLink" href="#">Personalized Plan</a>
+                    <a class="profile-dropdown-item" id="journalNavLink" href="#">My Journal</a>
+                    <a class="profile-dropdown-item" href="/offline-resources">Offline Resources</a>
+                    <a class="profile-dropdown-item" href="/profile">Profile Settings</a>
+                    <div class="profile-dropdown-divider"></div>
+                    <button class="profile-dropdown-item profile-dropdown-logout" id="logoutBtn">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="logoutModal" class="modal">
+        <div class="modal-content">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to logout?</p>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" id="cancelLogoutBtn">Cancel</button>
+                <button class="btn btn-primary" id="confirmLogoutBtn">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" onclick="window.location.href='/chat-page'">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    New Chat
+                </button>
+                <button class="toggle-archived-btn" id="toggleArchivedBtn" type="button" onclick="toggleArchivedView()">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+                    </svg>
+                    <span id="toggleArchivedText">Show Archived</span>
+                </button>
+            </div>
+            <div class="sidebar-content">
+                <div class="sidebar-section-title" id="chatsTitle">Active Chats</div>
+                <div id="convList"><div class="empty-state">Loading...</div></div>
+            </div>
+        </div>
+
+        <div class="page-content">
+            <div class="page-title">Personalized Wellness Plan</div>
+            <div class="page-subtitle">Adaptive, supportive, and non-pressuring recommendations built from your emotional trends.</div>
+
+            <div class="status-row">
+                <span id="planStatusBadge" class="status-badge status-active">ACTIVE</span>
+                <span class="muted" id="planUpdatedAt">Updated: --</span>
+            </div>
+
+            <div class="plan-card">
+                <div class="section-title">Plan Focus</div>
+                <p class="muted" id="planSummary">Loading your personalized plan...</p>
+                <div class="btn-row">
+                    <button class="btn btn-secondary" id="editPlanBtn">Edit Plan</button>
+                    <button class="btn btn-primary" id="savePlanBtn" disabled>Save Plan Changes</button>
+                    <button class="btn btn-warning" id="togglePauseBtn">Pause Plan</button>
+                    <button class="btn btn-secondary" id="refreshPlanBtn">Refresh Recommendations</button>
+                    <a class="btn btn-secondary link-btn" id="openJournalBtn" href="#">Go To My Journal</a>
+                </div>
+            </div>
+
+            <div class="plan-card">
+                <div class="section-title">Personal Goals</div>
+                <div id="goalsList"></div>
+            </div>
+
+            <div class="plan-card">
+                <div class="section-title">Reflection Activities</div>
+                <textarea id="reflectionsEditor" class="editor-textarea" placeholder="One reflection prompt per line"></textarea>
+            </div>
+
+            <div class="plan-card">
+                <div class="section-title">Coping Exercises</div>
+                <textarea id="copingEditor" class="editor-textarea" placeholder="One coping exercise per line"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
+            authDomain: "menti-7b8a1.firebaseapp.com",
+            projectId: "menti-7b8a1",
+            storageBucket: "menti-7b8a1.firebasestorage.app",
+            messagingSenderId: "164612023817",
+            appId: "1:164612023817:web:c0437146e86951377f3ad8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const profileMenuWrap = document.getElementById('profileMenuWrap');
+        const CACHE_NS = 'menti_cache_v1';
+        let currentUser = null;
+        let cacheMeta = null;
+        let currentPlan = null;
+        let isEditingPlan = false;
+        let showingArchived = sessionStorage.getItem('menti_sidebar_show_archived') === '1';
+
+        function cacheKey(type, uid) { return `${CACHE_NS}:${type}:${uid}`; }
+        function readCache(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } }
+        function writeCache(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {} }
+        function readSessionCache(key) { try { return JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (_) { return null; } }
+        function writeSessionCache(key, value) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) {} }
+        function clearPlanCache(uid) { try { localStorage.removeItem(cacheKey('wellness-plan', uid)); } catch (_) {} }
+        function escHtml(s) { return String(s || '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show' + (isError ? ' error' : '');
+            setTimeout(() => t.classList.remove('show'), 2600);
+        }
+
+        async function getCacheMeta(uid) {
+            try {
+                const res = await fetch(`/user/cache-meta/${encodeURIComponent(uid)}`);
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (_) { return null; }
+        }
+
+        function updateHeaderProfile(user) {
+            const name = user.displayName || user.email || 'User';
+            document.getElementById('headerName').textContent = name;
+            const avatarEl = document.getElementById('headerAvatar');
+            if (user.photoURL) {
+                avatarEl.innerHTML = `<img src="${escHtml(user.photoURL)}" alt="Avatar">`;
+            } else {
+                const initials = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+                avatarEl.innerHTML = `<span>${initials}</span>`;
+            }
+            document.getElementById('progressNavLink').href = `/progress/${user.uid}`;
+            document.getElementById('planNavLink').href = `/personalized-plan/${user.uid}`;
+            document.getElementById('journalNavLink').href = `/journal/${user.uid}`;
+            document.getElementById('openJournalBtn').href = `/journal/${user.uid}`;
+            profileMenuWrap.style.display = 'flex';
+            document.getElementById('incognitoTopBtn').style.display = 'flex';
+        }
+
+        function setPlanEditorMode(editing) {
+            isEditingPlan = editing;
+            const saveBtn = document.getElementById('savePlanBtn');
+            const editBtn = document.getElementById('editPlanBtn');
+
+            saveBtn.disabled = !editing;
+            editBtn.textContent = editing ? 'Cancel Edit' : 'Edit Plan';
+
+            const fields = document.querySelectorAll('.goal-title, .goal-desc, .goal-target, #reflectionsEditor, #copingEditor');
+            fields.forEach((field) => {
+                if (field.tagName === 'TEXTAREA' || field.tagName === 'INPUT') {
+                    field.readOnly = !editing;
+                    field.disabled = !editing;
+                }
+            });
+        }
+
+        function applySidebarViewState() {
+            const toggleBtn = document.getElementById('toggleArchivedBtn');
+            const toggleText = document.getElementById('toggleArchivedText');
+            const chatsTitle = document.getElementById('chatsTitle');
+            if (!toggleBtn || !toggleText || !chatsTitle) return;
+            if (showingArchived) {
+                toggleBtn.classList.add('active');
+                toggleText.textContent = 'Show Active';
+                chatsTitle.textContent = 'Archived Chats';
+            } else {
+                toggleBtn.classList.remove('active');
+                toggleText.textContent = 'Show Archived';
+                chatsTitle.textContent = 'Active Chats';
+            }
+        }
+
+        window.toggleArchivedView = function() {
+            showingArchived = !showingArchived;
+            sessionStorage.setItem('menti_sidebar_show_archived', showingArchived ? '1' : '0');
+            applySidebarViewState();
+            if (currentUser) loadSidebarConversations(currentUser.uid);
+        };
+
+        async function loadSidebarConversations(uid) {
+            const scope = showingArchived ? 'archived' : 'active';
+            const key = cacheKey('conversations', `${uid}:${scope}`);
+            const cached = readCache(key);
+            const sessionKey = `menti_sidebar_cache:${uid}:${scope}`;
+            const sessionCached = readSessionCache(sessionKey);
+
+            if (sessionCached?.data && Array.isArray(sessionCached.data)) {
+                renderConversations(sessionCached.data);
+                if ((Date.now() - (sessionCached.ts || 0)) < 60000) return;
+            }
+
+            if (cached?.data) {
+                renderConversations(cached.data);
+                if (cacheMeta?.revision && cached.revision === cacheMeta.revision) return;
+            }
+            try {
+                const res = await fetch(`/conversations?user_id=${encodeURIComponent(uid)}&is_guest=false&is_archived=${showingArchived}`);
+                if (!res.ok) throw new Error('Failed to fetch conversations');
+                const conversations = await res.json();
+                renderConversations(conversations || []);
+                writeCache(key, { revision: cacheMeta?.revision || null, data: conversations || [] });
+                writeSessionCache(sessionKey, { ts: Date.now(), data: conversations || [] });
+            } catch (e) {
+                if (!cached?.data) document.getElementById('convList').innerHTML = '<div class="empty-state">Could not load chats</div>';
+                console.error('Sidebar load error:', e);
+            }
+        }
+
+        function renderConversations(conversations) {
+            const listEl = document.getElementById('convList');
+            if (!Array.isArray(conversations) || conversations.length === 0) {
+                listEl.innerHTML = '<div class="empty-state">No conversations yet</div>';
+                return;
+            }
+            listEl.innerHTML = conversations.map((d) => {
+                const title = d.title || 'Untitled';
+                return `<div class="conv-item" title="${escHtml(title)}" onclick="window.location.href='/chat-page'">${escHtml(title)}</div>`;
+            }).join('');
+        }
+
+        async function loadPlan(uid) {
+            const key = cacheKey('wellness-plan', uid);
+            const cached = readCache(key);
+            if (cached?.data) {
+                currentPlan = cached.data;
+                renderPlan(cached.data);
+                if (cacheMeta?.revision && cached.revision === cacheMeta.revision) return;
+            }
+            try {
+                const res = await fetch(`/user/wellness-plan/${encodeURIComponent(uid)}`);
+                if (!res.ok) throw new Error('Failed to load wellness plan');
+                const plan = await res.json();
+                currentPlan = plan;
+                renderPlan(plan);
+                writeCache(key, { revision: cacheMeta?.revision || null, data: plan });
+            } catch (e) {
+                if (!cached?.data) showToast('Could not load wellness plan.', true);
+                console.error('Plan load error:', e);
+            }
+        }
+
+        function renderPlan(plan) {
+            const statusBadge = document.getElementById('planStatusBadge');
+            const paused = plan.status === 'paused';
+            statusBadge.textContent = paused ? 'PAUSED' : 'ACTIVE';
+            statusBadge.className = `status-badge ${paused ? 'status-paused' : 'status-active'}`;
+            document.getElementById('togglePauseBtn').textContent = paused ? 'Resume Plan' : 'Pause Plan';
+            document.getElementById('planUpdatedAt').textContent = `Updated: ${(plan.updatedAt || '').replace('T', ' ').slice(0, 16) || '--'}`;
+            document.getElementById('planSummary').textContent = `Current focus: ${plan.dominantEmotion || 'balanced'} mood support with ${plan.cadence || 'daily'} check-ins.`;
+
+            const goals = Array.isArray(plan.goals) ? plan.goals : [];
+            document.getElementById('goalsList').innerHTML = goals.map((g, i) => `
+                <div class="goal-item" data-idx="${i}">
+                    <input class="goal-title" type="text" value="${escHtml(g.title || '')}" placeholder="Goal title">
+                    <textarea class="goal-desc" placeholder="Goal description">${escHtml(g.description || '')}</textarea>
+                    <input class="goal-target" type="text" value="${escHtml(g.target || '')}" placeholder="Target">
+                </div>
+            `).join('');
+
+            const reflections = Array.isArray(plan.reflections) ? plan.reflections : [];
+            document.getElementById('reflectionsEditor').value = reflections.join('\n');
+
+            const coping = Array.isArray(plan.copingExercises) ? plan.copingExercises.map(e => e.title || '').filter(Boolean) : [];
+            document.getElementById('copingEditor').value = coping.join('\n');
+
+            setPlanEditorMode(false);
+        }
+
+        function collectPlanFromEditor() {
+            const goalEls = Array.from(document.querySelectorAll('.goal-item'));
+            const goals = goalEls.map((el) => ({
+                title: el.querySelector('.goal-title')?.value?.trim() || '',
+                description: el.querySelector('.goal-desc')?.value?.trim() || '',
+                target: el.querySelector('.goal-target')?.value?.trim() || '',
+                category: 'custom'
+            })).filter(g => g.title || g.description || g.target);
+
+            const reflections = document.getElementById('reflectionsEditor').value
+                .split('\n').map(s => s.trim()).filter(Boolean);
+
+            const copingExercises = document.getElementById('copingEditor').value
+                .split('\n').map(s => s.trim()).filter(Boolean)
+                .map(title => ({ title, duration: '3-5 minutes', steps: [] }));
+
+            return { goals, reflections, copingExercises };
+        }
+
+        async function savePlan() {
+            if (!currentUser) return;
+            if (!isEditingPlan) {
+                showToast('Click Edit Plan first to make changes.', true);
+                return;
+            }
+            const payload = collectPlanFromEditor();
+            try {
+                const res = await fetch(`/user/wellness-plan/${encodeURIComponent(currentUser.uid)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (!result.success) throw new Error(result.error || 'Failed to save');
+                clearPlanCache(currentUser.uid);
+                cacheMeta = await getCacheMeta(currentUser.uid);
+                await loadPlan(currentUser.uid);
+                showToast('Wellness plan saved.');
+            } catch (e) {
+                showToast(e.message || 'Save failed.', true);
+            }
+        }
+
+        function toggleEditPlan() {
+            if (!currentPlan) return;
+            if (isEditingPlan) {
+                renderPlan(currentPlan);
+                showToast('Edit cancelled.');
+                return;
+            }
+            setPlanEditorMode(true);
+            showToast('Edit mode enabled.');
+        }
+
+        async function togglePause() {
+            if (!currentPlan || !currentUser) return;
+            const status = currentPlan.status === 'paused' ? 'active' : 'paused';
+            try {
+                const res = await fetch(`/user/wellness-plan/${encodeURIComponent(currentUser.uid)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+                const result = await res.json();
+                if (!result.success) throw new Error(result.error || 'Update failed');
+                clearPlanCache(currentUser.uid);
+                cacheMeta = await getCacheMeta(currentUser.uid);
+                await loadPlan(currentUser.uid);
+                showToast(status === 'paused' ? 'Plan paused.' : 'Plan resumed.');
+            } catch (e) {
+                showToast(e.message || 'Status update failed.', true);
+            }
+        }
+
+        async function refreshPlan() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch(`/user/wellness-plan/${encodeURIComponent(currentUser.uid)}/refresh`, { method: 'POST' });
+                const result = await res.json();
+                if (!result.success) throw new Error(result.error || 'Refresh failed');
+                clearPlanCache(currentUser.uid);
+                cacheMeta = await getCacheMeta(currentUser.uid);
+                await loadPlan(currentUser.uid);
+                showToast('Recommendations refreshed.');
+            } catch (e) {
+                showToast(e.message || 'Refresh failed.', true);
+            }
+        }
+
+        document.getElementById('profileMenuTrigger').addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileMenuWrap.classList.toggle('open');
+        });
+        document.addEventListener('click', (e) => {
+            if (!profileMenuWrap.contains(e.target)) profileMenuWrap.classList.remove('open');
+            if (window.innerWidth <= 768 && sidebar.classList.contains('show')) {
+                const clickedInsideSidebar = sidebar.contains(e.target);
+                const clickedToggle = sidebarToggle.contains(e.target);
+                if (!clickedInsideSidebar && !clickedToggle) sidebar.classList.remove('show');
+            }
+        });
+
+        sidebarToggle.addEventListener('click', () => {
+            if (window.innerWidth <= 768) sidebar.classList.toggle('show');
+            else sidebar.classList.toggle('hidden');
+        });
+
+        document.getElementById('incognitoTopBtn').addEventListener('click', () => { window.location.href = '/incognito'; });
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            document.getElementById('logoutModal').classList.add('show');
+            profileMenuWrap.classList.remove('open');
+        });
+        document.getElementById('cancelLogoutBtn').addEventListener('click', () => document.getElementById('logoutModal').classList.remove('show'));
+        document.getElementById('confirmLogoutBtn').addEventListener('click', async () => {
+            document.getElementById('logoutModal').classList.remove('show');
+            try {
+                await fetch('/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser?.uid, is_guest: false }) });
+            } catch (_) {}
+            await signOut(auth);
+            window.location.href = '/';
+        });
+
+        document.getElementById('editPlanBtn').addEventListener('click', toggleEditPlan);
+        document.getElementById('savePlanBtn').addEventListener('click', savePlan);
+        document.getElementById('togglePauseBtn').addEventListener('click', togglePause);
+        document.getElementById('refreshPlanBtn').addEventListener('click', refreshPlan);
+
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) { window.location.href = '/'; return; }
+            if (user.isAnonymous) { window.location.href = '/chat-page'; return; }
+            currentUser = user;
+            updateHeaderProfile(user);
+            cacheMeta = await getCacheMeta(user.uid);
+            applySidebarViewState();
+            await loadSidebarConversations(user.uid);
+            await loadPlan(user.uid);
+        });
+    </script>
+</body>
+</html>
