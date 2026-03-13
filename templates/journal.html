@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menti - My Journal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #F0F0F0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; color: #0F0F0F; }
+        .header { background: #FFF; padding: 16px 24px; border-bottom: 1px solid #E0E0E0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .sidebar-toggle { display: none; background: none; border: none; padding: 8px; cursor: pointer; color: #2C5E31; }
+        .header-logo { width: 36px; height: 36px; object-fit: contain; }
+        .header h1 { color: #2C5E31; font-size: 22px; font-weight: 700; }
+
+        .header-right { display: flex; align-items: center; gap: 10px; }
+        .incognito-topbar-btn {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #F3F0FF;
+            color: #5B21B6;
+            border: 1.5px solid #DDD6FE;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .incognito-topbar-btn:hover { background: #EDE9FE; border-color: #C4B5FD; }
+        .incognito-topbar-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+        .profile-menu-wrap { position: relative; display: none; }
+        .profile-menu-trigger { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 5px; border: 1.5px solid #E0E0E0; border-radius: 22px; background: none; cursor: pointer; }
+        .header-avatar { width: 30px; height: 30px; border-radius: 50%; background: #E8F5E9; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #2C5E31; overflow: hidden; }
+        .header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .header-name { font-size: 13px; font-weight: 600; color: #28282B; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .profile-dropdown { display: none; position: absolute; right: 0; top: calc(100% + 8px); background: #FFF; border: 1px solid #E8E8E8; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.12); min-width: 210px; z-index: 300; padding: 4px 0; }
+        .profile-menu-wrap.open .profile-dropdown { display: block; }
+        .profile-dropdown-item { display: block; padding: 11px 16px; font-size: 13px; font-weight: 500; color: #28282B; text-decoration: none; background: none; border: none; width: 100%; text-align: left; cursor: pointer; font-family: inherit; }
+        .profile-dropdown-item.active-page { color: #2C5E31; background: #F0F7F1; font-weight: 600; }
+        .profile-dropdown-divider { height: 1px; background: #F0F0F0; margin: 4px 0; }
+        .profile-dropdown-logout { color: #C62828; }
+
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 280px; background: #FFF; border-right: 1px solid #E0E0E0; display: flex; flex-direction: column; transition: transform 0.3s ease; flex-shrink: 0; }
+        .sidebar.hidden { transform: translateX(-100%); position: absolute; height: calc(100% - 70px); z-index: 500; }
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #E0E0E0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .new-chat-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: #2C5E31;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+        .new-chat-btn:hover { background: #234A27; }
+        .new-chat-btn svg { width: 18px; height: 18px; }
+        .toggle-archived-btn {
+            width: 100%;
+            padding: 10px 16px;
+            background: #F0F0F0;
+            color: #28282B;
+            border: 1px solid #E0E0E0;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+        .toggle-archived-btn:hover { background: #E8E8E8; border-color: #D0D0D0; }
+        .toggle-archived-btn svg { width: 16px; height: 16px; }
+        .toggle-archived-btn.active { background: #E8F5E9; color: #2C5E31; border-color: #4FA858; }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
+        .sidebar-section-title { font-size: 12px; font-weight: 600; color: #28282B; opacity: 0.5; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: #28282B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .conv-item:hover { background: #F0F0F0; }
+        .empty-state { font-size: 12px; color: #28282B; opacity: 0.4; padding: 8px 4px; }
+
+        .page-content { flex: 1; overflow-y: auto; padding: 28px 32px; }
+        .page-title { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+        .page-subtitle { color: #666; font-size: 14px; margin-bottom: 16px; }
+
+        .editor-card, .entries-card { background: #FFF; border: 1px solid #E8E8E8; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+        .section-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+        .prompt-list { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .prompt-chip { border: 1px solid #E0E0E0; background: #FAFAFA; color: #333; border-radius: 999px; padding: 7px 10px; font-size: 12px; cursor: pointer; }
+        .prompt-chip:hover { border-color: #4FA858; color: #2C5E31; }
+        .input, .textarea { width: 100%; border: 1px solid #DDD; border-radius: 10px; font-family: inherit; font-size: 14px; padding: 10px 12px; background: #FFF; }
+        .textarea { min-height: 140px; resize: vertical; }
+        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .btn { padding: 9px 14px; border: none; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; }
+        .btn-primary { background: #2C5E31; color: #FFF; }
+        .btn-secondary { background: #F0F0F0; color: #28282B; }
+        .entry-item { border: 1px solid #E8E8E8; border-radius: 10px; padding: 12px; margin-bottom: 8px; background: #FAFAFA; }
+        .entry-meta { font-size: 12px; color: #666; margin-bottom: 8px; }
+        .entry-prompt { font-weight: 600; margin-bottom: 6px; color: #2C5E31; }
+        .entry-content { font-size: 14px; color: #333; line-height: 1.55; white-space: pre-wrap; }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15,15,15,0.5); z-index: 1000; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: #FFF; border-radius: 14px; padding: 20px; width: 90%; max-width: 380px; }
+
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2C5E31; color: #fff; padding: 10px 16px; border-radius: 10px; display: none; z-index: 2000; }
+        .toast.show { display: block; }
+        .toast.error { background: #C62828; }
+
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; left: 0; top: 69px; bottom: 0; z-index: 500; transform: translateX(-100%); }
+            .sidebar.show { transform: translateX(0); }
+            .sidebar-toggle { display: block; }
+            .header-name { display: none; }
+            .page-content { padding: 20px 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </button>
+            <img src="/static/menti logo.png" alt="Menti" class="header-logo">
+            <h1>Menti</h1>
+        </div>
+        <div class="header-right">
+            <button class="incognito-topbar-btn" id="incognitoTopBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                Private
+            </button>
+            <div class="profile-menu-wrap" id="profileMenuWrap">
+                <button class="profile-menu-trigger" id="profileMenuTrigger">
+                    <div class="header-avatar" id="headerAvatar"><span>?</span></div>
+                    <span class="header-name" id="headerName">Loading...</span>
+                </button>
+                <div class="profile-dropdown">
+                    <a class="profile-dropdown-item" id="progressNavLink" href="#">My Progress</a>
+                    <a class="profile-dropdown-item" id="planNavLink" href="#">Personalized Plan</a>
+                    <a class="profile-dropdown-item active-page" id="journalNavLink" href="#">My Journal</a>
+                    <a class="profile-dropdown-item" href="/offline-resources">Offline Resources</a>
+                    <a class="profile-dropdown-item" href="/profile">Profile Settings</a>
+                    <div class="profile-dropdown-divider"></div>
+                    <button class="profile-dropdown-item profile-dropdown-logout" id="logoutBtn">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="logoutModal" class="modal">
+        <div class="modal-content">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to logout?</p>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                <button class="btn btn-secondary" id="cancelLogoutBtn">Cancel</button>
+                <button class="btn btn-primary" id="confirmLogoutBtn">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" onclick="window.location.href='/chat-page'">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    New Chat
+                </button>
+                <button class="toggle-archived-btn" id="toggleArchivedBtn" type="button" onclick="toggleArchivedView()">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+                    </svg>
+                    <span id="toggleArchivedText">Show Archived</span>
+                </button>
+            </div>
+            <div class="sidebar-content">
+                <div class="sidebar-section-title" id="chatsTitle">Active Chats</div>
+                <div id="convList"><div class="empty-state">Loading...</div></div>
+            </div>
+        </div>
+
+        <div class="page-content">
+            <div class="page-title">My Journal</div>
+            <div class="page-subtitle">A guided space for emotional release, acceptance, and growth. No scoring. No judgment.</div>
+
+            <div class="editor-card">
+                <div class="section-title">Acceptance & Reflection Tool</div>
+                <div class="prompt-list" id="promptList"></div>
+                <input class="input" id="promptInput" placeholder="Selected prompt or your own prompt">
+                <textarea class="textarea" id="entryInput" placeholder="Write freely. Short or long reflections are both welcome."></textarea>
+                <input class="input" id="moodInput" placeholder="Optional: mood tag (e.g. anxious, calm, hopeful)">
+                <div class="btn-row">
+                    <button class="btn btn-primary" id="saveEntryBtn">Save Entry</button>
+                    <button class="btn btn-secondary" id="clearEntryBtn">Clear</button>
+                </div>
+            </div>
+
+            <div class="entries-card">
+                <div class="section-title">Recent Entries</div>
+                <div id="entriesList"><div class="empty-state">Loading entries...</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
+            authDomain: "menti-7b8a1.firebaseapp.com",
+            projectId: "menti-7b8a1",
+            storageBucket: "menti-7b8a1.firebasestorage.app",
+            messagingSenderId: "164612023817",
+            appId: "1:164612023817:web:c0437146e86951377f3ad8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const profileMenuWrap = document.getElementById('profileMenuWrap');
+        const CACHE_NS = 'menti_cache_v1';
+        let currentUser = null;
+        let cacheMeta = null;
+        let journalEntries = [];
+        let showingArchived = sessionStorage.getItem('menti_sidebar_show_archived') === '1';
+
+        const defaultPrompts = [
+            'What is something you want to accept today?',
+            'What emotion do you want to understand better?',
+            'What thought are you ready to let go of?',
+            'What did you handle better today than before?',
+            'What kind message do you need to hear right now?'
+        ];
+
+        function cacheKey(type, uid) { return `${CACHE_NS}:${type}:${uid}`; }
+        function readCache(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } }
+        function writeCache(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {} }
+        function readSessionCache(key) { try { return JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (_) { return null; } }
+        function writeSessionCache(key, value) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch (_) {} }
+        function escHtml(s) { return String(s || '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show' + (isError ? ' error' : '');
+            setTimeout(() => t.classList.remove('show'), 2600);
+        }
+
+        async function getCacheMeta(uid) {
+            try {
+                const res = await fetch(`/user/cache-meta/${encodeURIComponent(uid)}`);
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (_) { return null; }
+        }
+
+        function updateHeaderProfile(user) {
+            const name = user.displayName || user.email || 'User';
+            document.getElementById('headerName').textContent = name;
+            const avatarEl = document.getElementById('headerAvatar');
+            if (user.photoURL) avatarEl.innerHTML = `<img src="${escHtml(user.photoURL)}" alt="Avatar">`;
+            else {
+                const initials = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+                avatarEl.innerHTML = `<span>${initials}</span>`;
+            }
+            document.getElementById('progressNavLink').href = `/progress/${user.uid}`;
+            document.getElementById('planNavLink').href = `/personalized-plan/${user.uid}`;
+            document.getElementById('journalNavLink').href = `/journal/${user.uid}`;
+            profileMenuWrap.style.display = 'flex';
+            document.getElementById('incognitoTopBtn').style.display = 'flex';
+        }
+
+        function renderPromptChips() {
+            const list = document.getElementById('promptList');
+            list.innerHTML = defaultPrompts.map((p) => `<button class="prompt-chip" type="button">${escHtml(p)}</button>`).join('');
+            list.querySelectorAll('.prompt-chip').forEach((btn, idx) => {
+                btn.addEventListener('click', () => {
+                    document.getElementById('promptInput').value = defaultPrompts[idx];
+                });
+            });
+        }
+
+        function applySidebarViewState() {
+            const toggleBtn = document.getElementById('toggleArchivedBtn');
+            const toggleText = document.getElementById('toggleArchivedText');
+            const chatsTitle = document.getElementById('chatsTitle');
+            if (!toggleBtn || !toggleText || !chatsTitle) return;
+            if (showingArchived) {
+                toggleBtn.classList.add('active');
+                toggleText.textContent = 'Show Active';
+                chatsTitle.textContent = 'Archived Chats';
+            } else {
+                toggleBtn.classList.remove('active');
+                toggleText.textContent = 'Show Archived';
+                chatsTitle.textContent = 'Active Chats';
+            }
+        }
+
+        window.toggleArchivedView = function() {
+            showingArchived = !showingArchived;
+            sessionStorage.setItem('menti_sidebar_show_archived', showingArchived ? '1' : '0');
+            applySidebarViewState();
+            if (currentUser) loadSidebarConversations(currentUser.uid);
+        };
+
+        async function loadSidebarConversations(uid) {
+            const scope = showingArchived ? 'archived' : 'active';
+            const key = cacheKey('conversations', `${uid}:${scope}`);
+            const cached = readCache(key);
+            const sessionKey = `menti_sidebar_cache:${uid}:${scope}`;
+            const sessionCached = readSessionCache(sessionKey);
+
+            if (sessionCached?.data && Array.isArray(sessionCached.data)) {
+                renderConversations(sessionCached.data);
+                if ((Date.now() - (sessionCached.ts || 0)) < 60000) return;
+            }
+
+            if (cached?.data) renderConversations(cached.data);
+            try {
+                const res = await fetch(`/conversations?user_id=${encodeURIComponent(uid)}&is_guest=false&is_archived=${showingArchived}`);
+                if (!res.ok) throw new Error('Failed to fetch conversations');
+                const conversations = await res.json();
+                renderConversations(conversations || []);
+                writeCache(key, { data: conversations || [] });
+                writeSessionCache(sessionKey, { ts: Date.now(), data: conversations || [] });
+            } catch (e) {
+                if (!cached?.data) document.getElementById('convList').innerHTML = '<div class="empty-state">Could not load chats</div>';
+            }
+        }
+
+        function renderConversations(conversations) {
+            const listEl = document.getElementById('convList');
+            if (!Array.isArray(conversations) || conversations.length === 0) {
+                listEl.innerHTML = '<div class="empty-state">No conversations yet</div>';
+                return;
+            }
+            listEl.innerHTML = conversations.map((d) => `<div class="conv-item" title="${escHtml(d.title || 'Untitled')}" onclick="window.location.href='/chat-page'">${escHtml(d.title || 'Untitled')}</div>`).join('');
+        }
+
+        async function loadJournal(uid) {
+            const key = cacheKey('journal', uid);
+            const cached = readCache(key);
+            if (cached?.data?.entries) {
+                journalEntries = cached.data.entries;
+                renderEntries();
+                if (cacheMeta?.revision && cached.revision === cacheMeta.revision) return;
+            }
+            try {
+                const res = await fetch(`/user/journal/${encodeURIComponent(uid)}`);
+                if (!res.ok) throw new Error('Failed to load journal');
+                const data = await res.json();
+                journalEntries = data.entries || [];
+                writeCache(key, { revision: cacheMeta?.revision || null, data: { entries: journalEntries } });
+                renderEntries();
+            } catch (e) {
+                if (!cached?.data?.entries) document.getElementById('entriesList').innerHTML = '<div class="empty-state">Could not load entries</div>';
+                console.error('Journal load error:', e);
+            }
+        }
+
+        function renderEntries() {
+            const list = document.getElementById('entriesList');
+            if (!journalEntries.length) {
+                list.innerHTML = '<div class="empty-state">No entries yet. Write your first reflection.</div>';
+                return;
+            }
+            list.innerHTML = journalEntries.map((entry) => `
+                <div class="entry-item">
+                    <div class="entry-meta">${escHtml((entry.createdAt || '').replace('T', ' ').slice(0, 16) || '--')} ${entry.mood ? '· ' + escHtml(entry.mood) : ''}</div>
+                    ${entry.prompt ? `<div class="entry-prompt">${escHtml(entry.prompt)}</div>` : ''}
+                    <div class="entry-content">${escHtml(entry.content || '')}</div>
+                    <div class="btn-row" style="margin-top:10px;">
+                        <button class="btn btn-secondary" onclick="window.editEntry('${entry.id}')">Edit</button>
+                        <button class="btn btn-secondary" onclick="window.deleteEntry('${entry.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function saveEntry() {
+            const prompt = document.getElementById('promptInput').value.trim();
+            const content = document.getElementById('entryInput').value.trim();
+            const mood = document.getElementById('moodInput').value.trim();
+            if (!content) { showToast('Please write something first.', true); return; }
+            try {
+                const res = await fetch(`/user/journal/${encodeURIComponent(currentUser.uid)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, content, mood })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Save failed');
+                document.getElementById('entryInput').value = '';
+                document.getElementById('moodInput').value = '';
+                document.getElementById('promptInput').value = '';
+                cacheMeta = await getCacheMeta(currentUser.uid);
+                await loadJournal(currentUser.uid);
+                showToast('Journal entry saved.');
+            } catch (e) {
+                showToast(e.message || 'Could not save entry.', true);
+            }
+        }
+
+        window.editEntry = async function(entryId) {
+            const entry = journalEntries.find(e => e.id === entryId);
+            if (!entry) return;
+            const newContent = prompt('Edit your journal entry:', entry.content || '');
+            if (newContent === null) return;
+            if (!newContent.trim()) { showToast('Entry cannot be empty.', true); return; }
+            try {
+                const res = await fetch(`/user/journal/${encodeURIComponent(currentUser.uid)}/${encodeURIComponent(entryId)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: newContent.trim(), prompt: entry.prompt || '', mood: entry.mood || '' })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Update failed');
+                cacheMeta = await getCacheMeta(currentUser.uid);
+                await loadJournal(currentUser.uid);
+                showToast('Entry updated.');
+            } catch (e) { showToast(e.message || 'Could not update entry.', true); }
+        };
+
+        window.deleteEntry = async function(entryId) {
+            if (!confirm('Delete this entry?')) return;
+            try {
+                const res = await fetch(`/user/journal/${encodeURIComponent(currentUser.uid)}/${encodeURIComponent(entryId)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Delete failed');
+                cacheMeta = await getCacheMeta(currentUser.uid);
+                await loadJournal(currentUser.uid);
+                showToast('Entry deleted.');
+            } catch (e) { showToast(e.message || 'Could not delete entry.', true); }
+        };
+
+        document.getElementById('saveEntryBtn').addEventListener('click', saveEntry);
+        document.getElementById('clearEntryBtn').addEventListener('click', () => {
+            document.getElementById('promptInput').value = '';
+            document.getElementById('entryInput').value = '';
+            document.getElementById('moodInput').value = '';
+        });
+
+        document.getElementById('profileMenuTrigger').addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileMenuWrap.classList.toggle('open');
+        });
+        document.addEventListener('click', (e) => {
+            if (!profileMenuWrap.contains(e.target)) profileMenuWrap.classList.remove('open');
+            if (window.innerWidth <= 768 && sidebar.classList.contains('show')) {
+                const clickedInsideSidebar = sidebar.contains(e.target);
+                const clickedToggle = sidebarToggle.contains(e.target);
+                if (!clickedInsideSidebar && !clickedToggle) sidebar.classList.remove('show');
+            }
+        });
+
+        sidebarToggle.addEventListener('click', () => {
+            if (window.innerWidth <= 768) sidebar.classList.toggle('show');
+            else sidebar.classList.toggle('hidden');
+        });
+
+        document.getElementById('incognitoTopBtn').addEventListener('click', () => { window.location.href = '/incognito'; });
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            document.getElementById('logoutModal').classList.add('show');
+            profileMenuWrap.classList.remove('open');
+        });
+        document.getElementById('cancelLogoutBtn').addEventListener('click', () => document.getElementById('logoutModal').classList.remove('show'));
+        document.getElementById('confirmLogoutBtn').addEventListener('click', async () => {
+            document.getElementById('logoutModal').classList.remove('show');
+            try { await fetch('/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser?.uid, is_guest: false }) }); } catch (_) {}
+            await signOut(auth);
+            window.location.href = '/';
+        });
+
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) { window.location.href = '/'; return; }
+            if (user.isAnonymous) { window.location.href = '/chat-page'; return; }
+            currentUser = user;
+            updateHeaderProfile(user);
+            renderPromptChips();
+            cacheMeta = await getCacheMeta(user.uid);
+            applySidebarViewState();
+            await loadSidebarConversations(user.uid);
+            await loadJournal(user.uid);
+        });
+    </script>
+</body>
+</html>
