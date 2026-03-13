@@ -13,6 +13,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore, auth as firebase_auth
 from datetime import datetime, timedelta
 import hashlib
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
 
 # Load environment variables
 load_dotenv()
@@ -1765,6 +1767,806 @@ def logout():
     except Exception as e:
         print(f"❌ Error in logout: {e}")
         return jsonify({'success': False, 'error': 'Logout failed'}), 500
+
+
+# ==================== USER PROGRESS ROUTES ====================
+
+@app.route('/progress/<user_id>')
+def progress_page(user_id):
+    """Render the progress page for a specific user."""
+    return render_template('progress.html')
+
+
+@app.route('/user/progress/<user_id>')
+def user_progress(user_id):
+    """Return progress/analytics data for a specific user."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+    try:
+        logs = [doc.to_dict() for doc in
+                db.collection('emotion_logs').where('userId', '==', user_id).stream()]
+
+        today = datetime.now()
+        week_start = (today - timedelta(days=today.weekday())).strftime('%Y-%m-%d')
+        month_start = today.strftime('%Y-%m-01')
+        thirty_ago = (today - timedelta(days=29)).strftime('%Y-%m-%d')
+
+        emotion_keys = ['happy', 'calm', 'sad', 'anxious', 'stressed',
+                        'angry', 'confused', 'motivated', 'tired', 'numb']
+        overall_counts = {e: 0 for e in emotion_keys}
+        weekly_counts  = {e: 0 for e in emotion_keys}
+        monthly_counts = {e: 0 for e in emotion_keys}
+
+        # Daily trend for last 30 days
+        date_labels = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(29, -1, -1)]
+        daily_emotion = {d: {e: 0 for e in emotion_keys} for d in date_labels}
+        daily_total   = {d: 0 for d in date_labels}
+
+        dates_active = set()
+        for log in logs:
+            e = log.get('emotion', 'neutral')
+            d = log.get('date', '')
+            if e in overall_counts:
+                overall_counts[e] += 1
+            if d >= week_start and e in weekly_counts:
+                weekly_counts[e] += 1
+            if d >= month_start and e in monthly_counts:
+                monthly_counts[e] += 1
+            if d in daily_emotion and e in daily_emotion[d]:
+                daily_emotion[d][e] += 1
+                daily_total[d] += 1
+            if d:
+                dates_active.add(d)
+
+        total_messages = len(logs)
+        streak = _calculate_streak(sorted(dates_active, reverse=True), today.strftime('%Y-%m-%d'))
+
+        # Positive vs negative ratio
+        positive_emotions = {'happy', 'calm', 'motivated'}
+        negative_emotions = {'sad', 'anxious', 'stressed', 'angry', 'tired', 'numb'}
+        pos_count = sum(overall_counts[e] for e in positive_emotions)
+        neg_count = sum(overall_counts[e] for e in negative_emotions)
+
+        # Dominant emotion per day (for mood history)
+        mood_history = []
+        for d in date_labels:
+            day_data = daily_emotion[d]
+            dominant = max(day_data, key=day_data.get) if daily_total[d] > 0 else None
+            mood_history.append({'date': d, 'dominant': dominant, 'total': daily_total[d]})
+
+        # Personal growth milestones
+        milestones = _calculate_milestones(total_messages, streak, pos_count, neg_count, len(dates_active))
+
+        return jsonify({
+            'totalMessages': total_messages,
+            'daysActive': len(dates_active),
+            'currentStreak': streak,
+            'overallEmotions': overall_counts,
+            'weeklyEmotions': weekly_counts,
+            'monthlyEmotions': monthly_counts,
+            'moodHistory': mood_history,
+            'dateLabels': [d[5:] for d in date_labels],
+            'positiveCount': pos_count,
+            'negativeCount': neg_count,
+            'milestones': milestones
+        })
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+def _calculate_streak(sorted_dates_desc, today_str):
+    """Calculate consecutive days active ending today or yesterday."""
+    if not sorted_dates_desc:
+        return 0
+    streak = 0
+    check = today_str
+    for d in sorted_dates_desc:
+        if d == check:
+            streak += 1
+            dt = datetime.strptime(check, '%Y-%m-%d') - timedelta(days=1)
+            check = dt.strftime('%Y-%m-%d')
+        elif d < check:
+            break
+    return streak
+
+
+def _calculate_milestones(total_msgs, streak, pos_count, neg_count, days_active):
+    milestones = []
+    if total_msgs >= 1:
+        milestones.append({'icon': '💬', 'title': 'First Conversation', 'desc': 'You started your journey with Menti.', 'unlocked': True})
+    if total_msgs >= 10:
+        milestones.append({'icon': '🌱', 'title': 'Growing Bond', 'desc': '10 messages shared — you\'re opening up!', 'unlocked': True})
+    if total_msgs >= 50:
+        milestones.append({'icon': '🌿', 'title': 'Regular Sharer', 'desc': '50 messages — consistency is key!', 'unlocked': True})
+    if total_msgs >= 100:
+        milestones.append({'icon': '🌳', 'title': 'Deep Talker', 'desc': '100 messages — you\'re truly committed.', 'unlocked': True})
+    if streak >= 3:
+        milestones.append({'icon': '🔥', 'title': '3-Day Streak', 'desc': 'Chatted 3 days in a row!', 'unlocked': True})
+    if streak >= 7:
+        milestones.append({'icon': '⚡', 'title': 'Week Warrior', 'desc': '7-day streak — incredible dedication!', 'unlocked': True})
+    if days_active >= 14:
+        milestones.append({'icon': '📅', 'title': '2 Weeks Strong', 'desc': 'Active across 14 different days.', 'unlocked': True})
+    if pos_count > neg_count and total_msgs >= 10:
+        milestones.append({'icon': '☀️', 'title': 'Positive Vibes', 'desc': 'Your positive emotions outweigh the negative!', 'unlocked': True})
+    # Locked teasers
+    if total_msgs < 50:
+        milestones.append({'icon': '🔒', 'title': 'Regular Sharer', 'desc': 'Send 50 messages to unlock.', 'unlocked': False})
+    if streak < 7:
+        milestones.append({'icon': '🔒', 'title': 'Week Warrior', 'desc': 'Maintain a 7-day streak to unlock.', 'unlocked': False})
+    return milestones
+
+
+def _latest_iso(a, b):
+    """Return the later ISO-like string value."""
+    return b if (b or '') > (a or '') else a
+
+
+def _build_user_cache_meta(user_id):
+    """Build lightweight cache metadata so clients refresh only when user data changed."""
+    if not db:
+        return {'revision': 'no-db', 'updatedAt': datetime.now().isoformat()}
+
+    profile_updated = ''
+    conversations_updated = ''
+    conversations_count = 0
+    emotions_updated = ''
+    emotions_count = 0
+    journal_updated = ''
+    journal_count = 0
+    plan_updated = ''
+    plan_status = 'active'
+
+    try:
+        prof_doc = db.collection('user_profiles').document(user_id).get()
+        if prof_doc.exists:
+            p = prof_doc.to_dict() or {}
+            profile_updated = p.get('updatedAt', '')
+
+        for conv_doc in db.collection('conversations').where('userId', '==', user_id).stream():
+            conversations_count += 1
+            c = conv_doc.to_dict() or {}
+            stamp = c.get('lastUpdated') or c.get('updatedAt') or c.get('createdAt') or ''
+            conversations_updated = _latest_iso(conversations_updated, stamp)
+
+        for log_doc in db.collection('emotion_logs').where('userId', '==', user_id).stream():
+            emotions_count += 1
+            l = log_doc.to_dict() or {}
+            stamp = l.get('timestamp') or l.get('date') or ''
+            emotions_updated = _latest_iso(emotions_updated, stamp)
+
+        for j_doc in db.collection('journal_entries').where('userId', '==', user_id).stream():
+            journal_count += 1
+            j = j_doc.to_dict() or {}
+            stamp = j.get('updatedAt') or j.get('createdAt') or ''
+            journal_updated = _latest_iso(journal_updated, stamp)
+
+        plan_doc = db.collection('wellness_plans').document(user_id).get()
+        if plan_doc.exists:
+            plan = plan_doc.to_dict() or {}
+            plan_updated = plan.get('updatedAt', '')
+            plan_status = plan.get('status', 'active')
+    except Exception as e:
+        print(f'[cache-meta] Error for user {user_id}: {e}')
+
+    meta = {
+        'profileUpdatedAt': profile_updated,
+        'conversationsUpdatedAt': conversations_updated,
+        'conversationsCount': conversations_count,
+        'emotionsUpdatedAt': emotions_updated,
+        'emotionsCount': emotions_count,
+        'journalUpdatedAt': journal_updated,
+        'journalCount': journal_count,
+        'planUpdatedAt': plan_updated,
+        'planStatus': plan_status,
+    }
+    revision_source = json.dumps(meta, sort_keys=True)
+    meta['revision'] = hashlib.sha256(revision_source.encode()).hexdigest()[:20]
+    meta['updatedAt'] = datetime.now().isoformat()
+    return meta
+
+
+def _generate_wellness_plan(user_id):
+    """Generate a supportive, realistic wellness plan based on user trends."""
+    emotion_counts = {}
+    try:
+        if db:
+            for log_doc in db.collection('emotion_logs').where('userId', '==', user_id).stream():
+                emotion = (log_doc.to_dict() or {}).get('emotion', 'neutral')
+                emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+    except Exception as e:
+        print(f'[wellness plan] Error collecting emotions for {user_id}: {e}')
+
+    dominant = 'calm'
+    if emotion_counts:
+        dominant = max(emotion_counts, key=emotion_counts.get)
+
+    intensity = emotion_counts.get('stressed', 0) + emotion_counts.get('anxious', 0)
+    cadence = 'weekly' if intensity < 3 else 'daily'
+
+    goals = [
+        {
+            'title': 'Emotional Check-In',
+            'description': 'Spend 3-5 minutes each day naming how you feel without judgment.',
+            'category': 'emotional-balance',
+            'target': '5 check-ins this week'
+        },
+        {
+            'title': 'Stress Reset Routine',
+            'description': 'Use one calming activity when stress feels high.',
+            'category': 'stress-management',
+            'target': 'At least 4 times this week'
+        },
+        {
+            'title': 'Gentle Self-Care',
+            'description': 'Choose one realistic self-care action each day (sleep, hydration, movement, or rest).',
+            'category': 'self-care',
+            'target': '1 action daily'
+        }
+    ]
+
+    reflections = [
+        'What is one thing you are proud of handling today?',
+        'What emotion felt strongest today, and what might it be asking for?',
+        'What is one thought you can release tonight?'
+    ]
+
+    coping_exercises = [
+        {
+            'title': 'Box Breathing',
+            'duration': '2-4 minutes',
+            'steps': ['Inhale for 4', 'Hold for 4', 'Exhale for 4', 'Hold for 4', 'Repeat 4 cycles']
+        },
+        {
+            'title': '5-4-3-2-1 Grounding',
+            'duration': '3 minutes',
+            'steps': ['5 things you see', '4 things you feel', '3 things you hear', '2 things you smell', '1 thing you taste']
+        }
+    ]
+
+    if dominant in ('sad', 'tired', 'numb'):
+        goals.append({
+            'title': 'Energy Support',
+            'description': 'Pick one small uplifting activity (sunlight, shower, short walk, or music).',
+            'category': 'self-care',
+            'target': '3 times this week'
+        })
+
+    return {
+        'userId': user_id,
+        'status': 'active',
+        'cadence': cadence,
+        'dominantEmotion': dominant,
+        'emotionCounts': emotion_counts,
+        'goals': goals,
+        'reflections': reflections,
+        'copingExercises': coping_exercises,
+        'notes': 'This plan is adaptive and non-pressuring. You can modify or pause anytime.',
+        'updatedAt': datetime.now().isoformat(),
+        'generatedAt': datetime.now().isoformat()
+    }
+
+
+def _default_offline_resources():
+    """Default offline-capable mental health resource library payload."""
+    return {
+        'version': '2026-03-13',
+        'title': 'Offline Mental Health Resource Library',
+        'items': [
+            {
+                'id': 'breathing-001',
+                'category': 'Breathing & Relaxation',
+                'title': '2-Minute Calming Breath',
+                'summary': 'A quick breathing cycle to settle racing thoughts.',
+                'content': 'Inhale 4 seconds, exhale 6 seconds. Repeat for 2 minutes. Keep shoulders relaxed.'
+            },
+            {
+                'id': 'grounding-001',
+                'category': 'Grounding Techniques',
+                'title': '5-4-3-2-1 Grounding',
+                'summary': 'Reconnect with your senses during overwhelm.',
+                'content': 'Name 5 things you see, 4 you feel, 3 you hear, 2 you smell, 1 you taste.'
+            },
+            {
+                'id': 'stress-001',
+                'category': 'Stress & Anxiety Guides',
+                'title': 'Stress Response Reset',
+                'summary': 'A short guide for reducing stress load in the moment.',
+                'content': 'Pause, unclench jaw and shoulders, take 5 slower breaths, and pick one next safe action.'
+            },
+            {
+                'id': 'selfcare-001',
+                'category': 'Self-Care Routines',
+                'title': 'Low-Energy Self-Care Plan',
+                'summary': 'Tiny self-care steps for hard days.',
+                'content': 'Drink water, wash face, open a window, and send one message to a trusted person.'
+            },
+            {
+                'id': 'hotline-001',
+                'category': 'Emergency Hotlines',
+                'title': 'Crisis Contacts',
+                'summary': 'Immediate support contacts for urgent emotional distress.',
+                'content': 'US: Call/Text 988. Emergency danger: call 911. Add local campus and country hotline numbers in settings.'
+            }
+        ]
+    }
+
+
+@app.route('/user/cache-meta/<user_id>', methods=['GET'])
+def user_cache_meta(user_id):
+    """Provide per-user metadata revision for client-side cache validation."""
+    try:
+        return jsonify(_build_user_cache_meta(user_id))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/personalized-plan/<user_id>')
+def personalized_plan_page(user_id):
+    """Render personalized wellness plan page."""
+    return render_template('personalized_plan.html')
+
+
+@app.route('/offline-resources')
+def offline_resources_page():
+    """Render offline resources library page."""
+    return render_template('offline_resources.html')
+
+
+@app.route('/journal/<user_id>')
+def journal_page(user_id):
+    """Render personal journal page."""
+    return render_template('journal.html')
+
+
+@app.route('/user/wellness-plan/<user_id>', methods=['GET', 'PUT'])
+def user_wellness_plan(user_id):
+    """Get or update personalized wellness plan for a user."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+
+    plan_ref = db.collection('wellness_plans').document(user_id)
+
+    if request.method == 'GET':
+        try:
+            doc = plan_ref.get()
+            if doc.exists:
+                return jsonify(doc.to_dict() or {})
+
+            plan = _generate_wellness_plan(user_id)
+            plan_ref.set(plan)
+            return jsonify(plan)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    data = request.get_json() or {}
+    allowed_fields = {
+        'status', 'cadence', 'goals', 'reflections', 'copingExercises',
+        'notes', 'preferences', 'isPaused'
+    }
+    updates = {k: v for k, v in data.items() if k in allowed_fields}
+
+    if 'status' in updates and updates['status'] not in ('active', 'paused'):
+        return jsonify({'error': 'Invalid status. Use active or paused.'}), 400
+
+    if not updates:
+        return jsonify({'error': 'No valid fields provided'}), 400
+
+    updates['updatedAt'] = datetime.now().isoformat()
+
+    try:
+        plan_ref.set(updates, merge=True)
+        return jsonify({'success': True, 'updatedAt': updates['updatedAt']})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/user/wellness-plan/<user_id>/refresh', methods=['POST'])
+def refresh_user_wellness_plan(user_id):
+    """Regenerate recommendation content using latest emotional trends."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+    try:
+        new_plan = _generate_wellness_plan(user_id)
+        old_doc = db.collection('wellness_plans').document(user_id).get()
+        if old_doc.exists:
+            old_plan = old_doc.to_dict() or {}
+            # Preserve status and user-modified preferences.
+            if old_plan.get('status') in ('active', 'paused'):
+                new_plan['status'] = old_plan.get('status')
+            if 'preferences' in old_plan:
+                new_plan['preferences'] = old_plan.get('preferences')
+        db.collection('wellness_plans').document(user_id).set(new_plan, merge=True)
+        return jsonify({'success': True, 'plan': new_plan})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/offline-resources/data', methods=['GET'])
+def offline_resources_data():
+    """Return offline resource library payload (cacheable by client)."""
+    try:
+        payload = _default_offline_resources()
+        if db:
+            cfg_doc = db.collection('app_content').document('offline_resources').get()
+            if cfg_doc.exists:
+                cfg = cfg_doc.to_dict() or {}
+                if cfg.get('items'):
+                    payload = {
+                        'version': cfg.get('version', payload['version']),
+                        'title': cfg.get('title', payload['title']),
+                        'items': cfg.get('items', payload['items'])
+                    }
+        return jsonify(payload)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/user/journal/<user_id>', methods=['GET', 'POST'])
+def user_journal_entries(user_id):
+    """Get or create private journal entries."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+
+    if request.method == 'GET':
+        try:
+            entries = []
+            for doc in db.collection('journal_entries').where('userId', '==', user_id).stream():
+                item = doc.to_dict() or {}
+                item['id'] = doc.id
+                entries.append(item)
+            entries.sort(key=lambda x: x.get('createdAt', ''), reverse=True)
+            return jsonify({'entries': entries})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    data = request.get_json() or {}
+    content = (data.get('content') or '').strip()
+    prompt = (data.get('prompt') or '').strip()
+    mood = (data.get('mood') or '').strip()
+
+    if not content:
+        return jsonify({'error': 'Journal content is required'}), 400
+
+    entry = {
+        'userId': user_id,
+        'prompt': prompt,
+        'content': content,
+        'mood': mood,
+        'createdAt': datetime.now().isoformat(),
+        'updatedAt': datetime.now().isoformat(),
+    }
+    try:
+        doc_ref = db.collection('journal_entries').document()
+        doc_ref.set(entry)
+        entry['id'] = doc_ref.id
+        return jsonify({'success': True, 'entry': entry}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/user/journal/<user_id>/<entry_id>', methods=['PUT', 'DELETE'])
+def user_journal_entry_update(user_id, entry_id):
+    """Update or delete a private journal entry."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+
+    entry_ref = db.collection('journal_entries').document(entry_id)
+    doc = entry_ref.get()
+    if not doc.exists:
+        return jsonify({'error': 'Entry not found'}), 404
+
+    current = doc.to_dict() or {}
+    if current.get('userId') != user_id:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    if request.method == 'DELETE':
+        try:
+            entry_ref.delete()
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    data = request.get_json() or {}
+    updates = {}
+    if 'content' in data:
+        updates['content'] = (data.get('content') or '').strip()
+    if 'prompt' in data:
+        updates['prompt'] = (data.get('prompt') or '').strip()
+    if 'mood' in data:
+        updates['mood'] = (data.get('mood') or '').strip()
+
+    if not updates.get('content'):
+        return jsonify({'error': 'Content cannot be empty'}), 400
+
+    updates['updatedAt'] = datetime.now().isoformat()
+    try:
+        entry_ref.set(updates, merge=True)
+        return jsonify({'success': True, 'updatedAt': updates['updatedAt']})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== INCOGNITO CHAT ROUTES ====================
+
+@app.route('/incognito')
+def incognito_page():
+    """Render incognito (private) chat page."""
+    return render_template('incognito.html')
+
+
+@app.route('/incognito/cleanup', methods=['POST'])
+def incognito_cleanup():
+    """Delete all incognito-tagged conversations for a user session."""
+    if not db:
+        return jsonify({'success': True})
+    try:
+        data = request.json or {}
+        user_id = data.get('user_id', '')
+        session_id = data.get('session_id', '')
+        if not user_id and not session_id:
+            return jsonify({'success': True})
+
+        query = db.collection('conversations').where('isIncognito', '==', True)
+        if user_id:
+            query = query.where('userId', '==', user_id)
+        elif session_id:
+            query = query.where('incognitoSession', '==', session_id)
+
+        deleted = 0
+        for conv_doc in query.stream():
+            msgs_ref = db.collection('conversations').document(conv_doc.id).collection('messages')
+            for msg_doc in msgs_ref.stream():
+                msg_doc.reference.delete()
+            conv_doc.reference.delete()
+            deleted += 1
+
+        # Also clean emotion_logs tagged as incognito for this user/session
+        if user_id:
+            for log_doc in db.collection('emotion_logs').where('userId', '==', user_id).where('isIncognito', '==', True).stream():
+                log_doc.reference.delete()
+
+        return jsonify({'success': True, 'deleted': deleted})
+    except Exception as e:
+        print(f'[incognito cleanup] Error: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ==================== USER PROFILE ROUTES ====================
+
+@app.route('/profile')
+def profile_page():
+    """Render user profile page."""
+    return render_template('profile.html')
+
+
+@app.route('/user/profile/<user_id>', methods=['GET'])
+def get_user_profile(user_id):
+    """Return profile data stored in Firestore for a user."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+    try:
+        doc = db.collection('user_profiles').document(user_id).get()
+        profile = doc.to_dict() if doc.exists else {}
+        # Merge Firebase Auth data
+        try:
+            auth_user = firebase_auth.get_user(user_id)
+            profile['displayName'] = profile.get('displayName') or auth_user.display_name or ''
+            profile['email'] = auth_user.email or ''
+            profile['photoURL'] = profile.get('photoURL') or auth_user.photo_url or ''
+            profile['emailVerified'] = auth_user.email_verified
+        except Exception:
+            pass
+        return jsonify(profile)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/user/profile/<user_id>', methods=['PUT'])
+def update_user_profile(user_id):
+    """Update profile fields stored in Firestore (displayName, birthday, photoURL)."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+    data = request.get_json() or {}
+    allowed = {'displayName', 'birthday', 'photoURL'}
+    updates = {k: v for k, v in data.items() if k in allowed}
+    if not updates:
+        return jsonify({'error': 'No valid fields to update'}), 400
+    try:
+        updates['updatedAt'] = datetime.now().isoformat()
+        db.collection('user_profiles').document(user_id).set(updates, merge=True)
+
+        # Also update Firebase Auth display name if provided
+        if 'displayName' in updates:
+            try:
+                firebase_auth.update_user(user_id, display_name=updates['displayName'])
+            except Exception as e:
+                print(f'[profile] Auth display name update error: {e}')
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/user/data/<user_id>', methods=['GET'])
+def get_user_data(user_id):
+    """Return all personal data (conversations + messages) for a user."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+    try:
+        convs = []
+        for conv_doc in db.collection('conversations').where('userId', '==', user_id).stream():
+            conv = conv_doc.to_dict()
+            conv['id'] = conv_doc.id
+            # Fetch messages
+            msgs = []
+            for msg_doc in db.collection('conversations').document(conv_doc.id).collection('messages').order_by('timestamp').stream():
+                msgs.append(msg_doc.to_dict())
+            conv['messages'] = msgs
+            convs.append(conv)
+        # Sort by createdAt descending
+        convs.sort(key=lambda c: c.get('createdAt', ''), reverse=True)
+        return jsonify({'conversations': convs, 'totalConversations': len(convs)})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/user/data/<user_id>/delete', methods=['DELETE'])
+def delete_user_data(user_id):
+    """Permanently delete ALL personal data for a user (conversations, messages, emotion_logs)."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+    try:
+        deleted_convs = 0
+        deleted_msgs = 0
+        for conv_doc in db.collection('conversations').where('userId', '==', user_id).stream():
+            msgs_ref = db.collection('conversations').document(conv_doc.id).collection('messages')
+            for msg_doc in msgs_ref.stream():
+                msg_doc.reference.delete()
+                deleted_msgs += 1
+            conv_doc.reference.delete()
+            deleted_convs += 1
+        # Delete emotion logs
+        for log_doc in db.collection('emotion_logs').where('userId', '==', user_id).stream():
+            log_doc.reference.delete()
+        # Delete crisis alerts
+        for alert_doc in db.collection('crisis_alerts').where('userId', '==', user_id).stream():
+            alert_doc.reference.delete()
+        # Clear in-memory history
+        if user_id in conversation_history:
+            conversation_history[user_id] = []
+        return jsonify({'success': True, 'deletedConversations': deleted_convs, 'deletedMessages': deleted_msgs})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== ADMIN BACKUP ROUTES ====================
+
+BACKUP_DOWNLOAD_PATH = os.getenv('BACKUP_DOWNLOAD_PATH', '')  # Optional local path override
+
+
+def _collect_full_backup():
+    """Collect all Firestore collections into a dict for backup."""
+    if not db:
+        return {}
+    backup = {'exportedAt': datetime.now().isoformat(), 'collections': {}}
+    collections_to_backup = ['conversations', 'emotion_logs', 'crisis_alerts', 'admins', 'user_profiles', 'backup_history']
+    for col_name in collections_to_backup:
+        try:
+            docs = []
+            for doc in db.collection(col_name).stream():
+                d = doc.to_dict() or {}
+                d['_docId'] = doc.id
+                # Serialize any Firestore timestamps
+                for k, v in list(d.items()):
+                    if hasattr(v, 'isoformat'):
+                        d[k] = v.isoformat()
+                docs.append(d)
+            backup['collections'][col_name] = docs
+        except Exception as e:
+            backup['collections'][col_name] = {'error': str(e)}
+    return backup
+
+
+def _record_backup_history(triggered_by='scheduler', backup_size=0):
+    """Write a backup history entry to Firestore."""
+    if not db:
+        return
+    try:
+        db.collection('backup_history').document().set({
+            'triggeredBy': triggered_by,
+            'timestamp': datetime.now().isoformat(),
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'sizeBytes': backup_size,
+            'status': 'success'
+        })
+    except Exception as e:
+        print(f'[backup] Error recording history: {e}')
+
+
+def _run_scheduled_backup():
+    """Scheduled backup job — runs at 23:59 daily."""
+    print('🕐 [Scheduled Backup] Running nightly backup...')
+    try:
+        data = _collect_full_backup()
+        backup_json = json.dumps(data, indent=2, default=str)
+        size = len(backup_json.encode('utf-8'))
+        _record_backup_history(triggered_by='scheduler_23:59', backup_size=size)
+        # If a local path is configured, write to disk
+        if BACKUP_DOWNLOAD_PATH:
+            import pathlib
+            pathlib.Path(BACKUP_DOWNLOAD_PATH).mkdir(parents=True, exist_ok=True)
+            fname = f"menti_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            fpath = os.path.join(BACKUP_DOWNLOAD_PATH, fname)
+            with open(fpath, 'w', encoding='utf-8') as f:
+                f.write(backup_json)
+            print(f'✅ [Scheduled Backup] Saved to {fpath}')
+        else:
+            print(f'✅ [Scheduled Backup] Completed ({size} bytes). No local path configured — history recorded.')
+    except Exception as e:
+        print(f'❌ [Scheduled Backup] Error: {e}')
+        if db:
+            try:
+                db.collection('backup_history').document().set({
+                    'triggeredBy': 'scheduler_23:59',
+                    'timestamp': datetime.now().isoformat(),
+                    'date': datetime.now().strftime('%Y-%m-%d'),
+                    'sizeBytes': 0,
+                    'status': f'failed: {str(e)}'
+                })
+            except Exception:
+                pass
+
+
+# Start APScheduler — runs nightly backup at 23:59
+_scheduler = BackgroundScheduler(timezone='UTC')
+_scheduler.add_job(_run_scheduled_backup, 'cron', hour=23, minute=59, id='nightly_backup')
+_scheduler.start()
+atexit.register(lambda: _scheduler.shutdown(wait=False))
+
+
+@app.route('/admin/backup/now', methods=['POST'])
+@admin_required
+def admin_backup_now():
+    """Trigger an immediate backup and return JSON for browser download."""
+    try:
+        triggered_by = session.get('admin_username', 'admin')
+        data = _collect_full_backup()
+        backup_json = json.dumps(data, indent=2, default=str)
+        size = len(backup_json.encode('utf-8'))
+        _record_backup_history(triggered_by=triggered_by, backup_size=size)
+        filename = f"menti_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        return Response(
+            backup_json,
+            mimetype='application/json',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Content-Length': str(size)
+            }
+        )
+    except Exception as e:
+        print(f'[backup/now] Error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/backup/history')
+@admin_required
+def admin_backup_history():
+    """Return backup history records."""
+    if not db:
+        return jsonify([])
+    try:
+        records = []
+        for doc in db.collection('backup_history').stream():
+            d = doc.to_dict()
+            d['id'] = doc.id
+            records.append(d)
+        records.sort(key=lambda r: r.get('timestamp', ''), reverse=True)
+        return jsonify(records[:100])  # latest 100
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ==================== RUN APPLICATION ====================
