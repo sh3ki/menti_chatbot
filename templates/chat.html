@@ -62,34 +62,120 @@
             letter-spacing: -0.5px;
         }
 
-        .user-info {
-            font-size: 14px;
-            color: #28282B;
-            opacity: 0.7;
-            font-weight: 500;
+        /* ===== HEADER RIGHT / PROFILE DROPDOWN ===== */
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-
-        .logout-btn {
-            padding: 10px 20px;
-            background: #2C5E31;
-            color: #FFFFFF;
-            border: none;
+        .incognito-topbar-btn {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #F3F0FF;
+            color: #5B21B6;
+            border: 1.5px solid #DDD6FE;
             border-radius: 10px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
-            transition: all 0.2s ease;
+            transition: all 0.2s;
             font-family: inherit;
         }
-
-        .logout-btn:hover {
-            background: #234A27;
-            transform: translateY(-1px);
+        .incognito-topbar-btn:hover { background: #EDE9FE; border-color: #C4B5FD; }
+        .incognito-topbar-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+        .profile-menu-wrap {
+            position: relative;
+            display: none;
         }
-
-        .logout-btn:active {
-            transform: translateY(1px);
+        .profile-menu-trigger {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px 5px 5px;
+            background: none;
+            border: 1.5px solid #E0E0E0;
+            border-radius: 22px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: border-color 0.2s, background 0.2s;
         }
+        .profile-menu-trigger:hover,
+        .profile-menu-wrap.open .profile-menu-trigger {
+            border-color: #4FA858;
+            background: #F6FBF6;
+        }
+        .header-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #E8F5E9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: #2C5E31;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .header-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #28282B;
+            max-width: 130px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .header-chevron {
+            width: 14px;
+            height: 14px;
+            color: #28282B;
+            opacity: 0.5;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+        .profile-menu-wrap.open .header-chevron { transform: rotate(180deg); }
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            background: #FFFFFF;
+            border: 1px solid #E8E8E8;
+            border-radius: 12px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+            min-width: 196px;
+            z-index: 300;
+            overflow: hidden;
+            padding: 4px 0;
+        }
+        .profile-menu-wrap.open .profile-dropdown { display: block; }
+        .profile-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #28282B;
+            text-decoration: none;
+            transition: background 0.15s;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .profile-dropdown-item:hover { background: #F8F8F8; color: #2C5E31; }
+        .profile-dropdown-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+        .profile-dropdown-logout { color: #C62828; }
+        .profile-dropdown-logout:hover { background: #FFF5F5 !important; color: #C62828 !important; }
+        .profile-dropdown-divider { height: 1px; background: #F0F0F0; margin: 4px 0; }
 
         /* Modal Styles */
         .modal {
@@ -456,6 +542,8 @@
             color: white;
         }
 
+
+
         /* Chat Container */
         .chat-container {
             flex: 1;
@@ -765,14 +853,8 @@
                 height: 32px;
             }
 
-            .user-info {
-                font-size: 13px;
-            }
-
-            .logout-btn {
-                padding: 8px 16px;
-                font-size: 13px;
-            }
+            .header-name { font-size: 12px; max-width: 90px; }
+            .incognito-topbar-btn { padding: 7px 10px; font-size: 12px; }
 
             .message-content {
                 max-width: 80%;
@@ -796,9 +878,7 @@
                 gap: 8px;
             }
 
-            .user-info {
-                display: none;
-            }
+            .header-name { display: none; }
 
             .message-content {
                 max-width: 85%;
@@ -945,14 +1025,13 @@
     <!-- Header -->
     <div class="header">
         <div class="header-left">
-            <button class="sidebar-toggle" id="sidebarToggle" style="display: none;">
+            <button class="sidebar-toggle" id="sidebarToggle">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
                 </svg>
             </button>
             <img src="/static/menti logo.png" alt="Menti Logo" class="header-logo">
             <h1>Menti</h1>
-            <span class="user-info" id="userInfo">Loading...</span>
         </div>
 
         <!-- Mode selector — shown in the header once a chat is active -->
@@ -962,7 +1041,47 @@
             <button class="header-mode-btn" id="headerBtn-professional" onclick="selectMode('professional')">📋 Professional</button>
         </div>
 
-        <button class="logout-btn" id="logoutBtn">Logout</button>
+        <!-- Header right: incognito + profile dropdown -->
+        <div class="header-right">
+            <button class="incognito-topbar-btn" id="incognitoTopBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                Private
+            </button>
+            <div class="profile-menu-wrap" id="profileMenuWrap">
+                <button class="profile-menu-trigger" id="profileMenuTrigger">
+                    <div class="header-avatar" id="headerAvatar"><span id="headerAvatarInitials">?</span></div>
+                    <span class="header-name" id="headerName">Loading...</span>
+                    <svg class="header-chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                </button>
+                <div class="profile-dropdown" id="profileDropdown">
+                    <a class="profile-dropdown-item" id="progressNavLink" href="#">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                        My Progress
+                    </a>
+                    <a class="profile-dropdown-item" id="planNavLink" href="#">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm1 16H8v-2h7v2zm1-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                        Personalized Plan
+                    </a>
+                    <a class="profile-dropdown-item" id="journalNavLink" href="#">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-2-9H7V8h10v2zm0 4H7v-2h10v2z"/></svg>
+                        My Journal
+                    </a>
+                    <a class="profile-dropdown-item" id="offlineResourcesNavLink" href="/offline-resources">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 18H4V6h16v12zm0-14H4c-1.1 0-2 .9-2 2v14h20V6c0-1.1-.9-2-2-2zm-7 13h-2v2h2v-2z"/></svg>
+                        Offline Resources
+                    </a>
+                    <a class="profile-dropdown-item" href="/profile">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        Profile Settings
+                    </a>
+                    <div class="profile-dropdown-divider"></div>
+                    <button class="profile-dropdown-item profile-dropdown-logout" id="logoutBtn">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Logout Confirmation Modal -->
@@ -989,6 +1108,7 @@
         </div>
     </div>
 
+    <!-- Progress Modal -->
     <!-- Main Container -->
     <div class="main-container">
         <!-- Sidebar (Only for logged-in users) -->
@@ -1126,7 +1246,6 @@
         const chatMessages = document.getElementById('chatMessages');
         const chatInput = document.getElementById('chatInput');
         const sendBtn = document.getElementById('sendBtn');
-        const userInfo = document.getElementById('userInfo');
         const logoutBtn = document.getElementById('logoutBtn');
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
@@ -1187,22 +1306,15 @@
                 
                 // Display user info
                 if (user.isAnonymous) {
-                    userInfo.textContent = '👤 Guest User';
+                    updateHeaderProfile(null);
                     // Hide sidebar for guests
                     sidebar.style.display = 'none';
                     sidebarToggle.style.display = 'none';
                 } else {
                     // Show sidebar for logged-in users
                     sidebar.style.display = 'flex';
-                    sidebarToggle.style.display = 'block';
-                    
-                    if (user.displayName) {
-                        userInfo.textContent = `👤 ${user.displayName}`;
-                    } else if (user.email) {
-                        userInfo.textContent = `👤 ${user.email}`;
-                    } else {
-                        userInfo.textContent = '👤 User';
-                    }
+                    sidebarToggle.style.display = '';
+                    updateHeaderProfile(user);
                     
                     // Load conversations
                     await loadConversations();
@@ -1855,9 +1967,13 @@
         // New chat button
         newChatBtn.addEventListener('click', startNewChat);
 
-        // Sidebar toggle for mobile
+        // Sidebar toggle for both desktop and mobile
         sidebarToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('show');
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('show');
+            } else {
+                sidebar.classList.toggle('hidden');
+            }
         });
 
         // Close context menu when clicking outside
@@ -1882,6 +1998,55 @@
         window.hideRenameModal = hideRenameModal;
         window.archiveChat = archiveChat;
         window.deleteChat = deleteChat;
+
+        // ==================== HEADER PROFILE DROPDOWN ====================
+        function updateHeaderProfile(user) {
+            const wrap = document.getElementById('profileMenuWrap');
+            const incogBtn = document.getElementById('incognitoTopBtn');
+            if (!user || user.isAnonymous) {
+                if (wrap) wrap.style.display = 'none';
+                if (incogBtn) incogBtn.style.display = 'none';
+                return;
+            }
+            if (wrap) wrap.style.display = 'flex';
+            if (incogBtn) incogBtn.style.display = 'flex';
+            const name = user.displayName || user.email || 'User';
+            const nameEl = document.getElementById('headerName');
+            if (nameEl) nameEl.textContent = name;
+            const avatarEl = document.getElementById('headerAvatar');
+            if (avatarEl) {
+                if (user.photoURL) {
+                    avatarEl.innerHTML = `<img src="${user.photoURL}" alt="Avatar" onerror="this.parentNode.innerHTML='<span>${name.slice(0,1).toUpperCase()}</span>'">`;
+                } else {
+                    const initials = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+                    avatarEl.innerHTML = `<span>${initials}</span>`;
+                }
+            }
+            const progressLink = document.getElementById('progressNavLink');
+            if (progressLink) progressLink.href = `/progress/${user.uid}`;
+            const planLink = document.getElementById('planNavLink');
+            if (planLink) planLink.href = `/personalized-plan/${user.uid}`;
+            const journalLink = document.getElementById('journalNavLink');
+            if (journalLink) journalLink.href = `/journal/${user.uid}`;
+        }
+
+        const profileMenuWrap = document.getElementById('profileMenuWrap');
+        const profileMenuTrigger = document.getElementById('profileMenuTrigger');
+        if (profileMenuTrigger) {
+            profileMenuTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileMenuWrap.classList.toggle('open');
+            });
+        }
+        document.addEventListener('click', (e) => {
+            if (profileMenuWrap && !profileMenuWrap.contains(e.target)) {
+                profileMenuWrap.classList.remove('open');
+            }
+        });
+
+        document.getElementById('incognitoTopBtn').addEventListener('click', () => {
+            window.location.href = '/incognito';
+        });
     </script>
 </body>
 </html>
