@@ -125,6 +125,40 @@ Test endpoints:
 - Health check: `http://localhost:5000/health`
 - Chat API: POST to `http://localhost:5000/chat`
 
+## Voice (Free/Open-Source) Setup
+
+This project uses only free/open-source voice tools:
+- **Speech-to-text**: Vosk (offline model)
+- **Text-to-speech**: Piper ONNX voices (offline neural voices)
+
+Two built-in voice options are available in the UI:
+- Female (Neural)
+- Male (Neural)
+
+### Localhost
+
+1. Install dependencies:
+  ```bash
+  pip install -r requirements.txt
+  ```
+2. Start app normally:
+  ```bash
+  python app.py
+  ```
+
+On first use, the app automatically downloads Vosk and Piper model files into `models/`.
+
+### Render Deployment Notes
+
+- No paid APIs are required for voice.
+- The service needs outbound internet on first run to download models.
+- First voice request can be slower due to model download/warmup.
+- Models are cached on the running instance filesystem.
+
+Optional environment variables:
+- `VOSK_MODELS_DIR` (default: `./models`)
+- `PIPER_MODELS_DIR` (default: `./models/piper`)
+
 ## 📦 Dependencies
 
 - `Flask==3.0.0` - Web framework
