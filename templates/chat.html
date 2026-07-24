@@ -761,6 +761,7 @@
             width: 50px;
             height: 50px;
             padding: 0;
+            position: relative;
         }
 
         .voice-btn svg {
@@ -790,6 +791,18 @@
             animation: pulse 1.5s infinite;
         }
 
+        .voice-btn.transcribing {
+            background: #F59E0B;
+            color: #FFFFFF;
+            border-color: #F59E0B;
+            cursor: wait;
+            pointer-events: none;
+        }
+
+        .voice-btn.transcribing svg {
+            animation: spin 1s linear infinite;
+        }
+
         .voice-btn.muted {
             background: #F3F0FF;
             color: #5B21B6;
@@ -804,6 +817,11 @@
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         /* Typing Indicator */
@@ -2169,7 +2187,7 @@
         let recordingSampleRate = 44100;
         let isSpeakerMuted = false;
         let currentPlayingAudio = null;
-        let selectedVoiceId = 0;
+        let selectedVoiceId = parseInt(localStorage.getItem('menti_selectedVoiceId') ?? '0', 10);
         let availableVoices = [];
 
         // Check browser support for audio recording
@@ -2181,12 +2199,19 @@
         }
 
         function updateMicUi(recording, status = '') {
-            if (recording) {
+            voiceMicBtn.classList.remove('recording', 'transcribing');
+            
+            if (status === 'transcribing') {
+                voiceMicBtn.classList.add('transcribing');
+                voiceMicBtn.title = 'Processing audio...';
+                voiceMicBtn.disabled = true;
+            } else if (recording) {
                 voiceMicBtn.classList.add('recording');
                 voiceMicBtn.title = status || 'Recording... Click to stop';
+                voiceMicBtn.disabled = false;
             } else {
-                voiceMicBtn.classList.remove('recording');
                 voiceMicBtn.title = hasAudioSupport ? 'Click to record your message' : 'Not supported';
+                voiceMicBtn.disabled = false;
             }
         }
 
@@ -2288,7 +2313,7 @@
             if (!isRecording) return;
 
             isRecording = false;
-            updateMicUi(true, 'Transcribing...');
+            updateMicUi(false, 'transcribing');
             console.log('[Voice] Recording stopped');
 
             const merged = mergeFloat32Chunks(recordingChunks);
@@ -2312,13 +2337,13 @@
                 recordingStream = null;
             }
 
-            transcribeAudio(audioBlob).finally(() => {
-                updateMicUi(false);
-            });
+            transcribeAudio(audioBlob);
         }
 
         async function transcribeAudio(audioBlob) {
             try {
+                updateMicUi(false, 'transcribing');
+                
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'recording.wav');
                 
@@ -2328,16 +2353,21 @@
                 });
                 
                 const result = await response.json();
+                updateMicUi(false);
                 
                 if (result.success) {
-                    chatInput.value += (chatInput.value ? ' ' : '') + result.text;
-                    console.log('[Voice] Transcribed:', result.text);
+                    const text = result.text.trim();
+                    if (text && text !== 'No speech detected') {
+                        chatInput.value += (chatInput.value ? ' ' : '') + text;
+                        console.log('[Voice] Transcribed:', text);
+                    }
                 } else {
                     console.error('[Voice] Transcription failed:', result.error);
-                    updateMicUi(false, 'Error transcribing');
+                    alert('Could not transcribe: ' + result.error);
                 }
             } catch (error) {
                 console.error('[Voice] Transcription error:', error);
+                updateMicUi(false);
                 alert('Could not transcribe audio: ' + error.message);
             }
         }
@@ -2408,22 +2438,36 @@
             const menuDiv = document.createElement('div');
             menuDiv.id = 'voiceMenuDropdown';
             menuDiv.style.position = 'absolute';
-            menuDiv.style.bottom = '70px';
-            menuDiv.style.right = '20px';
-            menuDiv.style.backgroundColor = '#fff';
-            menuDiv.style.border = '1px solid #ccc';
-            menuDiv.style.borderRadius = '8px';
-            menuDiv.style.padding = '10px';
+            menuDiv.style.bottom = '60px';
+            menuDiv.style.right = '0';
+            menuDiv.style.backgroundColor = '#FFFFFF';
+            menuDiv.style.border = '1px solid #E0E0E0';
+            menuDiv.style.borderRadius = '12px';
+            menuDiv.style.padding = '12px';
             menuDiv.style.zIndex = '1000';
-            menuDiv.style.minWidth = '200px';
-            menuDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+            menuDiv.style.minWidth = '220px';
+            menuDiv.style.boxShadow = '0 4px 12px rgba(15, 15, 15, 0.15)';
+            menuDiv.style.fontFamily = 'Inter, sans-serif';
 
             // Mute toggle
             const muteOption = document.createElement('div');
-            muteOption.style.padding = '8px 12px';
+            muteOption.style.padding = '10px 12px';
             muteOption.style.cursor = 'pointer';
-            muteOption.style.borderBottom = '1px solid #eee';
+            muteOption.style.borderBottom = '1px solid #F0F0F0';
+            muteOption.style.fontSize = '14px';
+            muteOption.style.fontWeight = '500';
+            muteOption.style.color = '#4FA858';
+            muteOption.style.display = 'flex';
+            muteOption.style.alignItems = 'center';
+            muteOption.style.gap = '8px';
+            muteOption.style.transition = 'background-color 0.2s';
             muteOption.textContent = isSpeakerMuted ? '🔊 Unmute Voice' : '🔇 Mute Voice';
+            muteOption.addEventListener('mouseenter', () => {
+                muteOption.style.backgroundColor = '#F9F9F9';
+            });
+            muteOption.addEventListener('mouseleave', () => {
+                muteOption.style.backgroundColor = 'transparent';
+            });
             muteOption.addEventListener('click', () => {
                 isSpeakerMuted = !isSpeakerMuted;
                 voiceSpeakerBtn.classList.toggle('muted');
@@ -2434,40 +2478,54 @@
             // Voice options
             if (availableVoices.length > 0) {
                 const voiceLabel = document.createElement('div');
-                voiceLabel.style.padding = '8px 12px';
-                voiceLabel.style.fontWeight = 'bold';
+                voiceLabel.style.padding = '10px 12px';
+                voiceLabel.style.fontWeight = '600';
                 voiceLabel.style.fontSize = '12px';
-                voiceLabel.style.color = '#666';
+                voiceLabel.style.color = '#999999';
+                voiceLabel.style.textTransform = 'uppercase';
+                voiceLabel.style.letterSpacing = '0.5px';
                 voiceLabel.textContent = 'Choose Voice';
+                voiceLabel.style.display = 'flex';
+                voiceLabel.style.alignItems = 'center';
                 menuDiv.appendChild(voiceLabel);
 
                 availableVoices.forEach(voice => {
                     const voiceOption = document.createElement('div');
-                    voiceOption.style.padding = '8px 12px';
+                    voiceOption.style.padding = '10px 12px';
                     voiceOption.style.cursor = 'pointer';
-                    voiceOption.style.borderRadius = '4px';
+                    voiceOption.style.borderRadius = '8px';
+                    voiceOption.style.fontSize = '14px';
+                    voiceOption.style.fontWeight = '500';
+                    voiceOption.style.color = '#4FA858';
+                    voiceOption.style.transition = 'all 0.2s';
+                    voiceOption.style.display = 'flex';
+                    voiceOption.style.alignItems = 'center';
+                    voiceOption.style.gap = '8px';
                     voiceOption.textContent = `🎙️ ${voice.name}`;
                     if (voice.id === selectedVoiceId) {
-                        voiceOption.style.backgroundColor = '#e3f2fd';
-                        voiceOption.style.fontWeight = 'bold';
+                        voiceOption.style.backgroundColor = '#E8F5E9';
+                        voiceOption.style.fontWeight = '600';
                     }
                     voiceOption.addEventListener('mouseenter', () => {
-                        voiceOption.style.backgroundColor = '#f5f5f5';
+                        voiceOption.style.backgroundColor = '#F0F0F0';
                     });
                     voiceOption.addEventListener('mouseleave', () => {
                         if (voice.id !== selectedVoiceId) {
                             voiceOption.style.backgroundColor = 'transparent';
+                        } else {
+                            voiceOption.style.backgroundColor = '#E8F5E9';
                         }
                     });
                     voiceOption.addEventListener('click', () => {
                         selectedVoiceId = voice.id;
+                        localStorage.setItem('menti_selectedVoiceId', selectedVoiceId.toString());
                         menuDiv.remove();
                     });
                     menuDiv.appendChild(voiceOption);
                 });
             }
 
-            document.body.appendChild(menuDiv);
+            voiceSpeakerBtn.appendChild(menuDiv);
         });
 
         // Microphone button listener
