@@ -193,6 +193,55 @@ def _get_admin_emails():
     return emails
 
 
+# ==================== PRIVACY MASKING UTILITIES ====================
+
+def mask_username(name):
+    """Mask a username/display name for privacy.
+    Examples: 'John Doe' -> 'J*** D***', 'Alice' -> 'A***'
+    """
+    if not name or not isinstance(name, str):
+        return '***'
+    
+    parts = name.strip().split()
+    if len(parts) == 1:
+        # Single name: show first letter + asterisks
+        first = parts[0]
+        if len(first) > 1:
+            return f"{first[0]}***"
+        else:
+            return "***"
+    else:
+        # Multiple parts: show first letter of each part + asterisks
+        masked_parts = []
+        for part in parts:
+            if part:
+                masked_parts.append(f"{part[0]}***")
+        return " ".join(masked_parts) if masked_parts else "***"
+
+
+def mask_email(email):
+    """Mask an email address for privacy.
+    Examples: 'john.doe@gmail.com' -> 'j***@gmail.com', 'user@domain.co.uk' -> 'u***@domain.co.uk'
+    """
+    if not email or not isinstance(email, str):
+        return '***@***'
+    
+    email = email.strip().lower()
+    if '@' not in email:
+        # Not a valid email format, just mask it
+        if len(email) > 1:
+            return f"{email[0]}***"
+        else:
+            return "***"
+    
+    local, domain = email.split('@', 1)
+    if not local:
+        return f"***@{domain}"
+    
+    # Show first character of local part + asterisks + @ + domain
+    return f"{local[0]}***@{domain}"
+
+
 # ==================== ADMIN API ROUTES ====================
 
 @app.route('/admin/api/stats')
@@ -334,10 +383,14 @@ def admin_api_users():
                 providers = [p.provider_id for p in getattr(user, 'provider_data', [])]
                 provider_label = 'Google' if 'google.com' in providers else 'Email' if 'password' in providers else 'Other'
 
+                # Mask displayName and email for privacy
+                display_name = user.display_name or user.email or 'No Name'
+                user_email = user.email or 'N/A'
+                
                 users_list.append({
                     'uid': uid,
-                    'displayName': user.display_name or user.email or 'No Name',
-                    'email': user.email or 'N/A',
+                    'displayName': mask_username(display_name),
+                    'email': mask_email(user_email),
                     'type': 'Registered',
                     'provider': provider_label,
                     'isAnonymous': False,
@@ -504,11 +557,16 @@ def admin_api_risk_alerts():
                     email = auth_user.email or '—'
                 except Exception:
                     pass
+            
+            # Mask sensitive information for privacy
+            masked_name = mask_username(display_name)
+            masked_email = mask_email(email) if email != '—' else '—'
             initials = ''.join(w[0] for w in display_name.split()[:2]).upper() or '?'
+            
             alerts.append({
                 'uid': uid,
-                'displayName': display_name,
-                'email': email,
+                'displayName': masked_name,
+                'email': masked_email,
                 'initials': initials,
                 'riskLevel': risk_level,
                 'reason': reason_map.get(top_emotion, 'Negative emotional pattern'),
@@ -555,11 +613,151 @@ def admin_api_activity():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/admin/api/user-details/<uid>')
+@admin_required
+def admin_api_user_details(uid):
+    """Return comprehensive details for a specific user including:
+    - User info (masked)
+    - Emotional progress and distribution
+    - Interaction frequency and trends
+    - Recent activity
+    """
+    try:
+        # ---- Fetch all emotion logs for this user ----
+        all_logs = _fetch_all_emotion_logs()
+        user_logs = [log for log in all_logs if log.get('userId') == uid]
+        
+        if not user_logs:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # ---- Basic user info ----
+        user_info = {
+            'uid': uid,
+            'displayName': 'Loading...',
+            'email': '—',
+            'type': 'Anonymous',
+            'isAnonymous': True,
+            'createdAt': '—',
+            'totalMessages': len(user_logs)
+        }
+        
+        # Try to get user from Firebase Auth
+        try:
+            auth_user = firebase_auth.get_user(uid)
+            admin_emails = _get_admin_emails()
+            
+            if not (auth_user.email and auth_user.email.lower() in admin_emails):
+                user_info['displayName'] = mask_username(auth_user.display_name or auth_user.email or 'User')
+                user_info['email'] = mask_email(auth_user.email or '—')
+                user_info['type'] = 'Registered'
+                user_info['isAnonymous'] = False
+                
+                if auth_user.user_metadata.creation_timestamp:
+                    created = datetime.fromtimestamp(auth_user.user_metadata.creation_timestamp / 1000)
+                    user_info['createdAt'] = created.strftime('%Y-%m-%d %H:%M')
+        except Exception:
+            pass
+        
+        # ---- Emotional Progress & Distribution ----
+        emotion_counts = {'happy': 0, 'calm': 0, 'sad': 0, 'anxious': 0, 'stressed': 0, 
+                         'angry': 0, 'confused': 0, 'motivated': 0, 'tired': 0, 'numb': 0}
+        emotion_dates = {e: [] for e in emotion_counts.keys()}  # For trend
+        daily_emotions = {}  # date -> {emotion: count}
+        
+        for log in user_logs:
+            emotion = log.get('emotion', 'neutral')
+            date = log.get('date', '')
+            
+            if emotion in emotion_counts:
+                emotion_counts[emotion] += 1
+                if date:
+                    emotion_dates[emotion].append(date)
+                    if date not in daily_emotions:
+                        daily_emotions[date] = {}
+                    daily_emotions[date][emotion] = daily_emotions[date].get(emotion, 0) + 1
+        
+        # ---- Interaction Frequency ----
+        # Count messages by date
+        messages_by_date = {}
+        for log in user_logs:
+            date = log.get('date', '')
+            if date:
+                messages_by_date[date] = messages_by_date.get(date, 0) + 1
+        
+        # Calculate weekly stats
+        today = datetime.now()
+        weekly_stats = {}
+        for i in range(7):
+            d = (today - timedelta(days=i)).strftime('%Y-%m-%d')
+            weekly_stats[d] = messages_by_date.get(d, 0)
+        
+        messages_this_week = sum(weekly_stats.values())
+        messages_last_week = 0
+        for i in range(7, 14):
+            d = (today - timedelta(days=i)).strftime('%Y-%m-%d')
+            messages_last_week += messages_by_date.get(d, 0)
+        
+        # ---- Activity Trends ----
+        # Calculate positive vs negative emotions
+        positive_emotions = ['happy', 'calm', 'motivated']
+        negative_emotions = ['sad', 'anxious', 'stressed', 'angry', 'tired', 'numb']
+        
+        positive_count = sum(emotion_counts[e] for e in positive_emotions if e in emotion_counts)
+        negative_count = sum(emotion_counts[e] for e in negative_emotions if e in emotion_counts)
+        
+        # Last active
+        last_active = max((log.get('timestamp', '') for log in user_logs), default='')
+        last_active_date = last_active[:19].replace('T', ' ') if last_active else 'Never'
+        
+        # Recent entries
+        recent_logs = sorted(user_logs, key=lambda x: x.get('timestamp', ''), reverse=True)[:10]
+        recent_activity = []
+        for log in recent_logs:
+            recent_activity.append({
+                'emotion': log.get('emotion', 'neutral'),
+                'timestamp': log.get('timestamp', '')[:19].replace('T', ' '),
+                'date': log.get('date', ''),
+                'conversationId': log.get('conversationId', '')
+            })
+        
+        return jsonify({
+            'userInfo': user_info,
+            'emotionalProgress': {
+                'distribution': emotion_counts,
+                'positive': positive_count,
+                'negative': negative_count,
+                'neutral': len(user_logs) - positive_count - negative_count,
+                'positivityIndex': round((positive_count / len(user_logs) * 100) if user_logs else 0, 1)
+            },
+            'interactionFrequency': {
+                'totalMessages': len(user_logs),
+                'messagesThisWeek': messages_this_week,
+                'messagesLastWeek': messages_last_week,
+                'averagePerDay': round(len(user_logs) / max((datetime.fromisoformat(max(messages_by_date.keys())).toordinal() - 
+                                       datetime.fromisoformat(min(messages_by_date.keys())).toordinal() + 1), 1), 2) if messages_by_date else 0,
+                'weeklyStats': dict(sorted(weekly_stats.items())),
+                'messagesByDate': dict(sorted(messages_by_date.items(), reverse=True)[:30])  # Last 30 days
+            },
+            'activityTrends': {
+                'lastActive': last_active_date,
+                'mostFrequentEmotion': max(emotion_counts, key=emotion_counts.get) if emotion_counts else 'neutral',
+                'emotionTrends': emotion_counts,
+                'dailyEmotionTrends': dict(sorted(daily_emotions.items(), reverse=True)[:30])  # Last 30 days
+            },
+            'recentActivity': recent_activity
+        })
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print(f'Error in admin_api_user_details: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/admin/api/user-cache')
 @admin_required
 def admin_api_user_cache():
     """Return uid → {name, email, isAnonymous, initials} for all known users.
-    Used client-side for display name resolution in activity, risk, and crisis tables."""
+    Used client-side for display name resolution in activity, risk, and crisis tables.
+    All names and emails are MASKED for privacy."""
     try:
         cache = {}
         auth_users_all = _list_all_auth_users()
@@ -578,10 +776,13 @@ def admin_api_user_cache():
                 if user.email and user.email.lower() in _get_admin_emails():
                     continue
                 name = user.display_name or user.email or 'Unknown User'
-                initials = ''.join(w[0] for w in name.split()[:2]).upper() or 'U'
+                masked_name = mask_username(name)
+                masked_email = mask_email(user.email or '—')
+                # Extract initials from masked name
+                initials = ''.join(w[0] for w in masked_name.split()[:2]).upper() or 'U'
                 cache[user.uid] = {
-                    'name': name,
-                    'email': user.email or '—',
+                    'name': masked_name,
+                    'email': masked_email,
                     'isAnonymous': False,
                     'initials': initials
                 }
