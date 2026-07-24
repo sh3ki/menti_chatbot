@@ -2673,6 +2673,12 @@ function drawMessagesBar(labels, counts) {
 function drawEmotionLine(data) {
     const ctx = document.getElementById('emotionLineChart').getContext('2d');
     if (charts.emotionLine) charts.emotionLine.destroy();
+    
+    // Calculate daily totals for percentage calculation
+    const dailyTotals = data.labels.map((_, idx) => {
+        return data.emotion_keys.reduce((sum, e) => sum + (data.datasets[e][idx] || 0), 0);
+    });
+    
     const datasets = data.emotion_keys.map(e => ({
         label: cap(e), data: data.datasets[e],
         borderColor: EMOTION_COLORS[e].bg, backgroundColor: EMOTION_COLORS[e].bg + '18',
@@ -2686,7 +2692,18 @@ function drawEmotionLine(data) {
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: { display: false },
-                datalabels: { display: false },
+                datalabels: {
+                    anchor: 'top',
+                    align: 'top',
+                    color: (ctx) => EMOTION_COLORS[data.emotion_keys[ctx.datasetIndex]].bg,
+                    font: { size: 9, weight: 'bold', family: 'Inter' },
+                    formatter: (value, ctx) => {
+                        if (!value || value === 0) return '';
+                        const dailyTotal = dailyTotals[ctx.dataIndex] || 0;
+                        const pct = dailyTotal > 0 ? ((value / dailyTotal) * 100).toFixed(0) : 0;
+                        return `${value}\n${pct}%`;
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw}`
@@ -2697,7 +2714,8 @@ function drawEmotionLine(data) {
                 x: { grid: { display: false }, ticks: { font: { size: 10, family:'Inter' }, maxTicksLimit: 10 } },
                 y: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { font: { size: 10, family:'Inter' }, stepSize: 1 } }
             }
-        }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
@@ -3128,6 +3146,7 @@ function drawUserEmotionPie(emotionCounts) {
     const data = labels.map(e => emotionCounts[e]);
     const colors = labels.map(e => EMOTION_COLORS[e]?.bg || '#999');
     const lightColors = labels.map(e => EMOTION_COLORS[e]?.light || '#f0f0f0');
+    const total = data.reduce((a, b) => a + b, 0);
 
     window.userEmotionChart = new Chart(ctx, {
         type: 'doughnut',
@@ -3144,9 +3163,22 @@ function drawUserEmotionPie(emotionCounts) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 10 } }
+                legend: { display: false },
+                datalabels: {
+                    color: '#fff',
+                    textAlign: 'center',
+                    font: { size: 10, weight: 'bold', family: 'Inter' },
+                    formatter: (value, ctx) => {
+                        if (!value || total === 0) return '';
+                        const pct = Math.round((value / total) * 100);
+                        if (pct < 5) return '';
+                        const label = ctx.chart.data.labels[ctx.dataIndex];
+                        return `${label}\n${value}\n${pct}%`;
+                    }
+                }
             }
-        }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
@@ -3161,6 +3193,7 @@ function drawUserMessagesChart(messagesByDate) {
     const sortedDates = Object.keys(messagesByDate).sort().slice(-30);
     const counts = sortedDates.map(d => messagesByDate[d]);
     const labels = sortedDates.map(d => d.slice(5)); // MM-DD
+    const total = counts.reduce((a, b) => a + b, 0);
 
     window.userMessagesChart = new Chart(ctx, {
         type: 'bar',
@@ -3177,11 +3210,25 @@ function drawUserMessagesChart(messagesByDate) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'top',
+                    align: 'top',
+                    color: '#2C5E31',
+                    font: { size: 9, weight: 'bold', family: 'Inter' },
+                    formatter: (value) => {
+                        if (!value || value === 0) return '';
+                        const pct = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+                        return `${value}\n${pct}%`;
+                    }
+                }
+            },
             scales: {
                 y: { beginAtZero: true, ticks: { stepSize: 1 } }
             }
-        }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
@@ -3199,13 +3246,20 @@ function drawUserEmotionTrendChart(dailyEmotionTrends) {
         Object.keys(dailyEmotionTrends[d] || {}).forEach(e => emotions.add(e));
     });
 
+    // Calculate daily totals for percentage calculation
+    const dailyTotals = sortedDates.map(d => {
+        return Object.values(dailyEmotionTrends[d] || {}).reduce((sum, val) => sum + val, 0);
+    });
+
     const datasets = Array.from(emotions).map(emotion => ({
         label: emotion.charAt(0).toUpperCase() + emotion.slice(1),
         data: sortedDates.map(d => dailyEmotionTrends[d]?.[emotion] || 0),
         borderColor: EMOTION_COLORS[emotion]?.bg || '#999',
         backgroundColor: EMOTION_COLORS[emotion]?.light || '#f0f0f0',
         fill: true,
-        tension: 0.3
+        tension: 0.3,
+        pointRadius: 3,
+        pointHoverRadius: 5
     }));
 
     window.userEmotionTrendChart = new Chart(ctx, {
@@ -3217,9 +3271,24 @@ function drawUserEmotionTrendChart(dailyEmotionTrends) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } },
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'top',
+                    align: 'top',
+                    color: (ctx) => EMOTION_COLORS[Array.from(emotions)[ctx.datasetIndex]]?.bg || '#999',
+                    font: { size: 9, weight: 'bold', family: 'Inter' },
+                    formatter: (value, ctx) => {
+                        if (!value || value === 0) return '';
+                        const dailyTotal = dailyTotals[ctx.dataIndex] || 0;
+                        const pct = dailyTotal > 0 ? ((value / dailyTotal) * 100).toFixed(0) : 0;
+                        return `${value}\n${pct}%`;
+                    }
+                }
+            },
             scales: { y: { beginAtZero: true, stacked: true } }
-        }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
