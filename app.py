@@ -2251,9 +2251,930 @@ def _generate_wellness_plan(user_id):
 def _default_offline_resources():
     """Default offline-capable mental health resource library payload."""
     return {
-        'version': '2026-03-13',
+        'version': '2026-07-23',
         'title': 'Offline Mental Health Resource Library',
         'items': [
+            {
+                'id': 'article-001',
+                'category': 'Mental Health Articles',
+                'title': 'Understanding Anxiety Disorders: A Comprehensive Guide',
+                'summary': 'Learn about different types of anxiety, their symptoms, and evidence-based treatments.',
+                'content': '''UNDERSTANDING ANXIETY DISORDERS: A COMPREHENSIVE GUIDE
+
+What is Anxiety?
+Anxiety is a natural emotional response to stress. However, anxiety disorders occur when anxiety becomes excessive, persistent, and interferes with daily life. Common anxiety disorders include generalized anxiety disorder (GAD), panic disorder, social anxiety disorder, and specific phobias.
+
+Common Symptoms:
+- Physical: rapid heartbeat, sweating, trembling, dizziness, muscle tension
+- Emotional: persistent worry, fear, irritability, feelings of dread
+- Cognitive: difficulty concentrating, racing thoughts, catastrophic thinking
+- Behavioral: avoidance, restlessness, sleep disturbances
+
+Evidence-Based Treatments:
+1. Cognitive Behavioral Therapy (CBT) - Helps identify and change negative thought patterns
+2. Exposure Therapy - Gradual exposure to feared situations in a safe environment
+3. Medication - SSRIs and other anti-anxiety medications prescribed by healthcare providers
+4. Lifestyle Changes - Regular exercise, sleep hygiene, stress reduction techniques
+
+When to Seek Help:
+- Anxiety persists for more than 6 months
+- Symptoms interfere with work, school, or relationships
+- You experience panic attacks
+- Anxiety significantly impacts your quality of life
+
+Resources:
+- National Institute of Mental Health (NIMH)
+- Anxiety and Depression Association of America (ADAA)
+- Local mental health professionals and therapists'''
+            },
+            {
+                'id': 'article-002',
+                'category': 'Mental Health Articles',
+                'title': 'Depression: Recognition and Recovery',
+                'summary': 'Understand depression symptoms, causes, and paths to recovery.',
+                'content': '''DEPRESSION: RECOGNITION AND RECOVERY
+
+What is Clinical Depression?
+Depression (Major Depressive Disorder) is more than sadness - it\'s a medical condition affecting mood, thoughts, physical health, and behavior. It affects millions globally and is highly treatable.
+
+Key Symptoms (lasting 2+ weeks):
+- Persistent sad, empty, or hopeless mood
+- Loss of interest in activities once enjoyed
+- Changes in appetite or sleep patterns
+- Low energy and fatigue
+- Difficulty concentrating or making decisions
+- Feelings of worthlessness or guilt
+- Thoughts of death or suicide
+
+Risk Factors:
+- Family history of depression
+- Significant life stressors (loss, trauma, major changes)
+- Chronic medical conditions
+- Substance abuse
+- Social isolation
+
+Treatment Options:
+1. Psychotherapy (CBT, interpersonal therapy, behavioral activation)
+2. Medication (antidepressants prescribed by doctors)
+3. Lifestyle modifications (exercise, sleep, social connection)
+4. Combination therapy (therapy + medication for moderate to severe depression)
+
+Recovery is Possible:
+Most people with depression respond well to treatment. Recovery is not linear - setbacks are normal. With proper support and treatment, people regain their quality of life and rediscover purpose.
+
+Getting Help:
+- Talk to your doctor or mental health professional
+- Crisis Text Line: Text HOME to 741741
+- National Suicide Prevention Lifeline: 988'''
+            },
+            {
+                'id': 'guide-001',
+                'category': 'Wellness Guides',
+                'title': 'Sleep Hygiene: Better Sleep for Better Mental Health',
+                'summary': 'Practical tips for improving sleep quality and supporting mental wellness.',
+                'content': '''SLEEP HYGIENE: BETTER SLEEP FOR BETTER MENTAL HEALTH
+
+Why Sleep Matters:
+Quality sleep is essential for mental health, emotional regulation, immune function, and cognitive performance. Poor sleep exacerbates anxiety and depression, while good sleep supports recovery and resilience.
+
+Sleep Hygiene Practices:
+
+1. Consistent Sleep Schedule
+   - Go to bed and wake up at the same time daily (even weekends)
+   - Helps regulate your body\'s internal clock
+   - Aim for 7-9 hours for adults
+
+2. Create a Restful Environment
+   - Keep bedroom cool (65-68°F ideal), dark, and quiet
+   - Use blackout curtains or eye mask
+   - Consider white noise machines for distracting sounds
+   - Invest in comfortable bedding
+
+3. Pre-Sleep Routine (30-60 minutes before bed)
+   - Dim the lights to increase melatonin production
+   - Avoid screens (blue light suppresses melatonin)
+   - Try relaxing activities: reading, stretching, meditation
+   - Warm bath or shower
+
+4. Dietary Considerations
+   - Avoid caffeine 6+ hours before bed
+   - Limit alcohol (disrupts sleep quality)
+   - Avoid large meals close to bedtime
+   - Herbal tea (chamomile, passionflower) may help
+
+5. Exercise and Physical Activity
+   - Regular exercise improves sleep quality
+   - Avoid vigorous exercise 3 hours before bed
+   - Even 30 minutes of moderate activity helps
+
+6. Mind-Body Techniques
+   - Progressive muscle relaxation
+   - 4-7-8 breathing technique
+   - Guided meditation or body scan
+   - Journaling before bed (brain dump)
+
+If Sleep Problems Persist:
+- Consult a sleep specialist
+- Consider Cognitive Behavioral Therapy for Insomnia (CBT-I)
+- Sleep tracking apps may help identify patterns
+- Discuss with healthcare provider about other options'''
+            },
+            {
+                'id': 'guide-002',
+                'category': 'Wellness Guides',
+                'title': 'Exercise and Mental Health: Movement as Medicine',
+                'summary': 'How physical activity supports emotional well-being and mental health.',
+                'content': '''EXERCISE AND MENTAL HEALTH: MOVEMENT AS MEDICINE
+
+The Mind-Body Connection:
+Regular exercise is one of the most powerful tools for mental health. It reduces stress, improves mood, enhances self-esteem, and can be as effective as medication for mild to moderate depression and anxiety.
+
+How Exercise Helps Mental Health:
+
+Biochemical Changes:
+- Increases endorphins ("feel-good" chemicals)
+- Reduces stress hormones (cortisol, adrenaline)
+- Improves sleep quality
+- Regulates neurotransmitters (serotonin, dopamine, GABA)
+
+Psychological Benefits:
+- Increased sense of accomplishment
+- Improved body image and self-confidence
+- Distraction from negative thoughts
+- Enhanced focus and mental clarity
+- Sense of control and mastery
+
+Getting Started:
+
+For Beginners:
+- Start with 10-15 minutes of moderate activity
+- Choose activities you enjoy (walking, dancing, swimming)
+- Build gradually to 150 minutes weekly
+- No gym required - nature walks work great
+
+Best Types of Exercise for Mental Health:
+1. Aerobic exercise (running, cycling, swimming)
+2. Strength training (builds confidence and resilience)
+3. Mind-body exercises (yoga, tai chi, Pilates)
+4. Team sports (adds social connection)
+5. Outdoor activities (combines nature benefits)
+
+Making It Stick:
+- Schedule exercise like an appointment
+- Find an accountability partner or group
+- Track your mood improvements
+- Mix activities to prevent boredom
+- Start small and build consistency
+
+Exercise for Specific Conditions:
+- Anxiety: Aerobic exercise reduces physical tension
+- Depression: Consistent activity combats low motivation
+- ADHD: Physical activity improves focus
+- Stress: Any enjoyable movement helps
+
+Remember: Something is always better than nothing. Even a 10-minute walk provides mental health benefits.'''
+            },
+            {
+                'id': 'guide-003',
+                'category': 'Wellness Guides',
+                'title': 'Nutrition for Mental Health: Food and Mood Connection',
+                'summary': 'Understanding how diet impacts mental well-being and emotional health.',
+                'content': '''NUTRITION FOR MENTAL HEALTH: FOOD AND MOOD CONNECTION
+
+The Gut-Brain Axis:
+Mounting scientific evidence shows that nutrition directly impacts mental health. The foods we eat influence brain chemistry, mood regulation, anxiety levels, and overall psychological well-being.
+
+Key Nutrients for Mental Health:
+
+1. Omega-3 Fatty Acids
+   Benefits: Reduce inflammation, support brain cell function, may alleviate depression
+   Sources: Fatty fish (salmon, mackerel), walnuts, flaxseeds, chia seeds
+   Target: 2-3 servings weekly of fatty fish
+
+2. B Vitamins (especially B6, B12, Folate)
+   Benefits: Support neurotransmitter production, reduce homocysteine levels
+   Sources: Whole grains, leafy greens, eggs, chickpeas, almonds
+   Deficiency linked to: Depression, anxiety, cognitive decline
+
+3. Amino Acids
+   Benefits: Build neurotransmitters (serotonin, dopamine)
+   Sources: Lean proteins, legumes, dairy, nuts, seeds
+   Function: Support mood regulation and stress resilience
+
+4. Magnesium
+   Benefits: Calms nervous system, reduces anxiety, improves sleep
+   Sources: Pumpkin seeds, almonds, spinach, dark chocolate, avocado
+   Effects: Deficiency increases anxiety and depression risk
+
+5. Probiotics and Gut Health
+   Benefits: 90% of serotonin produced in gut; healthy microbiome supports mental health
+   Sources: Yogurt, kefir, sauerkraut, kimchi, miso
+   Effect: Improves mood and reduces inflammation
+
+Mental Health Eating Guidelines:
+
+✓ DO:
+- Eat whole foods (minimize processed foods)
+- Include colorful fruits and vegetables (antioxidants)
+- Stay hydrated (even mild dehydration affects mood)
+- Eat regular meals (prevents blood sugar crashes)
+- Include healthy fats (avocado, olive oil, nuts)
+
+✗ AVOID:
+- Excessive sugar (mood crashes, inflammation)
+- Alcohol in large amounts (worsens depression, anxiety)
+- Caffeine excess (increases anxiety)
+- Ultra-processed foods (linked to depression)
+- Skipping meals (destabilizes mood and energy)
+
+Sample Day of Brain-Healthy Eating:
+Breakfast: Oatmeal with walnuts and berries
+Lunch: Grilled chicken with quinoa and roasted vegetables
+Snack: Almonds and an apple
+Dinner: Baked salmon with sweet potato and broccoli
+Beverages: Water, herbal tea, moderate coffee
+
+The Mediterranean Diet:
+Research shows the Mediterranean diet (olive oil, fish, vegetables, whole grains, legumes) is particularly beneficial for mental health and may reduce depression risk by up to 30%.
+
+Remember: Food is not a cure, but proper nutrition is foundational to mental health treatment.'''
+            },
+            {
+                'id': 'technique-001',
+                'category': 'Coping Techniques',
+                'title': 'Cognitive Behavioral Therapy (CBT) Basics for Self-Help',
+                'summary': 'Learn core CBT principles to challenge unhelpful thoughts and change patterns.',
+                'content': '''COGNITIVE BEHAVIORAL THERAPY (CBT) BASICS FOR SELF-HELP
+
+What is CBT?
+CBT is a proven psychological treatment based on the connection between thoughts, feelings, and behaviors. By identifying and changing unhelpful thought patterns, we can improve our emotions and actions.
+
+The CBT Triangle:
+
+Thoughts → Feelings → Behaviors
+   ↑____________↓___________↓
+     (all interconnected)
+
+Example:
+Thought: "I\'ll fail my exam"
+Feeling: Anxiety, dread
+Behavior: Avoid studying, isolate
+
+Core CBT Techniques:
+
+1. Thought Records (Identifying Automatic Thoughts)
+   - Write down triggering situation
+   - Notice automatic thoughts that follow
+   - Rate belief strength (0-100%)
+   - Identify resulting emotions
+   - Challenge and reframe the thought
+
+2. Thought Challenging Questions:
+   - Is this thought based on facts or feelings?
+   - What evidence supports/contradicts this thought?
+   - What would I tell a friend in this situation?
+   - What\'s the worst realistic outcome? Could I handle it?
+   - Is there another way to look at this?
+
+3. Behavioral Activation
+   - Depression thrives on avoidance
+   - Schedule activities even without motivation
+   - Mix pleasurable and meaningful activities
+   - Track mood before/after activities
+   - Gradually increase activity level
+
+4. Exposure (Facing Fears Gradually)
+   - Create hierarchy of feared situations
+   - Expose yourself gradually (step-by-step)
+   - Stay in situation until anxiety reduces
+   - Repeat until habituation occurs
+   - Prevents avoidance from strengthening fears
+
+5. Problem-Solving Technique:
+   Step 1: Define the problem clearly
+   Step 2: Brainstorm all possible solutions
+   Step 3: Evaluate pros/cons of each solution
+   Step 4: Choose and implement best solution
+   Step 5: Evaluate results and adjust
+
+Common Thinking Errors to Watch For:
+- Catastrophizing: Assuming worst-case scenarios
+- All-or-nothing thinking: Seeing things as completely good or bad
+- Overgeneralization: One bad event means everything is bad
+- Mind reading: Assuming what others think about you
+- Emotional reasoning: Believing feelings equal facts
+
+Getting Started with Self-Help CBT:
+1. Get a CBT workbook or use online resources
+2. Practice thought records daily
+3. Identify your core unhelpful thoughts
+4. Challenge them systematically
+5. Monitor mood changes
+6. Be patient - real change takes time
+
+When to Seek Professional Help:
+- CBT becomes overwhelming
+- Suicidal thoughts emerge
+- Symptoms don\'t improve in 4-6 weeks
+- You need personalized treatment planning
+
+CBT is a skill - it improves with practice. Small thought shifts lead to significant emotional changes.'''
+            },
+            {
+                'id': 'technique-002',
+                'category': 'Coping Techniques',
+                'title': 'Mindfulness and Meditation for Anxiety Relief',
+                'summary': 'Practical mindfulness and meditation exercises to calm the mind.',
+                'content': '''MINDFULNESS AND MEDITATION FOR ANXIETY RELIEF
+
+What is Mindfulness?
+Mindfulness is the practice of purposefully paying attention to the present moment without judgment. It reduces anxiety by anchoring your mind in the "here and now" rather than worry about future "what-ifs."
+
+Key Benefits:
+- Reduces anxiety and worry
+- Improves emotional regulation
+- Decreases rumination and overthinking
+- Enhances focus and concentration
+- Increases self-compassion
+- Lowers stress hormones
+
+Core Mindfulness Principle:
+Observe thoughts like clouds passing in the sky - notice them without judgment, and let them pass.
+
+Beginner Meditation Practices:
+
+1. Basic Breath Awareness (5 minutes)
+   - Find quiet space, sit comfortably
+   - Close eyes or soft gaze downward
+   - Notice natural breath (no need to change it)
+   - When mind wanders (it will!), gently return focus to breath
+   - Practice daily for best results
+
+2. Body Scan Meditation (10 minutes)
+   - Lie down comfortably on your back
+   - Bring attention to toes, notice sensations
+   - Slowly move awareness up through body
+   - Notice tension, warmth, tingling without judgment
+   - Breathe into areas of tension
+   - Great before bed for relaxation
+
+3. 5-4-3-2-1 Grounding Meditation (5 minutes)
+   - Name 5 things you see
+   - Name 4 things you feel
+   - Name 3 things you hear
+   - Name 2 things you smell
+   - Name 1 thing you taste
+   - Brings you fully into present moment
+
+4. Loving-Kindness Meditation (10 minutes)
+   - Sit comfortably
+   - Silently repeat: "May I be happy, may I be healthy, may I be safe, may I live with ease"
+   - Extend to loved one, neutral person, difficult person, all beings
+   - Reduces anxiety and increases compassion
+
+5. Walking Meditation
+   - Walk slowly, indoors or nature
+   - Feel each foot contact the ground
+   - Notice surroundings with curiosity
+   - Synchronize steps with breathing
+   - Great alternative if sitting feels difficult
+
+Mindfulness in Daily Life:
+
+Mindful Eating:
+- Slow down, notice flavors and textures
+- Eat without screens
+- Appreciate food preparation
+
+Mindful Listening:
+- Give full attention to conversations
+- Don\'t plan your response while listening
+- Notice body language and tone
+
+Mindful Moments:
+- Morning: Set intention for day
+- Transitions: Pause between activities
+- Evening: Reflect on moments of peace
+
+Managing Wandering Minds:
+- This is completely normal and expected
+- The practice is returning focus each time mind wanders
+- Even 5 minutes of practice helps reduce anxiety
+- Progress isn\'t about perfection - it\'s about showing up
+
+Getting Started:
+- Apps: Insight Timer (free), Calm, Headspace
+- Try 5 minutes daily to build habit
+- Be consistent - benefits compound over time
+- Combine with breathing exercises for faster anxiety relief
+
+Research Shows:
+- 8 weeks of mindfulness reduces anxiety by 25-35%
+- Effective as medication for mild to moderate anxiety
+- Improves attention and emotional regulation
+- Decreases inflammatory markers in body
+
+Remember: Meditation is not about emptying your mind. It\'s about observing your mind with kindness.'''
+            },
+            {
+                'id': 'awareness-001',
+                'category': 'Mental Health Awareness',
+                'title': 'Breaking Mental Health Stigma: Facts vs. Myths',
+                'summary': 'Challenge common misconceptions and build understanding around mental health.',
+                'content': '''BREAKING MENTAL HEALTH STIGMA: FACTS VS. MYTHS
+
+Understanding Stigma:
+Stigma - negative beliefs and discrimination toward people with mental illness - prevents millions from seeking help. Here are key facts to counter common myths.
+
+Myth #1: "Mental illness isn\'t real - it\'s just weakness"
+FACT: Mental illness is as real as diabetes or heart disease. Brain chemistry, genetics, and life experiences create conditions like depression, anxiety, and bipolar disorder. Millions worldwide are affected.
+
+Myth #2: "People with mental illness are dangerous"
+FACT: People with mental health conditions are more likely to be victims of violence than perpetrators. Most are no more dangerous than the general population.
+
+Myth #3: "You can just snap out of it / think positive"
+FACT: Mental illness requires professional treatment. Willpower alone cannot cure clinical depression or anxiety - just as willpower can\'t cure cancer.
+
+Myth #4: "Only certain types of people get mental illness"
+FACT: Mental health conditions affect people of all ages, races, genders, and socioeconomic backgrounds. 1 in 5 adults experience mental illness annually.
+
+Myth #5: "Seeking help is a sign of weakness"
+FACT: Getting help is courageous and shows strength. Champions, leaders, and successful people regularly see therapists and manage mental health.
+
+Myth #6: "Medication means you\'re not strong enough"
+FACT: Medications for mental health are legitimate treatments that help balance brain chemistry. They\'re not "crutches" - they\'re medicine.
+
+Myth #7: "Therapy means you\'re broken"
+FACT: Therapy is like exercise for your brain. Everyone benefits from learning new skills and gaining perspective on challenges.
+
+Myth #8: "You need to suffer before getting help"
+FACT: Early intervention leads to better outcomes. Getting help at first signs of struggle prevents deterioration.
+
+Reducing Stigma in Your Community:
+
+Language Matters:
+- Use "person with depression" not "depressed person"
+- Say "experiencing suicide thoughts" not "suicidal"
+- Avoid: "crazy," "psycho," "insane" as insults
+- Recognize mental health conditions as medical conditions
+
+Supporting Others:
+- Listen without judgment
+- Ask "How can I help?"
+- Educate yourself about their condition
+- Avoid toxic positivity ("just be positive!")
+- Take suicide threats seriously
+
+In Your Own Life:
+- Don\'t minimize your own struggles
+- Celebrate seeking help as growth
+- Be compassionate with yourself during recovery
+- Challenge negative self-stigma
+
+Facts About Mental Health:
+✓ 1 in 5 adults have mental illness
+✓ 75% of suicide cases could be prevented with early intervention
+✓ Mental health treatment works (70-80% success rates)
+✓ Recovery is possible and people do get better
+✓ Seeking help is increasingly normal and accepted
+
+Building a Stigma-Free World:
+Each conversation counts. By sharing accurate information and treating mental health as a normal part of wellness, you help reduce stigma and encourage others to seek needed support.
+
+Your mental health is as important as your physical health. Let\'s normalize the conversation.'''
+            },
+            {
+                'id': 'awareness-002',
+                'category': 'Mental Health Awareness',
+                'title': 'Understanding the Stress-Health Connection',
+                'summary': 'Learn how chronic stress affects physical and mental health.',
+                'content': '''UNDERSTANDING THE STRESS-HEALTH CONNECTION
+
+What is Stress?
+Stress is your body\'s response to demands or threats. The "fight-or-flight" response is adaptive in short bursts, but chronic stress damages both mental and physical health.
+
+The Stress Response (Acute):
+1. Threat detected → Brain activates alarm
+2. Cortisol & adrenaline released → Body mobilizes
+3. Heart rate increases, focus sharpens → Ready for action
+4. Threat passes → Body returns to baseline
+5. Recovery and adaptation occur
+
+Acute Stress (Helpful):
+- Short-term stressor
+- Body recovers afterward
+- Builds resilience when managed well
+- Examples: deadline, presentation, exam
+
+Chronic Stress (Harmful):
+- Ongoing, unrelenting pressure
+- Body stays activated for weeks/months
+- Overwhelms your coping resources
+- Examples: ongoing financial worry, relationship conflict, constant work overload
+
+Physical Effects of Chronic Stress:
+
+Cardiovascular:
+- High blood pressure
+- Heart disease
+- Increased stroke risk
+
+Immune System:
+- Weakened immunity
+- Frequent infections
+- Slow wound healing
+- Increased inflammation
+
+Digestive:
+- Stomach ulcers
+- Irritable bowel syndrome
+- Acid reflux
+- Constipation or diarrhea
+
+Other Physical Effects:
+- Headaches and migraines
+- Muscle tension and pain
+- Sleep disturbances
+- Weight changes
+- Hormonal imbalances
+
+Mental Health Effects:
+
+Emotional:
+- Anxiety and worry
+- Depression
+- Irritability and anger
+- Overwhelm
+
+Cognitive:
+- Memory problems
+- Difficulty concentrating
+- Brain fog
+- Racing thoughts
+
+Behavioral:
+- Overeating or undereating
+- Substance abuse
+- Sleep disruption
+- Social withdrawal
+
+The Stress Cycle:
+Physical symptoms → More worry about symptoms → More stress → Worsening symptoms
+
+Breaking the Cycle:
+
+1. Stress Identification
+   - Track stressors (journal method)
+   - Distinguish between controllable and uncontrollable
+   - Separate real threats from perceived threats
+
+2. Stress Reduction Techniques
+   - Physical: exercise, stretching, yoga
+   - Mental: meditation, deep breathing, mindfulness
+   - Social: talking, connecting, support groups
+   - Behavioral: time management, saying no, delegation
+
+3. Lifestyle Changes
+   - Prioritize 7-9 hours sleep
+   - Reduce caffeine and sugar
+   - Establish boundaries
+   - Schedule recovery time
+   - Maintain social connections
+
+4. Cognitive Approaches
+   - Challenge catastrophic thinking
+   - Focus on what you can control
+   - Practice gratitude
+   - Develop problem-solving skills
+
+5. Professional Support
+   - Therapy for chronic stress patterns
+   - Medical evaluation if symptoms persist
+   - Medication if needed
+   - Coaching for stress management
+
+Warning Signs of Chronic Stress:
+- Persistent physical complaints without clear cause
+- Ongoing anxiety or worry
+- Sleep problems despite fatigue
+- Frequent irritability
+- Loss of interest in activities
+- Difficulty making decisions
+- Feeling overwhelmed regularly
+
+The Good News:
+Your body can heal. Once chronic stress is addressed:
+- Blood pressure normalizes (weeks)
+- Sleep improves (within days)
+- Immune function strengthens (weeks)
+- Mood stabilizes (weeks to months)
+- Physical symptoms resolve
+
+Stress Management is Self-Care:
+Addressing chronic stress isn\'t selfish - it\'s essential maintenance for your physical and mental health. You deserve to feel calm and capable.'''
+            },
+            {
+                'id': 'awareness-003',
+                'category': 'Mental Health Awareness',
+                'title': 'Building Emotional Resilience: Bouncing Back from Adversity',
+                'summary': 'Develop skills to handle life challenges and grow stronger through difficulty.',
+                'content': '''BUILDING EMOTIONAL RESILIENCE: BOUNCING BACK FROM ADVERSITY
+
+What is Resilience?
+Resilience is your ability to adapt and recover from difficulty, trauma, or stress. It\'s not about avoiding challenges - it\'s about handling them effectively and growing through them.
+
+Key Resilience Characteristics:
+- Flexibility in thinking and behavior
+- Problem-solving abilities
+- Emotional awareness and regulation
+- Strong sense of purpose
+- Positive relationships
+- Self-compassion
+- Realistic optimism
+- Ability to seek support
+
+Resilience is Trainable:
+Research shows resilience can be developed and strengthened through practice, much like physical strength.
+
+Building Blocks of Resilience:
+
+1. Self-Awareness
+   - Know your values and strengths
+   - Understand your stress triggers
+   - Recognize your coping patterns
+   - Monitor emotional state regularly
+   - Practice honest self-reflection
+
+2. Emotional Regulation
+   - Identify and name emotions
+   - Understand your emotional patterns
+   - Develop healthy coping strategies
+   - Manage impulses effectively
+   - Stay calm under pressure
+
+3. Positive Relationships
+   - Build trust with others
+   - Share vulnerabilities safely
+   - Ask for and receive support
+   - Contribute to others\' lives
+   - Maintain connection during tough times
+
+4. Sense of Purpose
+   - Identify meaningful values
+   - Set goals aligned with values
+   - Engage in meaningful activities
+   - Help others
+   - Create positive contribution
+
+5. Problem-Solving Skills
+   - Break big problems into manageable parts
+   - Brainstorm multiple solutions
+   - Evaluate options objectively
+   - Take action
+   - Learn from outcomes
+
+6. Physical Health
+   - Regular exercise
+   - Adequate sleep
+   - Nutritious eating
+   - Stress management
+   - Medical care when needed
+
+7. Cognitive Flexibility
+   - Reframe challenges as growth opportunities
+   - Challenge catastrophic thinking
+   - Find silver linings
+   - Learn from mistakes
+   - Adapt strategies as needed
+
+Resilience in Action - Real Examples:
+
+Scenario 1: Job Loss
+Without resilience: Spiral into hopelessness, isolation, depression
+With resilience: Allow emotional reaction, identify transferable skills, explore new opportunities, maintain social connections, use as chance to reassess goals
+
+Scenario 2: Relationship Breakup
+Without resilience: Ruminate, lose self-identity, become bitter
+With resilience: Grieve appropriately, reconnect with friendships, rediscover interests, maintain perspective, grow emotionally
+
+Scenario 3: Health Challenge
+Without resilience: Denial, depression, giving up
+With resilience: Accept reality, gather information, follow treatment, adapt lifestyle, find meaning in experience
+
+Resilience-Building Practices:
+
+Daily Habits:
+- Journaling about challenges and learning
+- Gratitude practice (notice small positives)
+- Physical activity (mood and stress relief)
+- Connection with supportive people
+- Meaningful activities
+
+Weekly Practices:
+- Reflect on challenges faced and how you handled them
+- Strengthen key relationships
+- Engage in activities that bring joy
+- Problem-solve one challenge
+- Practice self-compassion
+
+Monthly Reviews:
+- Assess growth in specific resilience areas
+- Celebrate small wins
+- Adjust strategies if needed
+- Set meaningful goals
+- Express gratitude
+
+Tools for Building Resilience:
+
+Post-It Reminders:
+- "This is temporary"
+- "I\'ve overcome challenges before"
+- "I have people who care about me"
+- "I can handle this"
+
+Resilience Questions During Difficulty:
+- "What\'s one small step I can take?"
+- "Who can I reach out to?"
+- "What\'s within my control?"
+- "What can I learn from this?"
+- "How will I grow from this?"
+
+Setbacks are Part of Growth:
+- Everyone has resilience failures
+- Recovery looks different for everyone
+- Speed of recovery matters more than perfection
+- Each challenge builds stronger resilience
+
+Research Findings:
+- Resilient people recover 30-40% faster from stress
+- Resilience training reduces anxiety by 25%
+- Strong relationships increase resilience significantly
+- Purpose and meaning are foundational to resilience
+
+Remember: Resilience isn\'t about being tough. It\'s about bending without breaking, learning from struggle, and emerging stronger and wiser.'''
+            },
+            {
+                'id': 'resource-001',
+                'category': 'Self-Help Resources',
+                'title': 'Emotional Regulation Workbook: Managing Your Feelings',
+                'summary': 'Practical exercises to understand, accept, and manage emotions effectively.',
+                'content': '''EMOTIONAL REGULATION WORKBOOK: MANAGING YOUR FEELINGS
+
+What is Emotional Regulation?
+Emotional regulation is your ability to recognize, understand, and manage your emotions in healthy ways. It\'s not suppression - it\'s skillful handling of feelings.
+
+Why Emotional Regulation Matters:
+- Better decision-making (emotions less likely to control you)
+- Improved relationships (respond instead of react)
+- Mental health stability
+- Better stress management
+- Increased self-esteem
+- Greater life satisfaction
+
+The Emotion Wheel - Understanding Your Feelings:
+
+Primary Emotions (6 core):
+- Happy
+- Sad
+- Angry
+- Afraid
+- Surprised
+- Disgusted
+
+Secondary Emotions (layered feelings):
+- Happy → joyful, proud, grateful, peaceful
+- Sad → lonely, disappointed, ashamed, guilty
+- Angry → frustrated, bitter, irritated, violated
+- Afraid → anxious, worried, insecure, helpless
+- Surprised → confused, amazed, curious, skeptical
+- Disgusted → disapproving, repulsed, contemptuous
+
+Exercise 1: Emotion Identification
+This week, notice your emotions:
+- What were you feeling?
+- Was it a primary or secondary emotion?
+- What triggered it?
+- What sensations did you notice in your body?
+- What action did you take?
+- How did it resolve?
+
+The TIPP Skills (Quick Regulation When Overwhelmed):
+
+Temperature:
+- Splash cold water on face
+- Hold ice cube
+- Take cold shower
+- Triggers vagus nerve, calms nervous system
+
+Intense Exercise:
+- Run, jump, dance
+- Do pushups
+- Any vigorous activity for 1-2 minutes
+- Burns stress hormones quickly
+
+Paced Breathing:
+- Slow breath (5 seconds in, 5 seconds out)
+- Slows heart rate immediately
+- Activates parasympathetic nervous system
+
+Pair Awareness:
+- Get aware of physical sensations
+- Use senses deliberately
+- Interrupts emotional spiral
+
+Exercise 2: Building Your Emotion Toolkit
+Create a personalized list of coping strategies:
+
+For Anxiety:
+- Progressive muscle relaxation
+- Breathing exercises
+- Grounding techniques
+- Physical movement
+- Reassurance from trusted person
+
+For Anger:
+- Physical release (exercise, punch pillow)
+- Time-out/space from trigger
+- Write uncensored letter (don\'t send)
+- Progressive muscle relaxation
+- Express needs calmly later
+
+For Sadness:
+- Reach out to supportive person
+- Gentle self-care (warm drink, bath)
+- Physical activity (mood improves)
+- Journaling
+- Creative expression (art, music)
+
+For Loneliness:
+- Connect with one person
+- Volunteer or help others
+- Join group activity
+- Reach out, don\'t wait to be invited
+- Engage in community
+
+The 5-Minute Emotional Reset:
+
+1. Pause - Stop what you\'re doing
+2. Name - What emotion are you feeling?
+3. Breathe - Take 5 slow, deep breaths
+4. Move - Do 2 minutes of physical activity
+5. Refocus - Return to task with clearer mind
+
+Exercise 3: Values-Based Emotional Response
+Often our reactions conflict with our values:
+
+Example:
+Situation: Friend cancels plans
+Reaction: Angry outburst, accusatory text
+Values: Respect, understanding, kindness
+Aligned Response: Ask if everything\'s okay, express disappointment calmly, plan later
+
+Your Challenge:
+- Identify your top 3 values
+- Think of recent emotional reactions that violated them
+- Plan how you\'d respond aligned with your values next time
+
+Emotional Expression Healthy Guidelines:
+
+✓ HEALTHY EXPRESSION:
+- Acknowledge feelings without judgment
+- Express in words (talk, write, create)
+- Take responsibility ("I feel..." not "You made me...")
+- Seek support from trusted people
+- Allow yourself appropriate time to process
+
+✗ UNHEALTHY EXPRESSION:
+- Explosive outbursts
+- Blaming/attacking others
+- Substance use to numb
+- Self-harm
+- Destructive behavior
+- Rumination and catastrophizing
+
+The Emotion Doesn\'t Control Your Behavior:
+You can feel angry AND respond respectfully
+You can feel scared AND take brave action
+You can feel sad AND reach out for help
+Feelings are valid; choices are yours
+
+Exercise 4: Create Your Emotional Profile
+Track one week:
+- Dominant emotions each day
+- Triggers for each emotion
+- How you typically respond
+- How well that response works
+- One alternative response to try
+
+Building Emotional Intelligence:
+- Recognize emotions in others
+- Understand emotional needs
+- Respond with empathy
+- Set healthy emotional boundaries
+- Express emotions clearly
+
+Remember: Emotional regulation isn\'t perfection. It\'s noticing feelings, understanding them, and choosing responses aligned with your values.'''
+            },
             {
                 'id': 'breathing-001',
                 'category': 'Breathing & Relaxation',
@@ -2288,7 +3209,7 @@ def _default_offline_resources():
                 'title': 'Crisis Contacts',
                 'summary': 'Immediate support contacts for urgent emotional distress.',
                 'content': 'US: Call/Text 988. Emergency danger: call 911. Add local campus and country hotline numbers in settings.'
-            }
+            },
         ]
     }
 
