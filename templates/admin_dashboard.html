@@ -922,6 +922,50 @@
                 <p>System-wide statistics and key metrics at a glance</p>
             </div>
 
+            <!-- Dashboard Filters -->
+            <div class="table-card" style="margin-bottom:24px;padding:20px;">
+                <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;color:#0F0F0F;">Filter by Date Range</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:flex-end;">
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">MONTH</label>
+                        <select id="filterMonth_overview" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;cursor:pointer;">
+                            <option value="">All Months</option>
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">YEAR</label>
+                        <select id="filterYear_overview" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;cursor:pointer;">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">FROM DATE</label>
+                        <input type="date" id="filterFromDate_overview" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;">
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">TO DATE</label>
+                        <input type="date" id="filterToDate_overview" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;">
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button onclick="applyDashboardFilters('overview')" style="flex:1;padding:9px 16px;background:linear-gradient(135deg,#2C5E31,#3A7A40);color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:opacity 0.2s;">Apply</button>
+                        <button onclick="resetDashboardFilters('overview')" style="flex:1;padding:9px 16px;background:#fff;color:#2C5E31;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.2s;">Reset</button>
+                    </div>
+                </div>
+                <div id="filterStatusMsg_overview" style="font-size:12px;color:#2C5E31;margin-top:12px;font-weight:500;display:none;"></div>
+            </div>
+
             <!-- Stat Cards — Row 1: Users -->
             <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px;">
                 <div class="stat-card">
@@ -950,41 +994,7 @@
                 </div>
             </div>
 
-            <!-- Stat Cards — Row 2: Activity -->
-            <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
-                <div class="stat-card red">
-                    <div class="stat-card-top">
-                        <div class="stat-icon">⚠️</div>
-                    </div>
-                    <div class="stat-value" id="statRiskAlerts">—</div>
-                    <div class="stat-label">Risk Alerts (7d)</div>
-                </div>
 
-                <div class="stat-card red">
-                    <div class="stat-card-top">
-                        <div class="stat-icon">🚨</div>
-                    </div>
-                    <div class="stat-value" id="statCrisisAlerts">—</div>
-                    <div class="stat-label">Crisis Alerts</div>
-                </div>
-
-                <div class="stat-card blue">
-                    <div class="stat-card-top">
-                        <div class="stat-icon">💬</div>
-                        <span class="stat-change" id="msgTodayChange">today</span>
-                    </div>
-                    <div class="stat-value" id="statMessages">—</div>
-                    <div class="stat-label">Total Messages</div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-card-top">
-                        <div class="stat-icon">🗂️</div>
-                    </div>
-                    <div class="stat-value" id="statConversations">—</div>
-                    <div class="stat-label">Total Conversations</div>
-                </div>
-            </div>
 
             <!-- Charts Row 1 -->
             <div class="chart-grid" style="margin-top:24px;">
@@ -995,8 +1005,11 @@
                             <div class="chart-subtitle">All-time breakdown</div>
                         </div>
                     </div>
-                    <div class="chart-container" style="height:200px;">
-                        <canvas id="emotionPieChart"></canvas>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center;">
+                        <div class="chart-container" style="height:200px;">
+                            <canvas id="emotionPieChart"></canvas>
+                        </div>
+                        <div id="emotionDistributionLegend" style="display:flex;flex-direction:column;gap:10px;font-size:13px;max-height:200px;overflow-y:auto;"></div>
                     </div>
                 </div>
 
@@ -1040,17 +1053,7 @@
                 </div>
             </div>
 
-            <!-- Recent Activity -->
-            <div class="table-card" style="margin-top:16px;">
-                <div class="table-card-header">
-                    <h3>Recent Activity</h3>
-                    <span style="font-size:12px;color:#28282B;opacity:0.5;" id="overviewActivityCount">Loading...</span>
-                </div>
-                <div class="activity-list" id="overviewActivityList">
-                    <div class="empty-state"><div class="icon">⏳</div><p>Loading activity...</p></div>
-                </div>
-                <div class="pag-wrapper" id="overviewActivityPagination"></div>
-            </div>
+
         </div>
 
         <!-- ========================= USERS SECTION -->
@@ -1106,6 +1109,50 @@
             <div class="page-header">
                 <h2>Emotion Analytics</h2>
                 <p>Emotional trend data over time across all users</p>
+            </div>
+
+            <!-- Dashboard Filters -->
+            <div class="table-card" style="margin-bottom:24px;padding:20px;">
+                <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;color:#0F0F0F;">Filter by Date Range</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:flex-end;">
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">MONTH</label>
+                        <select id="filterMonth_emotions" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;cursor:pointer;">
+                            <option value="">All Months</option>
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">YEAR</label>
+                        <select id="filterYear_emotions" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;cursor:pointer;">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">FROM DATE</label>
+                        <input type="date" id="filterFromDate_emotions" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;">
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">TO DATE</label>
+                        <input type="date" id="filterToDate_emotions" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;">
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button onclick="applyDashboardFilters('emotions')" style="flex:1;padding:9px 16px;background:linear-gradient(135deg,#2C5E31,#3A7A40);color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:opacity 0.2s;">Apply</button>
+                        <button onclick="resetDashboardFilters('emotions')" style="flex:1;padding:9px 16px;background:#fff;color:#2C5E31;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.2s;">Reset</button>
+                    </div>
+                </div>
+                <div id="filterStatusMsg_emotions" style="font-size:12px;color:#2C5E31;margin-top:12px;font-weight:500;display:none;"></div>
             </div>
 
             <div class="chart-grid">
@@ -1187,6 +1234,50 @@
                 <p>Users showing patterns of high negative emotional states in the last 7 days</p>
             </div>
 
+            <!-- Dashboard Filters -->
+            <div class="table-card" style="margin-bottom:24px;padding:20px;">
+                <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;color:#0F0F0F;">Filter by Date Range</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:flex-end;">
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">MONTH</label>
+                        <select id="filterMonth_risk" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;cursor:pointer;">
+                            <option value="">All Months</option>
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">YEAR</label>
+                        <select id="filterYear_risk" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;cursor:pointer;">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">FROM DATE</label>
+                        <input type="date" id="filterFromDate_risk" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;">
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">TO DATE</label>
+                        <input type="date" id="filterToDate_risk" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;">
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button onclick="applyDashboardFilters('risk')" style="flex:1;padding:9px 16px;background:linear-gradient(135deg,#2C5E31,#3A7A40);color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:opacity 0.2s;">Apply</button>
+                        <button onclick="resetDashboardFilters('risk')" style="flex:1;padding:9px 16px;background:#fff;color:#2C5E31;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.2s;">Reset</button>
+                    </div>
+                </div>
+                <div id="filterStatusMsg_risk" style="font-size:12px;color:#2C5E31;margin-top:12px;font-weight:500;display:none;"></div>
+            </div>
+
             <!-- Risk summary cards -->
             <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:20px;">
                 <div class="stat-card red">
@@ -1245,6 +1336,50 @@
             <div class="page-header">
                 <h2>🚨 Crisis Alerts</h2>
                 <p>Real-time detection of crisis signals — self-harm, suicide, homicide, medical emergencies, and abuse</p>
+            </div>
+
+            <!-- Dashboard Filters -->
+            <div class="table-card" style="margin-bottom:24px;padding:20px;">
+                <h3 style="font-size:14px;font-weight:700;margin-bottom:16px;color:#0F0F0F;">Filter by Date Range</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:flex-end;">
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">MONTH</label>
+                        <select id="filterMonth_crisis" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;cursor:pointer;">
+                            <option value="">All Months</option>
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">YEAR</label>
+                        <select id="filterYear_crisis" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;cursor:pointer;">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">FROM DATE</label>
+                        <input type="date" id="filterFromDate_crisis" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;">
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="font-size:12px;font-weight:600;color:#28282B;opacity:0.75;">TO DATE</label>
+                        <input type="date" id="filterToDate_crisis" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-family:inherit;color:#0F0F0F;background:#fff;">
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button onclick="applyDashboardFilters('crisis')" style="flex:1;padding:9px 16px;background:linear-gradient(135deg,#2C5E31,#3A7A40);color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:opacity 0.2s;">Apply</button>
+                        <button onclick="resetDashboardFilters('crisis')" style="flex:1;padding:9px 16px;background:#fff;color:#2C5E31;border:1.5px solid #D0DAD2;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.2s;">Reset</button>
+                    </div>
+                </div>
+                <div id="filterStatusMsg_crisis" style="font-size:12px;color:#2C5E31;margin-top:12px;font-weight:500;display:none;"></div>
             </div>
 
             <!-- Crisis summary banners -->
@@ -1608,12 +1743,142 @@ window._userCache = {};
 // Pagination state
 const _pagState = { users: 1, risk: 1, crisis: 1, activity: 1, overviewActivity: 1 };
 const _PAGE_SIZE = { users: 15, risk: 10, crisis: 10, activity: 15, overviewActivity: 15 };
+// Section-specific filter states
+const _sectionFilters = {
+    overview:  { month: '', year: '', fromDate: '', toDate: '' },
+    emotions:  { month: '', year: '', fromDate: '', toDate: '' },
+    risk:      { month: '', year: '', fromDate: '', toDate: '' },
+    crisis:    { month: '', year: '', fromDate: '', toDate: '' }
+};
 // Cached sorted data for pagination (rebuilt in each renderXFromState call)
 let _riskData = [];
 let _crisisData = [];
 let _activityData = [];
 function _todayStr() { return new Date().toISOString().slice(0,10); }
 function _daysAgo(n) { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+
+// ============================================================ DASHBOARD FILTERS
+function initializeDashboardFilters() {
+    // Populate year dropdown with available years from data
+    const years = new Set();
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= 2020; y--) {
+        years.add(y);
+    }
+    for (const [,log] of _logsMap) {
+        const date = log.date || '';
+        if (date) {
+            const year = parseInt(date.split('-')[0]);
+            if (!isNaN(year)) years.add(year);
+        }
+    }
+    // Update all section year dropdowns
+    ['overview', 'emotions', 'risk', 'crisis'].forEach(section => {
+        const yearSelect = document.getElementById(`filterYear_${section}`);
+        if (yearSelect) {
+            const selectedYear = yearSelect.value;
+            const sortedYears = Array.from(years).sort((a,b) => b - a);
+            const currentOptions = Array.from(yearSelect.options).map(o => o.value).slice(1);
+            if (currentOptions.join(',') !== sortedYears.join(',')) {
+                yearSelect.innerHTML = '<option value="">All Years</option>';
+                sortedYears.forEach(y => {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    opt.textContent = y;
+                    yearSelect.appendChild(opt);
+                });
+                if (selectedYear) yearSelect.value = selectedYear;
+            }
+        }
+    });
+}
+
+function isDateInFilterRange(dateStr, section = 'overview') {
+    const filters = _sectionFilters[section] || _sectionFilters.overview;
+    const { month, year, fromDate, toDate } = filters;
+    
+    if (!dateStr) return false;
+    
+    // Check month filter
+    if (month && dateStr.length >= 7) {
+        const logMonth = dateStr.substring(5, 7);
+        if (logMonth !== month) return false;
+    }
+    
+    // Check year filter
+    if (year && dateStr.length >= 4) {
+        const logYear = dateStr.substring(0, 4);
+        if (logYear !== year) return false;
+    }
+    
+    // Check from/to date range
+    if (fromDate && dateStr < fromDate) return false;
+    if (toDate && dateStr > toDate) return false;
+    
+    return true;
+}
+
+function applyDashboardFilters(section = 'overview') {
+    _sectionFilters[section].month = document.getElementById(`filterMonth_${section}`).value;
+    _sectionFilters[section].year = document.getElementById(`filterYear_${section}`).value;
+    _sectionFilters[section].fromDate = document.getElementById(`filterFromDate_${section}`).value;
+    _sectionFilters[section].toDate = document.getElementById(`filterToDate_${section}`).value;
+    
+    // Show status message
+    const statusMsg = document.getElementById(`filterStatusMsg_${section}`);
+    if (statusMsg) {
+        const filters = _sectionFilters[section];
+        if (filters.month || filters.year || filters.fromDate || filters.toDate) {
+            statusMsg.textContent = '✓ Filters applied';
+            statusMsg.style.display = 'block';
+        }
+    }
+    
+    // Re-render for this section
+    _pagState.users = 1;
+    _pagState.risk = 1;
+    _pagState.crisis = 1;
+    _pagState.activity = 1;
+    
+    if (section === 'overview') computeAndUpdateStats();
+    else if (section === 'emotions') renderEmotionsFromState();
+    else if (section === 'risk') renderRiskFromState();
+    else if (section === 'crisis') renderCrisisFromState();
+}
+
+function resetDashboardFilters(section = 'overview') {
+    _sectionFilters[section].month = '';
+    _sectionFilters[section].year = '';
+    _sectionFilters[section].fromDate = '';
+    _sectionFilters[section].toDate = '';
+    
+    document.getElementById(`filterMonth_${section}`).value = '';
+    document.getElementById(`filterYear_${section}`).value = '';
+    document.getElementById(`filterFromDate_${section}`).value = '';
+    document.getElementById(`filterToDate_${section}`).value = '';
+    
+    const statusMsg = document.getElementById(`filterStatusMsg_${section}`);
+    if (statusMsg) {
+        statusMsg.textContent = '';
+        statusMsg.style.display = 'none';
+    }
+    
+    // Re-render for this section
+    _pagState.users = 1;
+    _pagState.risk = 1;
+    _pagState.crisis = 1;
+    _pagState.activity = 1;
+    
+    if (section === 'overview') computeAndUpdateStats();
+    else if (section === 'emotions') renderEmotionsFromState();
+    else if (section === 'risk') renderRiskFromState();
+    else if (section === 'crisis') renderCrisisFromState();
+}
+window.initializeDashboardFilters = initializeDashboardFilters;
+window.isDateInFilterRange = isDateInFilterRange;
+window.applyDashboardFilters = applyDashboardFilters;
+window.resetDashboardFilters = resetDashboardFilters;
+
 
 // ============================================================ GLOBAL HELPERS
 function set(id, v) { const el=document.getElementById(id); if(el) el.textContent=v; }
@@ -1694,8 +1959,12 @@ function computeAndUpdateStats() {
     }
 
     for (const [,log] of _logsMap) {
+        // Apply date filters ONLY for overview section
+        const logDate = log.date || '';
+        if (!isDateInFilterRange(logDate, 'overview')) continue;
+        
         const e = log.emotion || 'neutral';
-        const date = log.date || '';
+        const date = logDate;
         const uid = log.userId || '';
         if (e in emotionCounts) emotionCounts[e]++;
         if (date === today) { messagesToday++; if (uid) activeToday.add(uid); }
@@ -1752,7 +2021,12 @@ function renderMessagesBarFromState() {
     const today = new Date();
     const dateRange = Array.from({length:14},(_,i)=>{ const d=new Date(today); d.setDate(d.getDate()-(13-i)); return d.toISOString().slice(0,10); });
     const counts = {}; dateRange.forEach(d=>counts[d]=0);
-    for (const [,log] of _logsMap) { const dt=log.date||''; if(dt in counts) counts[dt]++; }
+    for (const [,log] of _logsMap) { 
+        const dt=log.date||''; 
+        // Apply date filters
+        if (!isDateInFilterRange(dt)) continue;
+        if(dt in counts) counts[dt]++; 
+    }
     const labels = Array.from({length:14},(_,i)=>{ const d=new Date(today); d.setDate(d.getDate()-(13-i)); return d.toLocaleDateString('en',{month:'short',day:'numeric'}); });
     drawMessagesBar(labels, dateRange.map(d=>counts[d]));
 }
@@ -1803,6 +2077,8 @@ function drawOverviewWellbeingTrend() {
     const negativeSet = new Set(['sad','anxious','stressed','angry','tired','numb']);
     for (const [,log] of _logsMap) {
         const d = log.date||''; const e = log.emotion||'neutral';
+        // Apply date filters
+        if (!isDateInFilterRange(d)) continue;
         if (d in pos) { if (positiveSet.has(e)) pos[d]++; if (negativeSet.has(e)) neg[d]++; }
     }
     const labels = days.map(d=>{ const dt=new Date(d); return dt.toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'}); });
@@ -1882,6 +2158,8 @@ function renderEmotionsFromState() {
     EMOTION_KEYS.forEach(e=>{ trends[e]={}; dateLabels.forEach(d=>trends[e][d]=0); });
     for (const [,log] of _logsMap) {
         const date=log.date||''; const e=log.emotion||'neutral';
+        // Apply emotions section filters
+        if (!isDateInFilterRange(date, 'emotions')) continue;
         if (date>=thirtyAgo && trends[e] && date in trends[e]) trends[e][date]++;
     }
     const datasets = {};
@@ -1925,6 +2203,8 @@ function renderRiskFromState() {
     const userRisk = {};
     for (const [,log] of _logsMap) {
         const date=log.date||''; const e=log.emotion||'neutral'; const uid=log.userId||'';
+        // Apply risk section filters
+        if (!isDateInFilterRange(date, 'risk')) continue;
         if (!uid||!['sad','anxious','stressed','angry','tired','numb'].includes(e)||date<sevenAgo) continue;
         if (!userRisk[uid]) userRisk[uid]={count:0,emotions:[],isAnonymous:log.isAnonymous||false,lastActive:'',hasTodayEntry:false};
         userRisk[uid].count++; userRisk[uid].emotions.push(e);
@@ -1984,12 +2264,16 @@ function renderCrisisFromState() {
     const today = _todayStr();
     let high = 0, medium = 0, todayCount = 0;
     for (const [,a] of _crisisMap) {
+        // Apply crisis section filters
+        const alertDate = (a.date || a.timestamp||'').slice(0,10);
+        if (!isDateInFilterRange(alertDate, 'crisis')) continue;
+        
         if (a.severity === 'HIGH') high++; else medium++;
-        if ((a.date || a.timestamp||'').slice(0,10) === today) todayCount++;
+        if (alertDate === today) todayCount++;
     }
     set('crisisCountHigh', high); set('crisisCountMedium', medium); set('crisisCountToday', todayCount);
     const cnt = document.getElementById('crisisCount');
-    if (cnt) cnt.textContent = `(${_crisisMap.size})`;
+    if (cnt) cnt.textContent = `(${[..._crisisMap.values()].filter(a=>isDateInFilterRange((a.date || a.timestamp||'').slice(0,10), 'crisis')).length})`;
 
     tbody.innerHTML = '';
     if (_crisisMap.size === 0) {
@@ -2004,7 +2288,9 @@ function renderCrisisFromState() {
     };
     const modeLabels = { friendly:'😊 Friendly', supportive:'💪 Supportive', professional:'🧠 Professional' };
 
-    const sorted = [..._crisisMap.values()].sort((a,b) => (b.timestamp||'').localeCompare(a.timestamp||''));
+    const sorted = [..._crisisMap.values()]
+        .filter(a => isDateInFilterRange((a.date || a.timestamp||'').slice(0,10), 'crisis'))
+        .sort((a,b) => (b.timestamp||'').localeCompare(a.timestamp||''));
     const ps=_PAGE_SIZE.crisis;
     const crisisPages=Math.max(1,Math.ceil(sorted.length/ps));
     if(_pagState.crisis>crisisPages)_pagState.crisis=crisisPages;
@@ -2324,6 +2610,9 @@ function drawEmotionPie(ec) {
             data: { labels: ['No Data'], datasets: [{ data: [1], backgroundColor: ['#E0E0E0'], borderWidth: 0 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { display: false } } }
         });
+        // Also clear legend
+        const legendEl = document.getElementById('emotionDistributionLegend');
+        if (legendEl) legendEl.innerHTML = '<p style="color:#28282B;opacity:0.5;font-size:12px;">No emotion data available yet</p>';
         return;
     }
 
@@ -2336,12 +2625,32 @@ function drawEmotionPie(ec) {
         options: {
             responsive: true, maintainAspectRatio: false, cutout: '65%',
             plugins: {
-                legend: { position: 'bottom', labels: { padding: 12, font: { size: 11, family: 'Inter' }, boxWidth: 12 } },
+                legend: { display: false },
                 datalabels: { display: false },
                 tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} (${((ctx.raw/total)*100).toFixed(1)}%)` } }
             }
         }
     });
+
+    // Generate legend with percentages displayed next to chart
+    const legendEl = document.getElementById('emotionDistributionLegend');
+    if (legendEl) {
+        legendEl.innerHTML = '';
+        keys.forEach(k => {
+            const count = ec[k] || 0;
+            const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+            const color = EMOTION_COLORS[k].bg;
+            const labelDiv = document.createElement('div');
+            labelDiv.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.02);';
+            labelDiv.innerHTML = `
+                <span style="width:12px;height:12px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+                <span style="flex:1;font-weight:500;color:#0F0F0F;">${cap(k)}</span>
+                <span style="font-weight:600;color:#2C5E31;min-width:45px;text-align:right;">${pct}%</span>
+                <span style="color:#28282B;opacity:0.5;font-size:12px;min-width:40px;text-align:right;">${count}</span>
+            `;
+            legendEl.appendChild(labelDiv);
+        });
+    }
 }
 
 function drawMessagesBar(labels, counts) {
@@ -2367,7 +2676,7 @@ function drawEmotionLine(data) {
     const datasets = data.emotion_keys.map(e => ({
         label: cap(e), data: data.datasets[e],
         borderColor: EMOTION_COLORS[e].bg, backgroundColor: EMOTION_COLORS[e].bg + '18',
-        fill: false, tension: 0.4, pointRadius: 2, pointHoverRadius: 5, borderWidth: 2
+        fill: false, tension: 0.4, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2
     }));
     charts.emotionLine = new Chart(ctx, {
         type: 'line',
@@ -2376,9 +2685,13 @@ function drawEmotionLine(data) {
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                // Built-in legend disabled — custom #emotionLegend is used instead
                 legend: { display: false },
-                datalabels: { display: false }
+                datalabels: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw}`
+                    }
+                }
             },
             scales: {
                 x: { grid: { display: false }, ticks: { font: { size: 10, family:'Inter' }, maxTicksLimit: 10 } },
@@ -2407,16 +2720,18 @@ function drawEmotionDoughnut(totals) {
                 datalabels: {
                     color: '#fff',
                     textAlign: 'center',
-                    font: { size: 9, weight: 'bold', family: 'Inter' },
+                    font: { size: 10, weight: 'bold', family: 'Inter' },
                     formatter: (value, ctx) => {
                         if (!value || total === 0) return '';
                         const pct = Math.round((value / total) * 100);
                         if (pct < 5) return '';
-                        return `${ctx.chart.data.labels[ctx.dataIndex]}\n${value}`;
+                        const label = ctx.chart.data.labels[ctx.dataIndex];
+                        return `${label}\n${value}\n${pct}%`;
                     }
                 }
             }
-        }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
@@ -2426,6 +2741,7 @@ function drawWellbeingChart(totals) {
     const positive = (totals.happy||0) + (totals.calm||0) + (totals.motivated||0);
     const neutral  = (totals.confused||0);
     const negative = (totals.sad||0) + (totals.anxious||0) + (totals.stressed||0) + (totals.angry||0) + (totals.tired||0) + (totals.numb||0);
+    const total = positive + neutral + negative;
     charts.wellbeing = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -2438,16 +2754,21 @@ function drawWellbeingChart(totals) {
                 legend: { display: false },
                 datalabels: {
                     anchor: 'end', align: 'end',
-                    color: '#28282B', font: { size: 11, weight: '600', family: 'Inter' },
-                    formatter: v => v > 0 ? v : ''
+                    color: '#28282B', font: { size: 12, weight: '600', family: 'Inter' },
+                    formatter: (v, ctx) => {
+                        if (v <= 0) return '';
+                        const pct = total > 0 ? ((v / total) * 100).toFixed(1) : '0.0';
+                        return `${v} (${pct}%)`;
+                    }
                 }
             },
             scales: {
                 x: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { font: { size: 10, family:'Inter' } } },
                 y: { grid: { display: false }, ticks: { font: { size: 12, family:'Inter', weight: '600' } } }
             },
-            layout: { padding: { right: 30 } }
-        }
+            layout: { padding: { right: 60 } }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
@@ -2457,6 +2778,7 @@ function drawEmotionFrequencyBar(totals) {
     if (charts.emotionFreq) charts.emotionFreq.destroy();
     const keys = Object.keys(EMOTION_COLORS);
     const sorted = [...keys].sort((a,b) => (totals[b]||0) - (totals[a]||0));
+    const total = Object.values(totals).reduce((a,b) => a+b, 0);
     charts.emotionFreq = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -2469,16 +2791,21 @@ function drawEmotionFrequencyBar(totals) {
                 legend: { display: false },
                 datalabels: {
                     anchor: 'end', align: 'end',
-                    color: '#28282B', font: { size: 10, weight: '600', family: 'Inter' },
-                    formatter: v => v > 0 ? v : ''
+                    color: '#28282B', font: { size: 11, weight: '600', family: 'Inter' },
+                    formatter: (v, ctx) => {
+                        if (v <= 0) return '';
+                        const pct = total > 0 ? ((v / total) * 100).toFixed(1) : '0.0';
+                        return `${v} (${pct}%)`;
+                    }
                 }
             },
             scales: {
                 x: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { font: { size: 10, family:'Inter' } } },
                 y: { grid: { display: false }, ticks: { font: { size: 11, family:'Inter' } } }
             },
-            layout: { padding: { right: 30 } }
-        }
+            layout: { padding: { right: 60 } }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
@@ -2565,6 +2892,7 @@ function skeletonRows(rows, cols) {
         es.addEventListener('logs_init', e => {
             const docs = JSON.parse(e.data);
             docs.forEach(d => window._logsMap.set(d._docId, d));
+            window.initializeDashboardFilters();
             window.computeAndUpdateStats();
         });
 
