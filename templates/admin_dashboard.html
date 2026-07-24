@@ -1750,6 +1750,22 @@ const _sectionFilters = {
     risk:      { month: '', year: '', fromDate: '', toDate: '' },
     crisis:    { month: '', year: '', fromDate: '', toDate: '' }
 };
+// User Management caching — TTL 5 minutes (300000ms)
+const USER_CACHE_TTL = 300000;
+const _userManagementCache = {
+    users: { data: null, timestamp: 0, type: null },
+    details: {} // { uid: { data, timestamp } }
+};
+function _hashData(data) {
+    return JSON.stringify(data).length; // Simple hash using data length
+}
+function _isCacheValid(timestamp) {
+    return Date.now() - timestamp < USER_CACHE_TTL;
+}
+function _clearUserCache() {
+    _userManagementCache.users = { data: null, timestamp: 0, type: null };
+    _userManagementCache.details = {};
+}
 // Cached sorted data for pagination (rebuilt in each renderXFromState call)
 let _riskData = [];
 let _crisisData = [];
@@ -2372,11 +2388,25 @@ function switchUserTab(btn, type) {
 async function loadUsers(type) {
     type = type || activeUserType || 'all';
     const tbody = document.getElementById('usersTableBody');
+    
+    // Check cache first
+    if (_userManagementCache.users.type === type && _isCacheValid(_userManagementCache.users.timestamp) && _userManagementCache.users.data) {
+        allUsers = _userManagementCache.users.data;
+        document.getElementById('userCount').textContent = `(${allUsers.length})`;
+        renderUsersTable(allUsers);
+        return;
+    }
+    
     tbody.innerHTML = skeletonRows(5, 6);
     try {
         const res = await fetch('/admin/api/users?type=' + encodeURIComponent(type));
         if (!res.ok) { showToast('Failed to load users'); return; }
-        allUsers = await res.json();
+        const data = await res.json();
+        
+        // Update cache
+        _userManagementCache.users = { data, timestamp: Date.now(), type };
+        
+        allUsers = data;
         document.getElementById('userCount').textContent = `(${allUsers.length})`;
         renderUsersTable(allUsers);
     } catch(e) { showToast('Error loading users'); console.error(e); }
@@ -3082,12 +3112,22 @@ window.addEventListener('click', (event) => {
 
 async function loadUserDetails(uid) {
     try {
+        // Check cache first
+        if (_userManagementCache.details[uid] && _isCacheValid(_userManagementCache.details[uid].timestamp)) {
+            renderUserDetails(_userManagementCache.details[uid].data);
+            return;
+        }
+        
         const res = await fetch(`/admin/api/user-details/${encodeURIComponent(uid)}`);
         if (!res.ok) {
             showToast('Failed to load user details');
             return;
         }
         const data = await res.json();
+        
+        // Update cache
+        _userManagementCache.details[uid] = { data, timestamp: Date.now() };
+        
         renderUserDetails(data);
     } catch (e) {
         console.error('Error loading user details:', e);
