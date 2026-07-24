@@ -2770,6 +2770,84 @@ def admin_backup_history():
         return jsonify({'error': str(e)}), 500
 
 
+# ==================== VOICE ROUTES (Speech-to-Text & Text-to-Speech) ====================
+
+@app.route('/api/voice/transcribe', methods=['POST'])
+def transcribe():
+    """
+    Transcribe audio to text using Vosk (offline, free, open-source)
+    Expects: audio/wav file in request
+    Returns: transcribed text
+    """
+    try:
+        from voice_handler import transcribe_audio
+        
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file provided'}), 400
+        
+        audio_file = request.files['audio']
+        audio_bytes = audio_file.read()
+        
+        result = transcribe_audio(audio_bytes)
+        return jsonify(result)
+    
+    except Exception as e:
+        print(f"❌ Transcription error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/voice/synthesize', methods=['POST'])
+def synthesize():
+    """
+    Synthesize text to speech using open-source neural TTS voices.
+    Expects: JSON with 'text' and optional 'voice_id' (0=default, 1=alternate if available)
+    Returns: synthesized audio file
+    """
+    try:
+        from voice_handler import synthesize_speech
+        
+        data = request.get_json(silent=True) or {}
+        text = data.get('text', '').strip()
+        voice_id = data.get('voice_id', 0)
+        
+        if not text:
+            return jsonify({'error': 'Text is required'}), 400
+        
+        result = synthesize_speech(text, voice_id)
+        
+        if result['success']:
+            audio_file = result['audio_file']
+            mimetype = result.get('mimetype', 'audio/wav')
+            try:
+                with open(audio_file, 'rb') as f:
+                    audio_data = f.read()
+                try:
+                    os.unlink(audio_file)
+                except Exception:
+                    pass
+                return Response(audio_data, mimetype=mimetype)
+            except Exception as e:
+                return jsonify({'error': f'Could not read audio file: {str(e)}'}), 500
+        else:
+            return jsonify({'error': result.get('error', 'Synthesis failed')}), 500
+    
+    except Exception as e:
+        print(f"❌ Synthesis error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/voice/voices', methods=['GET'])
+def get_voices():
+    """Get list of available voices and languages"""
+    try:
+        from voice_handler import get_available_voices
+        voices_data = get_available_voices()
+        return jsonify(voices_data)
+    except Exception as e:
+        print(f"❌ Error getting voices: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ==================== RUN APPLICATION ====================
 
 if __name__ == '__main__':
