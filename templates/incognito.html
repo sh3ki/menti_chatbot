@@ -642,118 +642,334 @@
 
         window.addEventListener('load', () => chatInput.focus());
 
-        // ===== VOICE INTERACTION =====
-        // Initialize speech recognition and synthesis
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const speechRecognition = new SpeechRecognition();
-        const synth = window.speechSynthesis;
-
+        // ===== VOICE INTERACTION (Open-Source) =====
+        // Uses Vosk for speech-to-text (offline) and Coqui TTS for neural text-to-speech
+        // Both are free, open-source, and require no API keys
+        
         const voiceMicBtn = document.getElementById('voiceMicBtn');
         const voiceSpeakerBtn = document.getElementById('voiceSpeakerBtn');
 
         let isRecording = false;
+        let recordingStream = null;
+        let recordingAudioContext = null;
+        let recordingSource = null;
+        let recordingProcessor = null;
+        let recordingChunks = [];
+        let recordingSampleRate = 44100;
         let isSpeakerMuted = false;
-        let currentUtterance = null;
+        let currentPlayingAudio = null;
+        let selectedVoiceId = 0;
+        let availableVoices = [];
 
-        // Configure speech recognition
-        speechRecognition.continuous = true;
-        speechRecognition.interimResults = true;
-        speechRecognition.lang = 'en-US';
+        // Check browser support for audio recording
+        const hasAudioSupport = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 
-        // Speech recognition event handlers
-        speechRecognition.onstart = () => {
-            isRecording = true;
-            voiceMicBtn.classList.add('recording');
-            voiceMicBtn.title = 'Recording... Click to stop';
-        };
+        if (!hasAudioSupport) {
+            voiceMicBtn.disabled = true;
+            voiceMicBtn.title = 'Audio recording not supported in this browser';
+        }
 
-        speechRecognition.onresult = (event) => {
-            let interimTranscript = '';
-            let finalTranscript = '';
+        function updateMicUi(recording, status = '') {
+            if (recording) {
+                voiceMicBtn.classList.add('recording');
+                voiceMicBtn.title = status || 'Recording... Click to stop';
+            } else {
+                voiceMicBtn.classList.remove('recording');
+                voiceMicBtn.title = hasAudioSupport ? 'Click to record your message' : 'Not supported';
+            }
+        }
 
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    finalTranscript += transcript + ' ';
-                } else {
-                    interimTranscript += transcript;
+        function mergeFloat32Chunks(chunks) {
+            const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+            const merged = new Float32Array(totalLength);
+            let offset = 0;
+            chunks.forEach((chunk) => {
+                merged.set(chunk, offset);
+                offset += chunk.length;
+            });
+            return merged;
+        }
+
+        function encodeWavFromFloat32(samples, sampleRate) {
+            const bytesPerSample = 2;
+            const blockAlign = bytesPerSample;
+            const buffer = new ArrayBuffer(44 + samples.length * bytesPerSample);
+            const view = new DataView(buffer);
+
+            function writeString(offset, value) {
+                for (let i = 0; i < value.length; i += 1) {
+                    view.setUint8(offset + i, value.charCodeAt(i));
                 }
             }
 
-            // Update input with final transcript
-            if (finalTranscript) {
-                chatInput.value = finalTranscript.trim();
-            } else if (interimTranscript) {
-                chatInput.value = interimTranscript;
-            }
-        };
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * bytesPerSample, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, samples.length * bytesPerSample, true);
 
-        speechRecognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
-            // Only show error alerts for non-network errors
-            if (event.error !== 'no-speech' && event.error !== 'network') {
-                alert('Error with voice input: ' + event.error);
+            let offset = 44;
+            for (let i = 0; i < samples.length; i += 1) {
+                const sample = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                offset += 2;
             }
-        };
 
-        speechRecognition.onend = () => {
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        async function startVoiceRecording() {
+            if (!hasAudioSupport) {
+                alert('Audio recording is not supported in this browser. Use Chrome or Edge.');
+                return;
+            }
+            if (isRecording) return;
+
+            try {
+                updateMicUi(true, 'Listening...');
+                recordingChunks = [];
+
+                recordingStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        noiseSuppression: true,
+                        echoCancellation: true,
+                        autoGainControl: true
+                    }
+                });
+                recordingAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                recordingSampleRate = recordingAudioContext.sampleRate;
+                recordingSource = recordingAudioContext.createMediaStreamSource(recordingStream);
+                recordingProcessor = recordingAudioContext.createScriptProcessor(4096, 1, 1);
+
+                recordingProcessor.onaudioprocess = (event) => {
+                    if (!isRecording) return;
+                    const input = event.inputBuffer.getChannelData(0);
+                    recordingChunks.push(new Float32Array(input));
+                };
+
+                recordingSource.connect(recordingProcessor);
+                recordingProcessor.connect(recordingAudioContext.destination);
+
+                isRecording = true;
+                chatInput.focus();
+                console.log('[Voice] Recording started');
+            } catch (error) {
+                console.error('[Voice] Recording error:', error);
+                if (error.name === 'NotAllowedError') {
+                    alert('Microphone permission denied. Please allow microphone access and try again.');
+                } else {
+                    alert('Could not start recording: ' + error.message);
+                }
+                updateMicUi(false);
+            }
+        }
+
+        function stopVoiceRecording() {
+            if (!isRecording) return;
+
             isRecording = false;
-            voiceMicBtn.classList.remove('recording');
-            voiceMicBtn.title = 'Click to record your message';
-        };
+            updateMicUi(true, 'Transcribing...');
+            console.log('[Voice] Recording stopped');
 
-        // Microphone button click handler
+            const merged = mergeFloat32Chunks(recordingChunks);
+            const audioBlob = encodeWavFromFloat32(merged, recordingSampleRate);
+
+            if (recordingProcessor) {
+                recordingProcessor.disconnect();
+                recordingProcessor.onaudioprocess = null;
+                recordingProcessor = null;
+            }
+            if (recordingSource) {
+                recordingSource.disconnect();
+                recordingSource = null;
+            }
+            if (recordingAudioContext) {
+                recordingAudioContext.close();
+                recordingAudioContext = null;
+            }
+            if (recordingStream) {
+                recordingStream.getTracks().forEach(track => track.stop());
+                recordingStream = null;
+            }
+
+            transcribeAudio(audioBlob).finally(() => {
+                updateMicUi(false);
+            });
+        }
+
+        async function transcribeAudio(audioBlob) {
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.wav');
+                
+                const response = await fetch('/api/voice/transcribe', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    chatInput.value += (chatInput.value ? ' ' : '') + result.text;
+                    console.log('[Voice] Transcribed:', result.text);
+                } else {
+                    console.error('[Voice] Transcription failed:', result.error);
+                    updateMicUi(false, 'Error transcribing');
+                }
+            } catch (error) {
+                console.error('[Voice] Transcription error:', error);
+                alert('Could not transcribe audio: ' + error.message);
+            }
+        }
+
+        // Get available voices on load
+        async function loadAvailableVoices() {
+            try {
+                const response = await fetch('/api/voice/voices');
+                const data = await response.json();
+                availableVoices = data.voices || [];
+                if (data.error) {
+                    console.warn('[Voice] Voice engine warning:', data.error);
+                }
+                console.log('[Voice] Available voices:', availableVoices);
+            } catch (error) {
+                console.error('[Voice] Could not load voices:', error);
+            }
+        }
+
+        async function synthesizeAndSpeak(text, voiceId = selectedVoiceId) {
+            try {
+                if (currentPlayingAudio) {
+                    currentPlayingAudio.pause();
+                }
+                
+                const response = await fetch('/api/voice/synthesize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: text,
+                        voice_id: voiceId
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    console.error('[Voice] Synthesis error:', error);
+                    return;
+                }
+                
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                currentPlayingAudio = new Audio(audioUrl);
+                currentPlayingAudio.play();
+                console.log('[Voice] Playing synthesized speech with voice', voiceId);
+            } catch (error) {
+                console.error('[Voice] Speech synthesis error:', error);
+            }
+        }
+
+        function speakBotResponse(text) {
+            if (isSpeakerMuted) return;
+            synthesizeAndSpeak(text, selectedVoiceId);
+        }
+
+        function speakMessage(text) {
+            synthesizeAndSpeak(text, selectedVoiceId);
+        }
+
+        // Show voice selector menu
+        voiceSpeakerBtn.addEventListener('click', () => {
+            const existingMenu = document.getElementById('voiceMenuDropdown');
+            if (existingMenu) {
+                existingMenu.remove();
+                return;
+            }
+            
+            const menuDiv = document.createElement('div');
+            menuDiv.id = 'voiceMenuDropdown';
+            menuDiv.style.position = 'absolute';
+            menuDiv.style.bottom = '70px';
+            menuDiv.style.right = '20px';
+            menuDiv.style.backgroundColor = '#fff';
+            menuDiv.style.border = '1px solid #ccc';
+            menuDiv.style.borderRadius = '8px';
+            menuDiv.style.padding = '10px';
+            menuDiv.style.zIndex = '1000';
+            menuDiv.style.minWidth = '200px';
+            menuDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+
+            // Mute toggle
+            const muteOption = document.createElement('div');
+            muteOption.style.padding = '8px 12px';
+            muteOption.style.cursor = 'pointer';
+            muteOption.style.borderBottom = '1px solid #eee';
+            muteOption.textContent = isSpeakerMuted ? '🔊 Unmute Voice' : '🔇 Mute Voice';
+            muteOption.addEventListener('click', () => {
+                isSpeakerMuted = !isSpeakerMuted;
+                voiceSpeakerBtn.classList.toggle('muted');
+                menuDiv.remove();
+            });
+            menuDiv.appendChild(muteOption);
+
+            // Voice options
+            if (availableVoices.length > 0) {
+                const voiceLabel = document.createElement('div');
+                voiceLabel.style.padding = '8px 12px';
+                voiceLabel.style.fontWeight = 'bold';
+                voiceLabel.style.fontSize = '12px';
+                voiceLabel.style.color = '#666';
+                voiceLabel.textContent = 'Choose Voice';
+                menuDiv.appendChild(voiceLabel);
+
+                availableVoices.forEach(voice => {
+                    const voiceOption = document.createElement('div');
+                    voiceOption.style.padding = '8px 12px';
+                    voiceOption.style.cursor = 'pointer';
+                    voiceOption.style.borderRadius = '4px';
+                    voiceOption.textContent = `🎙️ ${voice.name}`;
+                    if (voice.id === selectedVoiceId) {
+                        voiceOption.style.backgroundColor = '#e3f2fd';
+                        voiceOption.style.fontWeight = 'bold';
+                    }
+                    voiceOption.addEventListener('mouseenter', () => {
+                        voiceOption.style.backgroundColor = '#f5f5f5';
+                    });
+                    voiceOption.addEventListener('mouseleave', () => {
+                        if (voice.id !== selectedVoiceId) {
+                            voiceOption.style.backgroundColor = 'transparent';
+                        }
+                    });
+                    voiceOption.addEventListener('click', () => {
+                        selectedVoiceId = voice.id;
+                        menuDiv.remove();
+                    });
+                    menuDiv.appendChild(voiceOption);
+                });
+            }
+
+            document.body.appendChild(menuDiv);
+        });
+
+        // Microphone button listener
         voiceMicBtn.addEventListener('click', () => {
             if (isRecording) {
-                speechRecognition.stop();
+                stopVoiceRecording();
             } else {
-                chatInput.value = '';
-                speechRecognition.start();
+                startVoiceRecording();
             }
         });
 
-        // Speaker button click handler
-        voiceSpeakerBtn.addEventListener('click', () => {
-            isSpeakerMuted = !isSpeakerMuted;
-            voiceSpeakerBtn.classList.toggle('muted');
-            if (isSpeakerMuted) {
-                voiceSpeakerBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.6915026,12.4744748 L21.9799542,7.26081268 C22.3049165,6.93524068 22.3049165,6.40989037 21.9799542,6.08431837 L18.6563168,2.60729926 C18.3313545,2.28172726 17.8158043,2.28172726 17.490842,2.60729926 L12.4744748,7.62466847 L7.25081268,2.60729926 C6.92524068,2.28172726 6.40989037,2.28172726 6.08431837,2.60729926 L2.60729926,6.08431837 C2.28172726,6.40989037 2.28172726,6.93524068 2.60729926,7.26081268 L7.62466847,12.4744748 L2.60729926,17.5908439 C2.28172726,17.9164159 2.28172726,18.4417663 2.60729926,18.7673383 L6.08431837,22.2443574 C6.40989037,22.5699294 6.92524068,22.5699294 7.25081268,22.2443574 L12.4744748,17.2269882 L17.490842,22.2443574 C17.8158043,22.5699294 18.3313545,22.5699294 18.6563168,22.2443574 L22.1333359,18.7673383 C22.4588979,18.4417663 22.4588979,17.9164159 22.1333359,17.5908439 L16.6915026,12.4744748 Z"/></svg>';
-                voiceSpeakerBtn.title = 'Unmute voice response';
-            } else {
-                voiceSpeakerBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
-                voiceSpeakerBtn.title = 'Mute voice response';
-            }
-        });
-
-        // Function to speak bot response
-        function speakBotResponse(text) {
-            if (isSpeakerMuted || !synth) return;
-
-            // Cancel any ongoing speech
-            synth.cancel();
-
-            currentUtterance = new SpeechSynthesisUtterance(text);
-            currentUtterance.rate = 1;
-            currentUtterance.pitch = 1;
-            currentUtterance.volume = 1;
-
-            synth.speak(currentUtterance);
-        }
-
-        // Function to speak message (called by speaker button on messages)
-        function speakMessage(text) {
-            if (!synth) return;
-
-            // Cancel any ongoing speech
-            synth.cancel();
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1;
-            utterance.pitch = 1;
-            utterance.volume = 1;
-
-            synth.speak(utterance);
-        }
+        // Load voices on page load
+        loadAvailableVoices();
     </script>
 </body>
 </html>
