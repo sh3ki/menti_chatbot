@@ -1396,17 +1396,19 @@
             <!-- Create new admin form -->
             <div class="admin-form-card">
                 <h3>Add New Admin</h3>
-                <div class="admin-form-row">
-                    <div class="form-group">
-                        <label>EMAIL ADDRESS</label>
-                        <input type="email" id="newAdminEmail" class="form-input" placeholder="admin@example.com">
+                <form onsubmit="event.preventDefault(); createAdmin();" style="margin:0;">
+                    <div class="admin-form-row">
+                        <div class="form-group">
+                            <label>EMAIL ADDRESS</label>
+                            <input type="email" id="newAdminEmail" class="form-input" placeholder="admin@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>PASSWORD (min 8 characters)</label>
+                            <input type="password" id="newAdminPassword" class="form-input" placeholder="••••••••">
+                        </div>
+                        <button type="button" class="btn-create-admin" id="createAdminBtn" onclick="createAdmin()">Add Admin</button>
                     </div>
-                    <div class="form-group">
-                        <label>PASSWORD (min 8 characters)</label>
-                        <input type="password" id="newAdminPassword" class="form-input" placeholder="••••••••">
-                    </div>
-                    <button class="btn-create-admin" id="createAdminBtn" onclick="createAdmin()">Add Admin</button>
-                </div>
+                </form>
             </div>
 
             <!-- Admin list table -->
@@ -1438,6 +1440,139 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- ================================================================ USER DETAIL MODAL -->
+<div id="userDetailModal" class="admin-modal" style="display:none;z-index:1100;">
+    <div class="admin-modal-content" style="max-width:900px;max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+            <h3 id="userDetailName">User Details</h3>
+            <button onclick="closeUserDetailModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#28282B;">✕</button>
+        </div>
+        
+        <!-- User Basic Info -->
+        <div style="background:#F8FAF8;padding:16px;border-radius:12px;margin-bottom:20px;border:1px solid #E8EDE9;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#28282B;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Display Name</div>
+                    <div id="userDetailDisplayName" style="font-size:15px;font-weight:600;color:#0F0F0F;">—</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#28282B;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Email</div>
+                    <div id="userDetailEmail" style="font-size:15px;font-weight:600;color:#0F0F0F;">—</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#28282B;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Account Type</div>
+                    <div id="userDetailType" style="font-size:15px;font-weight:600;color:#0F0F0F;">—</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#28282B;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Member Since</div>
+                    <div id="userDetailCreatedAt" style="font-size:15px;font-weight:600;color:#0F0F0F;">—</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#28282B;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Last Active</div>
+                    <div id="userDetailLastActive" style="font-size:15px;font-weight:600;color:#0F0F0F;">—</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#28282B;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Total Messages</div>
+                    <div id="userDetailMessages" style="font-size:15px;font-weight:600;color:#0F0F0F;">—</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emotional Progress -->
+        <div style="margin-bottom:20px;">
+            <h4 style="font-size:15px;font-weight:700;color:#0F0F0F;margin-bottom:12px;">Emotional Progress</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div style="background:white;border:1px solid #E8EDE9;border-radius:12px;padding:16px;">
+                    <div style="font-size:13px;font-weight:600;color:#0F0F0F;margin-bottom:12px;">Emotional Distribution</div>
+                    <div id="userDetailEmotionChart" style="height:200px;position:relative;">
+                        <canvas id="userEmotionPie"></canvas>
+                    </div>
+                </div>
+                <div style="background:white;border:1px solid #E8EDE9;border-radius:12px;padding:16px;">
+                    <div style="font-size:13px;font-weight:600;color:#0F0F0F;margin-bottom:12px;">Wellbeing Index</div>
+                    <div style="display:flex;flex-direction:column;gap:12px;justify-content:center;height:200px;">
+                        <div>
+                            <div style="font-size:12px;color:#28282B;opacity:0.7;margin-bottom:6px;">Positive Emotions</div>
+                            <div style="font-size:28px;font-weight:800;color:#2C5E31;" id="userDetailPositive">0%</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;color:#28282B;opacity:0.7;margin-bottom:6px;">Negative Emotions</div>
+                            <div style="font-size:28px;font-weight:800;color:#C62828;" id="userDetailNegative">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interaction Frequency -->
+        <div style="margin-bottom:20px;">
+            <h4 style="font-size:15px;font-weight:700;color:#0F0F0F;margin-bottom:12px;">Interaction Frequency</h4>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+                <div style="background:#E8F5E9;padding:12px;border-radius:10px;border:1px solid #C8E6C9;">
+                    <div style="font-size:11px;color:#2C5E31;opacity:0.7;margin-bottom:4px;">THIS WEEK</div>
+                    <div id="userDetailWeek" style="font-size:24px;font-weight:800;color:#2C5E31;">0</div>
+                    <div style="font-size:11px;color:#28282B;opacity:0.6;">messages</div>
+                </div>
+                <div style="background:#E3F2FD;padding:12px;border-radius:10px;border:1px solid #BBDEFB;">
+                    <div style="font-size:11px;color:#1565C0;opacity:0.7;margin-bottom:4px;">LAST WEEK</div>
+                    <div id="userDetailLastWeek" style="font-size:24px;font-weight:800;color:#1565C0;">0</div>
+                    <div style="font-size:11px;color:#28282B;opacity:0.6;">messages</div>
+                </div>
+                <div style="background:#FFF3E0;padding:12px;border-radius:10px;border:1px solid #FFE0B2;">
+                    <div style="font-size:11px;color:#E65100;opacity:0.7;margin-bottom:4px;">TOTAL</div>
+                    <div id="userDetailTotal" style="font-size:24px;font-weight:800;color:#E65100;">0</div>
+                    <div style="font-size:11px;color:#28282B;opacity:0.6;">messages</div>
+                </div>
+                <div style="background:#ECEFF1;padding:12px;border-radius:10px;border:1px solid #CFD8DC;">
+                    <div style="font-size:11px;color:#37474F;opacity:0.7;margin-bottom:4px;">DAILY AVG</div>
+                    <div id="userDetailAvg" style="font-size:24px;font-weight:800;color:#37474F;">0</div>
+                    <div style="font-size:11px;color:#28282B;opacity:0.6;">per day</div>
+                </div>
+            </div>
+            <div style="background:white;border:1px solid #E8EDE9;border-radius:12px;padding:16px;">
+                <div style="font-size:13px;font-weight:600;color:#0F0F0F;margin-bottom:12px;">Messages Over Time (Last 30 Days)</div>
+                <div style="height:200px;position:relative;">
+                    <canvas id="userMessagesChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Trends -->
+        <div style="margin-bottom:20px;">
+            <h4 style="font-size:15px;font-weight:700;color:#0F0F0F;margin-bottom:12px;">Activity Trends</h4>
+            <div style="background:white;border:1px solid #E8EDE9;border-radius:12px;padding:16px;">
+                <div style="font-size:13px;font-weight:600;color:#0F0F0F;margin-bottom:12px;">Emotion Trends (Last 30 Days)</div>
+                <div style="height:250px;position:relative;">
+                    <canvas id="userEmotionTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div style="margin-bottom:20px;">
+            <h4 style="font-size:15px;font-weight:700;color:#0F0F0F;margin-bottom:12px;">Recent Activity</h4>
+            <div style="background:white;border:1px solid #E8EDE9;border-radius:12px;overflow:hidden;max-height:300px;overflow-y:auto;">
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#F8FAF8;border-bottom:1px solid #E8EDE9;">
+                            <th style="padding:11px 16px;font-size:11px;font-weight:700;text-align:left;text-transform:uppercase;color:#28282B;opacity:0.7;">Date</th>
+                            <th style="padding:11px 16px;font-size:11px;font-weight:700;text-align:left;text-transform:uppercase;color:#28282B;opacity:0.7;">Time</th>
+                            <th style="padding:11px 16px;font-size:11px;font-weight:700;text-align:left;text-transform:uppercase;color:#28282B;opacity:0.7;">Emotion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userRecentActivityBody">
+                        <tr><td colspan="3" style="padding:20px;text-align:center;color:#28282B;opacity:0.5;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+            <button class="admin-modal-btn admin-modal-cancel" onclick="closeUserDetailModal()">Close</button>
+        </div>
+    </div>
+</div>
 
 <!-- ================================================================ JAVASCRIPT -->
 <script>
@@ -1479,6 +1614,15 @@ let _crisisData = [];
 let _activityData = [];
 function _todayStr() { return new Date().toISOString().slice(0,10); }
 function _daysAgo(n) { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+
+// ============================================================ GLOBAL HELPERS
+function set(id, v) { const el=document.getElementById(id); if(el) el.textContent=v; }
+function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+function emotionEmoji(e) {
+    const emojis = { happy: '😊', calm: '😌', sad: '😢', anxious: '😰', stressed: '😫', angry: '😠', confused: '😕', motivated: '💪', tired: '😴', numb: '😶' };
+    return emojis[e] || '😐';
+}
 
 // ============================================================ SECTION SWITCHING
 function switchSection(name, el) {
@@ -1561,7 +1705,6 @@ function computeAndUpdateStats() {
     }
     const riskCount = Object.values(riskUserNeg).filter(c=>c>=5).length;
 
-    const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
     set('statMessages',    _logsMap.size);
     set('statActiveToday', activeToday.size);
     set('statRiskAlerts',  riskCount);
@@ -1844,7 +1987,6 @@ function renderCrisisFromState() {
         if (a.severity === 'HIGH') high++; else medium++;
         if ((a.date || a.timestamp||'').slice(0,10) === today) todayCount++;
     }
-    const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
     set('crisisCountHigh', high); set('crisisCountMedium', medium); set('crisisCountToday', todayCount);
     const cnt = document.getElementById('crisisCount');
     if (cnt) cnt.textContent = `(${_crisisMap.size})`;
@@ -1974,6 +2116,11 @@ function renderUsersTable(users) {
             ? `<span class="badge-anon">👻 Guest</span>`
             : `<span class="badge-registered">${esc(u.provider || 'Registered')}</span>`;
         const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.style.transition = 'background 0.15s';
+        tr.onmouseover = () => tr.style.background = '#FAFBFA';
+        tr.onmouseout = () => tr.style.background = '';
+        tr.onclick = () => openUserDetailModal(u.uid);
         tr.innerHTML = `
             <td>
                 <div class="user-cell">
@@ -2374,7 +2521,6 @@ function skeletonRows(rows, cols) {
         const res = await fetch('/admin/api/stats');
         if (res.status === 401) { window.location.href = '/admin/login'; return; }
         const d = await res.json();
-        const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
         set('statTotalUsers',  d.totalRegisteredUsers ?? '—');
         set('newUsersChange',  '+' + (d.newUsersToday ?? 0) + ' today');
     } catch(e) { console.error('Auth stats fetch error:', e); }
@@ -2567,6 +2713,212 @@ async function deleteAdmin(id, email) {
 function escHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ============================================================ USER DETAIL MODAL
+
+function openUserDetailModal(uid) {
+    const modal = document.getElementById('userDetailModal');
+    if (modal) modal.style.display = 'flex';
+    loadUserDetails(uid);
+}
+
+function closeUserDetailModal() {
+    const modal = document.getElementById('userDetailModal');
+    if (modal) modal.style.display = 'none';
+}
+
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('userDetailModal');
+    if (modal && event.target === modal) {
+        closeUserDetailModal();
+    }
+});
+
+async function loadUserDetails(uid) {
+    try {
+        const res = await fetch(`/admin/api/user-details/${encodeURIComponent(uid)}`);
+        if (!res.ok) {
+            showToast('Failed to load user details');
+            return;
+        }
+        const data = await res.json();
+        renderUserDetails(data);
+    } catch (e) {
+        console.error('Error loading user details:', e);
+        showToast('Error loading user details');
+    }
+}
+
+function renderUserDetails(data) {
+    const userInfo = data.userInfo;
+    const emotional = data.emotionalProgress;
+    const frequency = data.interactionFrequency;
+    const trends = data.activityTrends;
+    const recent = data.recentActivity;
+
+    // Update user info
+    set('userDetailName', userInfo.displayName);
+    set('userDetailDisplayName', userInfo.displayName);
+    set('userDetailEmail', userInfo.email);
+    set('userDetailType', userInfo.type);
+    set('userDetailCreatedAt', userInfo.createdAt);
+    set('userDetailLastActive', trends.lastActive);
+    set('userDetailMessages', userInfo.totalMessages);
+
+    // Emotional progress
+    const totalMsgs = userInfo.totalMessages || 1;
+    const posPercent = emotional.positive > 0 ? Math.round((emotional.positive / totalMsgs) * 100) : 0;
+    const negPercent = emotional.negative > 0 ? Math.round((emotional.negative / totalMsgs) * 100) : 0;
+    
+    set('userDetailPositive', posPercent + '%');
+    set('userDetailNegative', negPercent + '%');
+
+    // Interaction frequency
+    set('userDetailWeek', frequency.messagesThisWeek);
+    set('userDetailLastWeek', frequency.messagesLastWeek);
+    set('userDetailTotal', frequency.totalMessages);
+    set('userDetailAvg', frequency.averagePerDay);
+
+    // Draw charts
+    drawUserEmotionPie(emotional.distribution);
+    drawUserMessagesChart(frequency.messagesByDate);
+    drawUserEmotionTrendChart(trends.dailyEmotionTrends);
+
+    // Render recent activity
+    renderUserRecentActivity(recent);
+}
+
+function drawUserEmotionPie(emotionCounts) {
+    const ctx = document.getElementById('userEmotionPie');
+    if (!ctx) return;
+
+    if (window.userEmotionChart instanceof Chart) {
+        window.userEmotionChart.destroy();
+    }
+
+    const labels = Object.keys(emotionCounts).filter(e => emotionCounts[e] > 0);
+    const data = labels.map(e => emotionCounts[e]);
+    const colors = labels.map(e => EMOTION_COLORS[e]?.bg || '#999');
+    const lightColors = labels.map(e => EMOTION_COLORS[e]?.light || '#f0f0f0');
+
+    window.userEmotionChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels.map(e => e.charAt(0).toUpperCase() + e.slice(1)),
+            datasets: [{
+                data: data,
+                backgroundColor: colors,
+                borderColor: lightColors,
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 10 } }
+            }
+        }
+    });
+}
+
+function drawUserMessagesChart(messagesByDate) {
+    const ctx = document.getElementById('userMessagesChart');
+    if (!ctx) return;
+
+    if (window.userMessagesChart instanceof Chart) {
+        window.userMessagesChart.destroy();
+    }
+
+    const sortedDates = Object.keys(messagesByDate).sort().slice(-30);
+    const counts = sortedDates.map(d => messagesByDate[d]);
+    const labels = sortedDates.map(d => d.slice(5)); // MM-DD
+
+    window.userMessagesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Messages',
+                data: counts,
+                backgroundColor: '#2C5E31',
+                borderRadius: 6,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+}
+
+function drawUserEmotionTrendChart(dailyEmotionTrends) {
+    const ctx = document.getElementById('userEmotionTrendChart');
+    if (!ctx) return;
+
+    if (window.userEmotionTrendChart instanceof Chart) {
+        window.userEmotionTrendChart.destroy();
+    }
+
+    const sortedDates = Object.keys(dailyEmotionTrends).sort().slice(-30);
+    const emotions = new Set();
+    sortedDates.forEach(d => {
+        Object.keys(dailyEmotionTrends[d] || {}).forEach(e => emotions.add(e));
+    });
+
+    const datasets = Array.from(emotions).map(emotion => ({
+        label: emotion.charAt(0).toUpperCase() + emotion.slice(1),
+        data: sortedDates.map(d => dailyEmotionTrends[d]?.[emotion] || 0),
+        borderColor: EMOTION_COLORS[emotion]?.bg || '#999',
+        backgroundColor: EMOTION_COLORS[emotion]?.light || '#f0f0f0',
+        fill: true,
+        tension: 0.3
+    }));
+
+    window.userEmotionTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sortedDates.map(d => d.slice(5)),
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } },
+            scales: { y: { beginAtZero: true, stacked: true } }
+        }
+    });
+}
+
+function renderUserRecentActivity(recent) {
+    const tbody = document.getElementById('userRecentActivityBody');
+    if (!tbody) return;
+
+    if (recent.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding:20px;text-align:center;color:#28282B;opacity:0.5;">No recent activity</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = recent.map(log => {
+        const [date, time] = log.timestamp.split(' ');
+        const emotionClass = `emotion-${log.emotion}`;
+        return `
+            <tr style="border-bottom:1px solid #F0F4F1;">
+                <td style="padding:11px 16px;font-size:13px;color:#0F0F0F;">${date}</td>
+                <td style="padding:11px 16px;font-size:13px;color:#0F0F0F;">${time || '—'}</td>
+                <td style="padding:11px 16px;font-size:13px;">
+                    <span class="badge ${emotionClass}">${log.emotion.charAt(0).toUpperCase() + log.emotion.slice(1)}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
 </script>
+
 </body>
 </html>
