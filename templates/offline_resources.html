@@ -206,6 +206,7 @@
     <div id="resourceModal" class="modal">
         <div class="modal-content">
             <div class="modal-title" id="resourceModalTitle">Resource</div>
+            <img id="resourceModalImage" src="" alt="Resource" style="width:100%;max-width:500px;height:auto;border-radius:12px;margin:16px 0;display:none;">
             <div class="modal-body" id="resourceModalBody"></div>
             <div style="display:flex;justify-content:flex-end;margin-top:12px;">
                 <button class="btn btn-secondary" id="closeResourceModalBtn">Close</button>
@@ -358,6 +359,13 @@
             if (!item) return;
             document.getElementById('resourceModalTitle').textContent = item.title || 'Resource';
             document.getElementById('resourceModalBody').textContent = item.content || item.summary || '';
+            const imgEl = document.getElementById('resourceModalImage');
+            if (item.image) {
+                imgEl.src = item.image;
+                imgEl.style.display = 'block';
+            } else {
+                imgEl.style.display = 'none';
+            }
             document.getElementById('resourceModal').classList.add('show');
         };
 
