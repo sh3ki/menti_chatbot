@@ -1123,6 +1123,877 @@
             border-color: #2C5E31;
             color: white;
         }
+        /* ===== RESPONSE LENGTH TOGGLE ===== */
+        .header-length-selector {
+            display: none;
+            gap: 6px;
+            align-items: center;
+            margin-left: 8px;
+        }
+
+        .header-length-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border: 1.5px solid #E0E0E0;
+            border-radius: 12px;
+            background: transparent;
+            font-size: 13px;
+            font-weight: 600;
+            color: #28282B;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .header-length-toggle .icon { font-size: 14px; }
+
+        .header-length-toggle.active {
+            background: #F6FBF6;
+            border-color: #4FA858;
+            color: #2C5E31;
+        }
+
+        /* Welcome-screen length toggle */
+        .length-toggle-welcome { display:flex; gap:8px; justify-content:center; margin-top:18px; }
+        .length-toggle-welcome .welcome-toggle-btn { padding:8px 12px; border-radius:10px; border:1px solid #E6E6E6; background:white; cursor:pointer; font-weight:600; }
+        .length-toggle-welcome .welcome-toggle-btn.active { background:#F6FBF6; border-color:#4FA858; color:#2C5E31; }
+
+        /* Small card variants for header and welcome */
+        .mode-card-small {
+            display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:8px 10px;border-radius:10px;border:1.5px solid #E8E8E8;background:#FFF;cursor:pointer;min-width:110px;max-width:140px;font-family:inherit;
+        }
+        .mode-card-small .mode-card-icon { font-size:16px }
+        .mode-card-small .mode-card-name { font-size:12px;font-weight:700;color:#2C5E31 }
+        .mode-card-small .mode-card-preview { font-size:11px;color:#666 }
+        .mode-card-small.active { border-color:#4FA858; background:#F6FBF6 }
+
+        /* ===== THEMES BUTTON ===== */
+        .theme-btn {
+            padding: 12px 16px;
+            background: #FAFAFA;
+            color: #2C5E31;
+            border: 2px solid #E0E0E0;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 50px;
+            height: 50px;
+        }
+
+        .theme-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .theme-btn:hover {
+            background: #E8F5E9;
+            border-color: #4FA858;
+            transform: translateY(-1px);
+        }
+
+        /* ===== THEMES MODAL ===== */
+        .themes-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 15, 15, 0.7);
+        }
+
+        .themes-modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .themes-modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .themes-modal-content h2 {
+            margin-bottom: 24px;
+            color: #0F0F0F;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .themes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .theme-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px;
+            border: 2px solid #E0E0E0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+        }
+
+        .theme-card:hover {
+            border-color: #4FA858;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79, 168, 88, 0.15);
+        }
+
+        .theme-card.active {
+            border-color: #2C5E31;
+            background: #E8F5E9;
+            box-shadow: 0 4px 12px rgba(44, 94, 49, 0.2);
+        }
+
+        .theme-preview {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            border: 2px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #0F0F0F;
+            text-align: center;
+        }
+
+        /* ===== 10 CALMING PASTEL THEMES ===== */
+        /* Theme 1: Soft Lavender */
+        .chat-container.theme-lavender {
+            background: linear-gradient(135deg, #F3E9FF 0%, #F8F5FF 100%);
+        }
+        .chat-container.theme-lavender .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(184, 134, 180, 0.03) 10px, rgba(184, 134, 180, 0.03) 20px),
+                repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(158, 143, 193, 0.02) 10px, rgba(158, 143, 193, 0.02) 20px),
+                linear-gradient(135deg, #FAF8FF 0%, #F5F0FF 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-lavender .message.bot .message-content {
+            background: linear-gradient(135deg, #E8DAFF 0%, #F0E6FF 100%);
+            color: #5B3BA0;
+            border: 1px solid #D8CCFF;
+        }
+        .chat-container.theme-lavender .message.user .message-content {
+            background: linear-gradient(135deg, #B5A4D6 0%, #9E8FC1 100%);
+        }
+        .chat-container.theme-lavender .message.user .message-avatar {
+            background: #9E8FC1;
+            border: 2px solid #7A6BA3;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-lavender .send-btn {
+            background: #7A6BA3;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-lavender .send-btn:hover:not(:disabled) {
+            background: #6A5B93;
+        }
+        .chat-container.theme-lavender .voice-btn, 
+        .chat-container.theme-lavender .theme-btn {
+            color: #5B3BA0;
+            border-color: #D8CCFF;
+        }
+        .chat-container.theme-lavender .voice-btn:hover, 
+        .chat-container.theme-lavender .theme-btn:hover {
+            background: #F5F0FF;
+            border-color: #9E8FC1;
+        }
+        .chat-container.theme-lavender .chat-input {
+            border-color: #D8CCFF;
+        }
+        .chat-container.theme-lavender .chat-input:focus {
+            border-color: #9E8FC1;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-lavender .mode-card {
+            border-color: #D8CCFF;
+        }
+        .chat-container.theme-lavender .mode-card:hover {
+            border-color: #9E8FC1;
+            background: #F5F0FF;
+        }
+        .chat-container.theme-lavender .mode-card.active {
+            border-color: #5B3BA0;
+            background: #E8DAFF;
+        }
+        .chat-container.theme-lavender .mode-card-small {
+            border-color: #D8CCFF;
+        }
+        .chat-container.theme-lavender .mode-card-small:hover {
+            border-color: #9E8FC1;
+            background: #F5F0FF;
+        }
+        .chat-container.theme-lavender .mode-card-small.active {
+            border-color: #5B3BA0;
+            background: #E8DAFF;
+        }
+
+        /* Theme 2: Mint Green */
+        .chat-container.theme-mint {
+            background: linear-gradient(135deg, #E8F7F3 0%, #F0F9F7 100%);
+        }
+        .chat-container.theme-mint .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(11, 110, 94, 0.03) 12px, rgba(11, 110, 94, 0.03) 24px),
+                repeating-linear-gradient(-45deg, transparent, transparent 12px, rgba(77, 184, 168, 0.02) 12px, rgba(77, 184, 168, 0.02) 24px),
+                linear-gradient(135deg, #F5FAF9 0%, #EEFAF8 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-mint .message.bot .message-content {
+            background: linear-gradient(135deg, #DDFCF5 0%, #E8FEF9 100%);
+            color: #0B6E5E;
+            border: 1px solid #C8F3EB;
+        }
+        .chat-container.theme-mint .message.user .message-content {
+            background: linear-gradient(135deg, #5FCCB8 0%, #4DB8A8 100%);
+        }
+        .chat-container.theme-mint .message.user .message-avatar {
+            background: #2D9B8F;
+            border: 2px solid #1A7D78;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-mint .send-btn {
+            background: #2D9B8F;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-mint .send-btn:hover:not(:disabled) {
+            background: #1A7D78;
+        }
+        .chat-container.theme-mint .voice-btn,
+        .chat-container.theme-mint .theme-btn {
+            color: #0B6E5E;
+            border-color: #C8F3EB;
+        }
+        .chat-container.theme-mint .voice-btn:hover,
+        .chat-container.theme-mint .theme-btn:hover {
+            background: #E8FEF9;
+            border-color: #4DB8A8;
+        }
+        .chat-container.theme-mint .chat-input {
+            border-color: #C8F3EB;
+        }
+        .chat-container.theme-mint .chat-input:focus {
+            border-color: #4DB8A8;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-mint .mode-card {
+            border-color: #C8F3EB;
+        }
+        .chat-container.theme-mint .mode-card:hover {
+            border-color: #4DB8A8;
+            background: #E8FEF9;
+        }
+        .chat-container.theme-mint .mode-card.active {
+            border-color: #0B6E5E;
+            background: #DDFCF5;
+        }
+        .chat-container.theme-mint .mode-card-small {
+            border-color: #C8F3EB;
+        }
+        .chat-container.theme-mint .mode-card-small:hover {
+            border-color: #4DB8A8;
+            background: #E8FEF9;
+        }
+        .chat-container.theme-mint .mode-card-small.active {
+            border-color: #0B6E5E;
+            background: #DDFCF5;
+        }
+
+        /* Theme 3: Soft Peach */
+        .chat-container.theme-peach {
+            background: linear-gradient(135deg, #FFE8D6 0%, #FFF0E6 100%);
+        }
+        .chat-container.theme-peach .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 11px, rgba(184, 92, 30, 0.03) 11px, rgba(184, 92, 30, 0.03) 22px),
+                repeating-linear-gradient(-45deg, transparent, transparent 11px, rgba(232, 152, 120, 0.02) 11px, rgba(232, 152, 120, 0.02) 22px),
+                linear-gradient(135deg, #FFF5ED 0%, #FFF0E8 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-peach .message.bot .message-content {
+            background: linear-gradient(135deg, #FFDCC7 0%, #FFE8D8 100%);
+            color: #B85C1E;
+            border: 1px solid #FFD4B8;
+        }
+        .chat-container.theme-peach .message.user .message-content {
+            background: linear-gradient(135deg, #F5A68A 0%, #E89878 100%);
+        }
+        .chat-container.theme-peach .message.user .message-avatar {
+            background: #C87534;
+            border: 2px solid #A85A24;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-peach .send-btn {
+            background: #C87534;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-peach .send-btn:hover:not(:disabled) {
+            background: #A85A24;
+        }
+        .chat-container.theme-peach .voice-btn,
+        .chat-container.theme-peach .theme-btn {
+            color: #B85C1E;
+            border-color: #FFD4B8;
+        }
+        .chat-container.theme-peach .voice-btn:hover,
+        .chat-container.theme-peach .theme-btn:hover {
+            background: #FFE8D8;
+            border-color: #E89878;
+        }
+        .chat-container.theme-peach .chat-input {
+            border-color: #FFD4B8;
+        }
+        .chat-container.theme-peach .chat-input:focus {
+            border-color: #E89878;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-peach .mode-card {
+            border-color: #FFD4B8;
+        }
+        .chat-container.theme-peach .mode-card:hover {
+            border-color: #E89878;
+            background: #FFE8D8;
+        }
+        .chat-container.theme-peach .mode-card.active {
+            border-color: #B85C1E;
+            background: #FFDCC7;
+        }
+        .chat-container.theme-peach .mode-card-small {
+            border-color: #FFD4B8;
+        }
+        .chat-container.theme-peach .mode-card-small:hover {
+            border-color: #E89878;
+            background: #FFE8D8;
+        }
+        .chat-container.theme-peach .mode-card-small.active {
+            border-color: #B85C1E;
+            background: #FFDCC7;
+        }
+
+        /* Theme 4: Sky Blue */
+        .chat-container.theme-sky {
+            background: linear-gradient(135deg, #E3F2FF 0%, #F0F7FF 100%);
+        }
+        .chat-container.theme-sky .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0, 85, 184, 0.03) 10px, rgba(0, 85, 184, 0.03) 20px),
+                repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(74, 146, 232, 0.02) 10px, rgba(74, 146, 232, 0.02) 20px),
+                linear-gradient(135deg, #F5FBFF 0%, #EEFBFF 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-sky .message.bot .message-content {
+            background: linear-gradient(135deg, #D6E9FF 0%, #E3F0FF 100%);
+            color: #0055B8;
+            border: 1px solid #C8DCFF;
+        }
+        .chat-container.theme-sky .message.user .message-content {
+            background: linear-gradient(135deg, #5BA3FF 0%, #4A92E8 100%);
+        }
+        .chat-container.theme-sky .message.user .message-avatar {
+            background: #0055B8;
+            border: 2px solid #003D87;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-sky .send-btn {
+            background: #0055B8;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-sky .send-btn:hover:not(:disabled) {
+            background: #003D87;
+        }
+        .chat-container.theme-sky .voice-btn,
+        .chat-container.theme-sky .theme-btn {
+            color: #0055B8;
+            border-color: #C8DCFF;
+        }
+        .chat-container.theme-sky .voice-btn:hover,
+        .chat-container.theme-sky .theme-btn:hover {
+            background: #E3F0FF;
+            border-color: #4A92E8;
+        }
+        .chat-container.theme-sky .chat-input {
+            border-color: #C8DCFF;
+        }
+        .chat-container.theme-sky .chat-input:focus {
+            border-color: #4A92E8;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-sky .mode-card {
+            border-color: #C8DCFF;
+        }
+        .chat-container.theme-sky .mode-card:hover {
+            border-color: #4A92E8;
+            background: #E3F0FF;
+        }
+        .chat-container.theme-sky .mode-card.active {
+            border-color: #0055B8;
+            background: #D6E9FF;
+        }
+        .chat-container.theme-sky .mode-card-small {
+            border-color: #C8DCFF;
+        }
+        .chat-container.theme-sky .mode-card-small:hover {
+            border-color: #4A92E8;
+            background: #E3F0FF;
+        }
+        .chat-container.theme-sky .mode-card-small.active {
+            border-color: #0055B8;
+            background: #D6E9FF;
+        }
+
+        /* Theme 5: Sunny Yellow */
+        .chat-container.theme-yellow {
+            background: linear-gradient(135deg, #FFFAEB 0%, #FFFDF5 100%);
+        }
+        .chat-container.theme-yellow .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 11px, rgba(184, 134, 11, 0.03) 11px, rgba(184, 134, 11, 0.03) 22px),
+                repeating-linear-gradient(-45deg, transparent, transparent 11px, rgba(232, 200, 93, 0.02) 11px, rgba(232, 200, 93, 0.02) 22px),
+                linear-gradient(135deg, #FFFEF8 0%, #FFFCF3 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-yellow .message.bot .message-content {
+            background: linear-gradient(135deg, #FFFADB 0%, #FFFAE8 100%);
+            color: #B8860B;
+            border: 1px solid #FFEDB8;
+        }
+        .chat-container.theme-yellow .message.user .message-content {
+            background: linear-gradient(135deg, #F5D875 0%, #E8C85D 100%);
+        }
+        .chat-container.theme-yellow .message.user .message-avatar {
+            background: #8B7000;
+            border: 2px solid #6B5600;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-yellow .send-btn {
+            background: #8B7000;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-yellow .send-btn:hover:not(:disabled) {
+            background: #6B5600;
+        }
+        .chat-container.theme-yellow .voice-btn,
+        .chat-container.theme-yellow .theme-btn {
+            color: #B8860B;
+            border-color: #FFEDB8;
+        }
+        .chat-container.theme-yellow .voice-btn:hover,
+        .chat-container.theme-yellow .theme-btn:hover {
+            background: #FFFAE8;
+            border-color: #E8C85D;
+        }
+        .chat-container.theme-yellow .chat-input {
+            border-color: #FFEDB8;
+        }
+        .chat-container.theme-yellow .chat-input:focus {
+            border-color: #E8C85D;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-yellow .mode-card {
+            border-color: #FFEDB8;
+        }
+        .chat-container.theme-yellow .mode-card:hover {
+            border-color: #E8C85D;
+            background: #FFFAE8;
+        }
+        .chat-container.theme-yellow .mode-card.active {
+            border-color: #B8860B;
+            background: #FFFADB;
+        }
+        .chat-container.theme-yellow .mode-card-small {
+            border-color: #FFEDB8;
+        }
+        .chat-container.theme-yellow .mode-card-small:hover {
+            border-color: #E8C85D;
+            background: #FFFAE8;
+        }
+        .chat-container.theme-yellow .mode-card-small.active {
+            border-color: #B8860B;
+            background: #FFFADB;
+        }
+
+        /* Theme 6: Rose Pink */
+        .chat-container.theme-rose {
+            background: linear-gradient(135deg, #FFE8F0 0%, #FFF0F5 100%);
+        }
+        .chat-container.theme-rose .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(194, 30, 86, 0.03) 10px, rgba(194, 30, 86, 0.03) 20px),
+                repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(237, 120, 184, 0.02) 10px, rgba(237, 120, 184, 0.02) 20px),
+                linear-gradient(135deg, #FFF5F8 0%, #FFF0F7 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-rose .message.bot .message-content {
+            background: linear-gradient(135deg, #FFD6E8 0%, #FFDEEE 100%);
+            color: #C21E56;
+            border: 1px solid #FFC8DB;
+        }
+        .chat-container.theme-rose .message.user .message-content {
+            background: linear-gradient(135deg, #F48AC9 0%, #ED78B8 100%);
+        }
+        .chat-container.theme-rose .message.user .message-avatar {
+            background: #A01645;
+            border: 2px solid #800C38;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-rose .send-btn {
+            background: #A01645;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-rose .send-btn:hover:not(:disabled) {
+            background: #800C38;
+        }
+        .chat-container.theme-rose .voice-btn,
+        .chat-container.theme-rose .theme-btn {
+            color: #C21E56;
+            border-color: #FFC8DB;
+        }
+        .chat-container.theme-rose .voice-btn:hover,
+        .chat-container.theme-rose .theme-btn:hover {
+            background: #FFDEEE;
+            border-color: #ED78B8;
+        }
+        .chat-container.theme-rose .chat-input {
+            border-color: #FFC8DB;
+        }
+        .chat-container.theme-rose .chat-input:focus {
+            border-color: #ED78B8;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-rose .mode-card {
+            border-color: #FFC8DB;
+        }
+        .chat-container.theme-rose .mode-card:hover {
+            border-color: #ED78B8;
+            background: #FFDEEE;
+        }
+        .chat-container.theme-rose .mode-card.active {
+            border-color: #C21E56;
+            background: #FFD6E8;
+        }
+        .chat-container.theme-rose .mode-card-small {
+            border-color: #FFC8DB;
+        }
+        .chat-container.theme-rose .mode-card-small:hover {
+            border-color: #ED78B8;
+            background: #FFDEEE;
+        }
+        .chat-container.theme-rose .mode-card-small.active {
+            border-color: #C21E56;
+            background: #FFD6E8;
+        }
+
+        /* Theme 7: Seafoam */
+        .chat-container.theme-seafoam {
+            background: linear-gradient(135deg, #E0F7F5 0%, #F0FDFB 100%);
+        }
+        .chat-container.theme-seafoam .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(13, 139, 133, 0.03) 12px, rgba(13, 139, 133, 0.03) 24px),
+                repeating-linear-gradient(-45deg, transparent, transparent 12px, rgba(77, 189, 173, 0.02) 12px, rgba(77, 189, 173, 0.02) 24px),
+                linear-gradient(135deg, #F0FDFB 0%, #E8FCFA 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-seafoam .message.bot .message-content {
+            background: linear-gradient(135deg, #C8F5F1 0%, #D8F9F7 100%);
+            color: #0D8B85;
+            border: 1px solid #B8EEE8;
+        }
+        .chat-container.theme-seafoam .message.user .message-content {
+            background: linear-gradient(135deg, #4DBDAD 0%, #3DAC9E 100%);
+        }
+        .chat-container.theme-seafoam .message.user .message-avatar {
+            background: #0D8B85;
+            border: 2px solid #066D66;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-seafoam .send-btn {
+            background: #0D8B85;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-seafoam .send-btn:hover:not(:disabled) {
+            background: #066D66;
+        }
+        .chat-container.theme-seafoam .voice-btn,
+        .chat-container.theme-seafoam .theme-btn {
+            color: #0D8B85;
+            border-color: #B8EEE8;
+        }
+        .chat-container.theme-seafoam .voice-btn:hover,
+        .chat-container.theme-seafoam .theme-btn:hover {
+            background: #D8F9F7;
+            border-color: #3DAC9E;
+        }
+        .chat-container.theme-seafoam .chat-input {
+            border-color: #B8EEE8;
+        }
+        .chat-container.theme-seafoam .chat-input:focus {
+            border-color: #3DAC9E;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-seafoam .mode-card {
+            border-color: #B8EEE8;
+        }
+        .chat-container.theme-seafoam .mode-card:hover {
+            border-color: #3DAC9E;
+            background: #D8F9F7;
+        }
+        .chat-container.theme-seafoam .mode-card.active {
+            border-color: #0D8B85;
+            background: #C8F5F1;
+        }
+        .chat-container.theme-seafoam .mode-card-small {
+            border-color: #B8EEE8;
+        }
+        .chat-container.theme-seafoam .mode-card-small:hover {
+            border-color: #3DAC9E;
+            background: #D8F9F7;
+        }
+        .chat-container.theme-seafoam .mode-card-small.active {
+            border-color: #0D8B85;
+            background: #C8F5F1;
+        }
+
+        /* Theme 8: Soft Coral */
+        .chat-container.theme-coral {
+            background: linear-gradient(135deg, #FFE8DC 0%, #FFF0E8 100%);
+        }
+        .chat-container.theme-coral .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 11px, rgba(191, 79, 46, 0.03) 11px, rgba(191, 79, 46, 0.03) 22px),
+                repeating-linear-gradient(-45deg, transparent, transparent 11px, rgba(239, 133, 99, 0.02) 11px, rgba(239, 133, 99, 0.02) 22px),
+                linear-gradient(135deg, #FFF5F0 0%, #FFEDE6 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-coral .message.bot .message-content {
+            background: linear-gradient(135deg, #FFDCC7 0%, #FFE8D8 100%);
+            color: #BF4F2E;
+            border: 1px solid #FFD4B8;
+        }
+        .chat-container.theme-coral .message.user .message-content {
+            background: linear-gradient(135deg, #F69A7A 0%, #EF8563 100%);
+        }
+        .chat-container.theme-coral .message.user .message-avatar {
+            background: #9A3E1F;
+            border: 2px solid #7A2E10;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-coral .send-btn {
+            background: #9A3E1F;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-coral .send-btn:hover:not(:disabled) {
+            background: #7A2E10;
+        }
+        .chat-container.theme-coral .voice-btn,
+        .chat-container.theme-coral .theme-btn {
+            color: #BF4F2E;
+            border-color: #FFD4B8;
+        }
+        .chat-container.theme-coral .voice-btn:hover,
+        .chat-container.theme-coral .theme-btn:hover {
+            background: #FFE8D8;
+            border-color: #EF8563;
+        }
+        .chat-container.theme-coral .chat-input {
+            border-color: #FFD4B8;
+        }
+        .chat-container.theme-coral .chat-input:focus {
+            border-color: #EF8563;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-coral .mode-card {
+            border-color: #FFD4B8;
+        }
+        .chat-container.theme-coral .mode-card:hover {
+            border-color: #EF8563;
+            background: #FFE8D8;
+        }
+        .chat-container.theme-coral .mode-card.active {
+            border-color: #BF4F2E;
+            background: #FFDCC7;
+        }
+        .chat-container.theme-coral .mode-card-small {
+            border-color: #FFD4B8;
+        }
+        .chat-container.theme-coral .mode-card-small:hover {
+            border-color: #EF8563;
+            background: #FFE8D8;
+        }
+        .chat-container.theme-coral .mode-card-small.active {
+            border-color: #BF4F2E;
+            background: #FFDCC7;
+        }
+
+        /* Theme 9: Cream */
+        .chat-container.theme-cream {
+            background: linear-gradient(135deg, #F5F3F0 0%, #FAFAF8 100%);
+        }
+        .chat-container.theme-cream .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(62, 62, 62, 0.03) 12px, rgba(62, 62, 62, 0.03) 24px),
+                repeating-linear-gradient(-45deg, transparent, transparent 12px, rgba(139, 132, 120, 0.02) 12px, rgba(139, 132, 120, 0.02) 24px),
+                linear-gradient(135deg, #FAF9F7 0%, #F8F7F5 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-cream .message.bot .message-content {
+            background: linear-gradient(135deg, #ECECEA 0%, #F5F3F0 100%);
+            color: #3E3E3E;
+            border: 1px solid #D9D7D3;
+        }
+        .chat-container.theme-cream .message.user .message-content {
+            background: linear-gradient(135deg, #A89987 0%, #9A8B7E 100%);
+        }
+        .chat-container.theme-cream .message.user .message-avatar {
+            background: #5A5A5A;
+            border: 2px solid #3D3D3D;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-cream .send-btn {
+            background: #5A5A5A;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-cream .send-btn:hover:not(:disabled) {
+            background: #3D3D3D;
+        }
+        .chat-container.theme-cream .voice-btn,
+        .chat-container.theme-cream .theme-btn {
+            color: #3E3E3E;
+            border-color: #D9D7D3;
+        }
+        .chat-container.theme-cream .voice-btn:hover,
+        .chat-container.theme-cream .theme-btn:hover {
+            background: #F5F3F0;
+            border-color: #9A8B7E;
+        }
+        .chat-container.theme-cream .chat-input {
+            border-color: #D9D7D3;
+        }
+        .chat-container.theme-cream .chat-input:focus {
+            border-color: #9A8B7E;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-cream .mode-card {
+            border-color: #D9D7D3;
+        }
+        .chat-container.theme-cream .mode-card:hover {
+            border-color: #9A8B7E;
+            background: #F5F3F0;
+        }
+        .chat-container.theme-cream .mode-card.active {
+            border-color: #3E3E3E;
+            background: #ECECEA;
+        }
+        .chat-container.theme-cream .mode-card-small {
+            border-color: #D9D7D3;
+        }
+        .chat-container.theme-cream .mode-card-small:hover {
+            border-color: #9A8B7E;
+            background: #F5F3F0;
+        }
+        .chat-container.theme-cream .mode-card-small.active {
+            border-color: #3E3E3E;
+            background: #ECECEA;
+        }
+
+        /* Theme 10: Soft Gray */
+        .chat-container.theme-gray {
+            background: linear-gradient(135deg, #E8E8E8 0%, #F0F0F0 100%);
+        }
+        .chat-container.theme-gray .chat-messages {
+            background: 
+                repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(47, 47, 47, 0.03) 12px, rgba(47, 47, 47, 0.03) 24px),
+                repeating-linear-gradient(-45deg, transparent, transparent 12px, rgba(128, 128, 128, 0.02) 12px, rgba(128, 128, 128, 0.02) 24px),
+                linear-gradient(135deg, #F5F5F5 0%, #EFEFEF 100%);
+            background-attachment: fixed;
+        }
+        .chat-container.theme-gray .message.bot .message-content {
+            background: linear-gradient(135deg, #D8D8D8 0%, #E0E0E0 100%);
+            color: #2F2F2F;
+            border: 1px solid #CCCCCC;
+        }
+        .chat-container.theme-gray .message.user .message-content {
+            background: linear-gradient(135deg, #A0A0A0 0%, #8F8F8F 100%);
+        }
+        .chat-container.theme-gray .message.user .message-avatar {
+            background: #4A4A4A;
+            border: 2px solid #2F2F2F;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-gray .send-btn {
+            background: #4A4A4A;
+            color: #FFFFFF;
+        }
+        .chat-container.theme-gray .send-btn:hover:not(:disabled) {
+            background: #2F2F2F;
+        }
+        .chat-container.theme-gray .voice-btn,
+        .chat-container.theme-gray .theme-btn {
+            color: #2F2F2F;
+            border-color: #CCCCCC;
+        }
+        .chat-container.theme-gray .voice-btn:hover,
+        .chat-container.theme-gray .theme-btn:hover {
+            background: #E0E0E0;
+            border-color: #8F8F8F;
+        }
+        .chat-container.theme-gray .chat-input {
+            border-color: #CCCCCC;
+        }
+        .chat-container.theme-gray .chat-input:focus {
+            border-color: #8F8F8F;
+            background: #FFFFFF;
+        }
+        .chat-container.theme-gray .mode-card {
+            border-color: #CCCCCC;
+        }
+        .chat-container.theme-gray .mode-card:hover {
+            border-color: #8F8F8F;
+            background: #E0E0E0;
+        }
+        .chat-container.theme-gray .mode-card.active {
+            border-color: #2F2F2F;
+            background: #D8D8D8;
+        }
+        .chat-container.theme-gray .mode-card-small {
+            border-color: #CCCCCC;
+        }
+        .chat-container.theme-gray .mode-card-small:hover {
+            border-color: #8F8F8F;
+            background: #E0E0E0;
+        }
+        .chat-container.theme-gray .mode-card-small.active {
+            border-color: #2F2F2F;
+            background: #D8D8D8;
+        }
     </style>
 </head>
 <body>
@@ -1143,6 +2014,18 @@
             <button class="header-mode-btn active" id="headerBtn-friendly" onclick="selectMode('friendly')">💬 Friendly</button>
             <button class="header-mode-btn" id="headerBtn-supportive" onclick="selectMode('supportive')">🤝 Supportive</button>
             <button class="header-mode-btn" id="headerBtn-professional" onclick="selectMode('professional')">📋 Professional</button>
+
+            <!-- Response length selector (short / detailed) -->
+            <div class="header-length-selector" id="headerLengthSelector" style="margin-left: 24px;">
+                <button class="header-length-toggle active" id="headerLenCard-short" onclick="selectResponseLength('short')">
+                    <span class="icon">⚡</span>
+                    <span class="label">Short</span>
+                </button>
+                <button class="header-length-toggle" id="headerLenCard-detailed" onclick="selectResponseLength('detailed')">
+                    <span class="icon">📚</span>
+                    <span class="label">Detailed</span>
+                </button>
+            </div>
         </div>
 
         <!-- Header right: incognito + profile dropdown -->
@@ -1208,6 +2091,19 @@
             <div class="rename-modal-buttons">
                 <button class="rename-cancel-btn" onclick="hideRenameModal()">Cancel</button>
                 <button class="rename-save-btn" onclick="saveRename()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Themes Modal -->
+    <div id="themesModal" class="themes-modal">
+        <div class="themes-modal-content">
+            <h2>Choose a Calming Theme</h2>
+            <div class="themes-grid" id="themesGrid">
+                <!-- Theme cards will be generated by JavaScript -->
+            </div>
+            <div style="text-align: right;">
+                <button class="rename-cancel-btn" onclick="closeThemesModal()" style="padding: 12px 24px; border-radius: 8px; font-size: 14px;">Close</button>
             </div>
         </div>
     </div>
@@ -1305,6 +2201,20 @@
                             </ul>
                         </div>
                     </div>
+
+                    <!-- Response-length toggle for welcome screen -->
+                    <div class="length-toggle-welcome" id="lengthToggleWelcome" style="margin-top:16px;">
+                        <div class="mode-card-small active" id="welcomeLenCard-short" onclick="selectResponseLength('short')">
+                            <div class="mode-card-icon">⚡</div>
+                            <div class="mode-card-name">Short</div>
+                            <div class="mode-card-preview">Concise replies, quick to read.</div>
+                        </div>
+                        <div class="mode-card-small" id="welcomeLenCard-detailed" onclick="selectResponseLength('detailed')">
+                            <div class="mode-card-icon">📚</div>
+                            <div class="mode-card-name">Detailed</div>
+                            <div class="mode-card-preview">Longer, explanatory responses.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1317,6 +2227,9 @@
                     placeholder="Type your message here..."
                     autocomplete="off"
                 >
+                <button class="theme-btn" id="themesBtn" title="Choose chat theme" onclick="openThemesModal()">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                </button>
                 <button class="voice-btn" id="voiceMicBtn" title="Click to record your message">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3z"/><path d="M17 16.91c-1.48 1.46-3.51 2.36-5.77 2.36-2.26 0-4.29-.9-5.77-2.36M19 12h2c0 .91-.24 1.75-.67 2.5M4 12H2c0-.91.24-1.75.67-2.5M12 20v2M12 4V2"/></svg>
                 </button>
@@ -1362,6 +2275,9 @@
         const newChatBtn = document.getElementById('newChatBtn');
         const contextMenu = document.getElementById('contextMenu');
         const renameModal = document.getElementById('renameModal');
+        const themesModal = document.getElementById('themesModal');
+        const themesGrid = document.getElementById('themesGrid');
+        const chatContainer = document.querySelector('.chat-container');
 
         let currentUser = null;
         let conversations = [];
@@ -1371,6 +2287,23 @@
         let pendingConversationTitle = null; // Store first message for auto-title
         let showingArchived = false; // Track if we're showing archived view
         let currentMode = 'friendly'; // Track selected conversation mode
+        let currentResponseLength = 'short'; // 'short' or 'detailed'
+        let currentTheme = 'default'; // Track current theme
+
+        // ===== THEMES DATA =====
+        const themesData = [
+            { id: 'default', name: 'Default', emoji: '🤍', color: '#FFFFFF' },
+            { id: 'lavender', name: 'Lavender', emoji: '💜', color: '#E8DAFF' },
+            { id: 'mint', name: 'Mint', emoji: '🌿', color: '#DDFCF5' },
+            { id: 'peach', name: 'Peach', emoji: '🍑', color: '#FFDCC7' },
+            { id: 'sky', name: 'Sky Blue', emoji: '🌤️', color: '#D6E9FF' },
+            { id: 'yellow', name: 'Sunny', emoji: '☀️', color: '#FFFADB' },
+            { id: 'rose', name: 'Rose', emoji: '🌹', color: '#FFD6E8' },
+            { id: 'seafoam', name: 'Seafoam', emoji: '🌊', color: '#C8F5F1' },
+            { id: 'coral', name: 'Coral', emoji: '🪸', color: '#FFDCC7' },
+            { id: 'cream', name: 'Cream', emoji: '✨', color: '#F5F5F0' },
+            { id: 'gray', name: 'Gray', emoji: '🌫️', color: '#D8D8D8' }
+        ];
 
         // ===== MODE SELECTION =====
         const modeContent = {
@@ -1409,10 +2342,145 @@
             if (textEl)  textEl.textContent  = content.text;
         };
 
+        // ===== RESPONSE LENGTH (SHORT / DETAILED) =====
+        window.selectResponseLength = function(len, save=true) {
+            currentResponseLength = len;
+            // Update header small cards
+            const hShort = document.getElementById('headerLenCard-short');
+            const hDet = document.getElementById('headerLenCard-detailed');
+            if (hShort && hDet) {
+                if (len === 'short') { hShort.classList.add('active'); hDet.classList.remove('active'); } else { hShort.classList.remove('active'); hDet.classList.add('active'); }
+            }
+
+            // Update welcome small cards
+            const wShort = document.getElementById('welcomeLenCard-short');
+            const wDet = document.getElementById('welcomeLenCard-detailed');
+            if (wShort && wDet) {
+                if (len === 'short') { wShort.classList.add('active'); wDet.classList.remove('active'); } else { wShort.classList.remove('active'); wDet.classList.add('active'); }
+            }
+
+            // Update quick toggle beside Private
+            const quickIcon = document.getElementById('lengthToggleIcon');
+            const quickLabel = document.getElementById('lengthToggleLabel');
+            if (quickIcon) quickIcon.textContent = (len === 'short') ? '⚡' : '📚';
+            if (quickLabel) quickLabel.textContent = (len === 'short') ? 'Short' : 'Detailed';
+
+            // Update quick toggle label
+            const toggleLabel = document.getElementById('lengthToggleLabel');
+            if (toggleLabel) toggleLabel.textContent = (len === 'short') ? 'Short' : 'Detailed';
+
+            // Persist preference: server for logged-in users, localStorage for guests
+            if (save) {
+                if (currentUser && !currentUser.isAnonymous) {
+                    fetch(`/user/preferences/${encodeURIComponent(currentUser.uid)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ response_length: currentResponseLength })
+                    }).catch(err => console.error('Pref save error', err));
+                } else {
+                    try { localStorage.setItem('menti_response_length', currentResponseLength); } catch(e){}
+                }
+            }
+        };
+
+        window.toggleResponseLength = function() {
+            const next = (currentResponseLength === 'short') ? 'detailed' : 'short';
+            window.selectResponseLength(next);
+        };
+
+        // ===== THEME SELECTION =====
+        window.initializeThemes = function() {
+            // Load saved theme from localStorage
+            const savedTheme = localStorage.getItem('menti_chat_theme') || 'default';
+            window.selectTheme(savedTheme);
+            
+            // Render theme cards
+            themesGrid.innerHTML = themesData.map(theme => `
+                <div class="theme-card ${theme.id === currentTheme ? 'active' : ''}" onclick="selectTheme('${theme.id}')">
+                    <div class="theme-preview" style="background-color: ${theme.color};">
+                        ${theme.emoji}
+                    </div>
+                    <div class="theme-name">${theme.name}</div>
+                </div>
+            `).join('');
+        };
+
+        window.selectTheme = function(themeId) {
+            currentTheme = themeId;
+            
+            // Remove all theme classes
+            themesData.forEach(theme => {
+                chatContainer.classList.remove(`theme-${theme.id}`);
+            });
+            
+            // Add selected theme class (skip for default)
+            if (themeId !== 'default') {
+                chatContainer.classList.add(`theme-${themeId}`);
+            }
+            
+            // Update theme cards
+            const themeCards = document.querySelectorAll('.theme-card');
+            themeCards.forEach(card => {
+                const isActive = card.textContent.includes(themesData.find(t => t.id === themeId).name);
+                if (isActive) {
+                    card.classList.add('active');
+                } else {
+                    card.classList.remove('active');
+                }
+            });
+            
+            // Save preference
+            try {
+                localStorage.setItem('menti_chat_theme', themeId);
+            } catch(e) {
+                console.log('Could not save theme preference');
+            }
+        };
+
+        window.openThemesModal = function() {
+            themesModal.classList.add('show');
+        };
+
+        window.closeThemesModal = function() {
+            themesModal.classList.remove('show');
+        };
+
+        // Close modal when clicking outside
+        themesModal.addEventListener('click', (e) => {
+            if (e.target === themesModal) {
+                closeThemesModal();
+            }
+        });
+
+        // Quick toggle button beside Private
+        document.addEventListener('click', (e) => {
+            if (e.target && (e.target.id === 'lengthToggleBtn' || e.target.closest('#lengthToggleBtn'))) {
+                currentResponseLength = (currentResponseLength === 'short') ? 'detailed' : 'short';
+                window.selectResponseLength(currentResponseLength);
+            }
+        });
+
         // Check authentication
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
+                // Load saved response-length preference
+                try {
+                    if (!user.isAnonymous) {
+                        const res = await fetch(`/user/preferences/${encodeURIComponent(user.uid)}`);
+                        if (res.ok) {
+                            const prefs = await res.json();
+                            const rl = (prefs && prefs.response_length) ? prefs.response_length : null;
+                            if (rl) window.selectResponseLength(rl, false);
+                        }
+                    } else {
+                        const local = localStorage.getItem('menti_response_length');
+                        if (local) window.selectResponseLength(local, false);
+                    }
+                } catch (e) { console.error('Error loading preferences', e); }
+                
+                // Initialize themes
+                window.initializeThemes();
                 
                 // Display user info
                 if (user.isAnonymous) {
@@ -1560,7 +2628,8 @@
                         user_id: currentUser.uid,
                         is_guest: currentUser.isAnonymous,  // Send guest mode flag
                         conversation_id: currentConversationId,  // Include conversation ID for logged-in users
-                        mode: currentMode  // Pass selected conversation style mode
+                        mode: currentMode, // Pass selected conversation style mode
+                        response_length: currentResponseLength
                     })
                 });
 
@@ -1569,15 +2638,16 @@
                 }
 
                 const data = await response.json();
+                const safeReply = (data.reply || '').trim() || "I'm here with you. Could you share a little more so I can support you better?";
 
                 // Hide typing indicator
                 hideTypingIndicator();
 
                 // Add bot message with emotion
-                addMessage(data.reply, 'bot', data.emotion);
+                addMessage(safeReply, 'bot', data.emotion);
                 
                 // Speak bot response if speaker not muted
-                speakBotResponse(data.reply);
+                speakBotResponse(safeReply);
                 
                 // If this is a new conversation and user is logged in, create it now
                 if (isNewConversation && !currentUser.isAnonymous && pendingConversationTitle) {
@@ -1592,7 +2662,7 @@
                                 user_id: currentUser.uid,
                                 is_guest: false,
                                 conversation_id: newConvId,
-                                bot_reply: data.reply,
+                                bot_reply: safeReply,
                                 emotion: data.emotion,
                                 save_only: true // Flag to just save, not generate new response
                             })
@@ -1675,7 +2745,9 @@
             if (welcomeMessage) {
                 welcomeMessage.remove();
                 const headerModeSelector = document.getElementById('headerModeSelector');
+                const headerLengthSelector = document.getElementById('headerLengthSelector');
                 if (headerModeSelector) headerModeSelector.style.display = 'flex';
+                if (headerLengthSelector) headerLengthSelector.style.display = 'flex';
             }
 
             chatMessages.appendChild(messageDiv);
@@ -1725,9 +2797,10 @@
             }
         }
 
-        // Focus input on load
+        // Focus input on load and initialize response-length UI
         window.addEventListener('load', () => {
             chatInput.focus();
+            try { selectResponseLength(currentResponseLength, false); } catch(e){}
         });
 
         // ==================== SIDEBAR FUNCTIONS ====================
@@ -1852,12 +2925,16 @@
 
             // Hide header mode selector (welcome screen shows the cards instead)
             const headerModeSelector = document.getElementById('headerModeSelector');
+            const headerLengthSelector = document.getElementById('headerLengthSelector');
             if (headerModeSelector) headerModeSelector.style.display = 'none';
+            if (headerLengthSelector) headerLengthSelector.style.display = 'none';
             
             // Rebuild welcome message with mode cards
             chatMessages.innerHTML = buildWelcomeHTML();
             // Re-apply the active mode state to the newly created cards
             selectMode(currentMode);
+            // Re-apply response length state to welcome UI
+            selectResponseLength(currentResponseLength, false);
             
             // Update sidebar selection
             renderConversations();
@@ -1906,6 +2983,19 @@
                             </ul>
                         </div>
                     </div>
+                    <!-- Response-length toggle for welcome screen -->
+                    <div class="length-toggle-welcome" id="lengthToggleWelcome" style="">
+                        <div class="mode-card-small active" id="welcomeLenCard-short" onclick="selectResponseLength('short')">
+                            <div class="mode-card-icon">⚡</div>
+                            <div class="mode-card-name">Short</div>
+                            <div class="mode-card-preview">Concise replies, quick to read.</div>
+                        </div>
+                        <div class="mode-card-small" id="welcomeLenCard-detailed" onclick="selectResponseLength('detailed')">
+                            <div class="mode-card-icon">📚</div>
+                            <div class="mode-card-name">Detailed</div>
+                            <div class="mode-card-preview">Longer, explanatory responses.</div>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -1942,9 +3032,13 @@
                         chatMessages.innerHTML = buildWelcomeHTML();
                         selectMode(currentMode);
                         if (headerModeSelector) headerModeSelector.style.display = 'none';
+                        const headerLengthSelector = document.getElementById('headerLengthSelector');
+                        if (headerLengthSelector) headerLengthSelector.style.display = 'none';
                     } else {
                         // Has messages: show header mode selector
                         if (headerModeSelector) headerModeSelector.style.display = 'flex';
+                        const headerLengthSelector2 = document.getElementById('headerLengthSelector');
+                        if (headerLengthSelector2) headerLengthSelector2.style.display = 'flex';
 
                         // Sort messages by timestamp to ensure correct order
                         messages.sort((a, b) => {
