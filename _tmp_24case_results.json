@@ -1,0 +1,346 @@
+{
+  "generated_at": "2026-08-22T10:50:29.522407Z",
+  "model": "openai/gpt-oss-120b",
+  "cases": [
+    "friendly short",
+    "supportive short",
+    "professional short",
+    "friendly detailed",
+    "supportive detailed",
+    "professional detailed"
+  ],
+  "inputs": {
+    "input1": {
+      "message": "i want to cry",
+      "runs": [
+        {
+          "case": "friendly short",
+          "mode": "friendly",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I am glad you reached out, and we can take one small step together right now.",
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        },
+        {
+          "case": "supportive short",
+          "mode": "supportive",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "You are doing great by sharing this, and we can choose one simple next step together now.",
+          "tokens": {
+            "input": 182,
+            "output": 150,
+            "total": 332
+          }
+        },
+        {
+          "case": "professional short",
+          "mode": "professional",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "It sounds like you’re feeling overwhelmed, which is understandable; try gently breathing in for four counts, holding briefly.",
+          "tokens": {
+            "input": 186,
+            "output": 190,
+            "total": 376
+          }
+        },
+        {
+          "case": "friendly detailed",
+          "mode": "friendly",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I am really glad you shared that with me, and I am here with you. What you are feeling makes sense, and we can start with one small step to make this feel lighter. What feels easiest to do first right now?",
+          "tokens": {
+            "input": 185,
+            "output": 220,
+            "total": 405
+          }
+        },
+        {
+          "case": "supportive detailed",
+          "mode": "supportive",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "Thank you for opening up, because that already shows strength. Your feelings are valid, and taking one practical step now can help you feel more in control. What small action feels most doable in this moment?",
+          "tokens": {
+            "input": 184,
+            "output": 220,
+            "total": 404
+          }
+        },
+        {
+          "case": "professional detailed",
+          "mode": "professional",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "Thank you for sharing this clearly, because that is an important first step. Your reaction is understandable, and one focused next step can reduce overwhelm. What is one manageable action you can take right now?",
+          "tokens": {
+            "input": 188,
+            "output": 210,
+            "total": 398
+          }
+        }
+      ]
+    },
+    "input2": {
+      "message": "i dont want to be rude but i want to punch the face of my classmates bullying me. it angers me that they are targeting me.",
+      "runs": [
+        {
+          "case": "friendly short",
+          "mode": "friendly",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I am glad you reached out, and we can take one small step together right now.",
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        },
+        {
+          "case": "supportive short",
+          "mode": "supportive",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "You are doing great by sharing this, and we can choose one simple next step together now.",
+          "tokens": {
+            "input": 207,
+            "output": 220,
+            "total": 427
+          }
+        },
+        {
+          "case": "professional short",
+          "mode": "professional",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I hear how hurt and angry you feel being targeted, and it’s understandable; try a slow 4‑4‑4 breathing.",
+          "tokens": {
+            "input": 211,
+            "output": 195,
+            "total": 406
+          }
+        },
+        {
+          "case": "friendly detailed",
+          "mode": "friendly",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "It sounds like the bullying has left you feeling really angry and hurt, and that’s completely understandable. It’s okay to feel that way, and you deserve to feel safe and respected. Maybe you could try talking to a teacher or a counselor you trust about what’s happening, and I’m curious—what would feel most supportive for you right now?",
+          "tokens": {
+            "input": 196,
+            "output": 171,
+            "total": 367
+          }
+        },
+        {
+          "case": "supportive detailed",
+          "mode": "supportive",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "It sounds like the bullying has left you feeling overwhelmed and angry enough to want to react physically. That anger is a natural response when you’re being targeted, and it shows.",
+          "tokens": {
+            "input": 404,
+            "output": 400,
+            "total": 804
+          }
+        },
+        {
+          "case": "professional detailed",
+          "mode": "professional",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "It sounds like the bullying has left you feeling intense anger and a strong urge to react physically. That reaction is understandable when you’re being targeted, and it’s okay to acknowledge those feelings without judging yourself. Try taking a few slow, deep breaths—inhale for four counts, hold briefly, then exhale for six—to help create a pause before acting; what do.",
+          "tokens": {
+            "input": 412,
+            "output": 358,
+            "total": 770
+          }
+        }
+      ]
+    },
+    "input3": {
+      "message": "please help me i think i am about to die. i have literally no one to talk to and i am going crazy i want to end myself",
+      "runs": [
+        {
+          "case": "friendly short",
+          "mode": "friendly",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I am glad you reached out, and we can take one small step together right now.",
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        },
+        {
+          "case": "supportive short",
+          "mode": "supportive",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "You are doing great by sharing this, and we can choose one simple next step together now.",
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        },
+        {
+          "case": "professional short",
+          "mode": "professional",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "Thank you for sharing this, and let us choose one clear, manageable next step right now.",
+          "tokens": {
+            "input": 197,
+            "output": 165,
+            "total": 362
+          }
+        },
+        {
+          "case": "friendly detailed",
+          "mode": "friendly",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I am really glad you shared that with me, and I am here with you. What you are feeling makes sense, and we can start with one small step to make this feel lighter. What feels easiest to do first right now?",
+          "tokens": {
+            "input": 210,
+            "output": 180,
+            "total": 390
+          }
+        },
+        {
+          "case": "supportive detailed",
+          "mode": "supportive",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I hear how overwhelming and frightening this feels, and it’s understandable to feel alone right now. If you can, please call your local.",
+          "tokens": {
+            "input": 195,
+            "output": 210,
+            "total": 405
+          }
+        },
+        {
+          "case": "professional detailed",
+          "mode": "professional",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "Thank you for sharing this clearly, because that is an important first step. Your reaction is understandable, and one focused next step can reduce overwhelm. What is one manageable action you can take right now?",
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        }
+      ]
+    },
+    "input4": {
+      "message": "i need medical help",
+      "runs": [
+        {
+          "case": "friendly short",
+          "mode": "friendly",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I am glad you reached out, and we can take one small step together right now.",
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        },
+        {
+          "case": "supportive short",
+          "mode": "supportive",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "You are doing great by sharing this, and we can choose one simple next step together now.",
+          "tokens": {
+            "input": 182,
+            "output": 220,
+            "total": 402
+          }
+        },
+        {
+          "case": "professional short",
+          "mode": "professional",
+          "length": "short",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "Thank you for sharing this, and let us choose one clear, manageable next step right now.",
+          "tokens": {
+            "input": 186,
+            "output": 220,
+            "total": 406
+          }
+        },
+        {
+          "case": "friendly detailed",
+          "mode": "friendly",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "It sounds like you’re feeling like you need medical help right now. It’s completely understandable to want support when you’re not feeling well. Maybe reaching out to a trusted healthcare provider or calling a local health line could be a good first step—.",
+          "tokens": {
+            "input": 356,
+            "output": 375,
+            "total": 731
+          }
+        },
+        {
+          "case": "supportive detailed",
+          "mode": "supportive",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "I hear that you’re feeling a strong need for medical assistance right now. It’s courageous to recognize when you need help, and reaching out shows your commitment to your well‑being. Consider contacting a trusted healthcare professional or a local urgent care line today to discuss your concerns.",
+          "tokens": {
+            "input": 170,
+            "output": 169,
+            "total": 339
+          }
+        },
+        {
+          "case": "professional detailed",
+          "mode": "professional",
+          "length": "detailed",
+          "status": 200,
+          "emotion": "calm",
+          "reply": "Thank you for sharing this clearly, because that is an important first step. Your reaction is understandable, and one focused next step can reduce overwhelm. What is one manageable action you can take right now?",
+          "tokens": {
+            "input": 174,
+            "output": 220,
+            "total": 394
+          }
+        }
+      ]
+    }
+  }
+}
