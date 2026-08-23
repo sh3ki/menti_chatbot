@@ -37,7 +37,7 @@ RESOURCE_IMAGES = {
     },
     'technique-001': {
         'title': 'Cognitive Behavioral Therapy Basics',
-        'url': 'https://images.unsplash.com/photo-1516534775068-bb6bafd2c5c2?w=600&h=400&fit=crop',
+        'url': 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
         'filename': 'cbt-basics.jpg'
     },
     'technique-002': {
@@ -57,12 +57,12 @@ RESOURCE_IMAGES = {
     },
     'awareness-003': {
         'title': 'Building Emotional Resilience',
-        'url': 'https://images.unsplash.com/photo-1508615039623-a25605d2938d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
+        'url': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
         'filename': 'emotional-resilience.jpg'
     },
     'resource-001': {
         'title': 'Emotional Regulation Workbook',
-        'url': 'https://images.unsplash.com/photo-1468276311594-df7cb65d8c1d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
+        'url': 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
         'filename': 'emotional-regulation.jpg'
     },
     'breathing-001': {
