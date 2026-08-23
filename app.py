@@ -19,6 +19,23 @@ import atexit
 # Load environment variables
 load_dotenv()
 
+
+def _is_truthy_env(value):
+    return str(value or '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+DEBUG_AI_PIPELINE = _is_truthy_env(os.getenv('MENTI_DEBUG_AI_PIPELINE', 'false'))
+
+
+def _debug_ai_log(label, text):
+    """Print debug logs for AI pipeline only when explicitly enabled."""
+    if not DEBUG_AI_PIPELINE:
+        return
+    compact = ' '.join(str(text or '').split())
+    if len(compact) > 900:
+        compact = compact[:900] + '...'
+    print(f"[AI-DEBUG] {label}: {compact}")
+
 # Initialize Flask app
 app = Flask(__name__, 
             static_folder='assets',
@@ -28,6 +45,9 @@ CORS(app)
 
 # In-memory conversation storage (use Redis/database for production)
 conversation_history = {}
+
+# Unified offline response when Groq and model fallback both fail.
+OFFLINE_REPLY = "Menti's server is currently offline. Please try again later."
 
 # ==================== ADMIN CONFIGURATION ====================
 
@@ -51,12 +71,160 @@ def admin_required(f):
 
 # Initialize Groq Client
 groq_api_key = os.getenv('GROQ_API_KEY')
+groq_api_key_fallback = (os.getenv('GROQ_API_KEY_FALLBACK') or '').strip()
 if not groq_api_key:
     print("❌ ERROR: GROQ_API_KEY not found in environment variables!")
     print("Please add GROQ_API_KEY to your .env file")
 else:
     groq_client = Groq(api_key=groq_api_key)
-    print("✅ Groq client initialized successfully")
+    groq_client_fallback = None
+    if groq_api_key_fallback and groq_api_key_fallback != groq_api_key:
+        groq_client_fallback = Groq(api_key=groq_api_key_fallback)
+        print("✅ Groq fallback API client initialized successfully")
+    print("✅ Groq primary API client initialized successfully")
+    # Prefer a chat-capable model by default.
+    # Keep backward compatibility with GROQ_MODEL, but allow GROQ_CHAT_MODEL override.
+    DEFAULT_CHAT_MODEL = 'openai/gpt-oss-20b'
+    configured_model = os.getenv('GROQ_CHAT_MODEL') or os.getenv('GROQ_MODEL') or DEFAULT_CHAT_MODEL
+    groq_fallback_model = os.getenv('GROQ_FALLBACK_MODEL', 'openai/gpt-oss-120b')
+
+    # Guard against common non-chat classifier/moderation models that return empty content.
+    _non_chat_hints = ('prompt-guard', 'guard', 'moderation', 'classifier')
+    if any(h in configured_model.lower() for h in _non_chat_hints):
+        print(
+            f"⚠️ GROQ model '{configured_model}' appears non-chat. "
+            f"Falling back to chat model '{DEFAULT_CHAT_MODEL}'."
+        )
+        groq_model = DEFAULT_CHAT_MODEL
+    else:
+        groq_model = configured_model
+
+    print(f"ℹ️ Using Groq model: {groq_model}")
+    print(f"ℹ️ Backup Groq model: {groq_fallback_model}")
+
+    # Centralized Groq chat wrapper: returns the SDK response or None on any error
+    def groq_chat_create(**kwargs):
+        """Call Groq chat completions safely.
+        Returns the raw response object, or None on any API error or when the model returns a
+        non-chat/classifier-style output (e.g., numeric score outputs).
+        """
+        if 'groq_client' not in globals() or not groq_client:
+            print('Groq client not initialized')
+            return None
+
+        if 'top_p' not in kwargs:
+            kwargs['top_p'] = 1
+        if 'stream' not in kwargs:
+            kwargs['stream'] = False
+
+        allow_empty_retry = kwargs.pop('_allow_empty_retry', True)
+        allow_model_failover = kwargs.pop('_allow_model_failover', True)
+        debug_label = kwargs.pop('_debug_label', '')
+        import re as _local_re
+
+        def _call_once(client_obj, request_kwargs, call_label):
+            if DEBUG_AI_PIPELINE:
+                req_messages = request_kwargs.get('messages') or []
+                _debug_ai_log(
+                    f"REQ {call_label}",
+                    f"model={request_kwargs.get('model')} max_tokens={request_kwargs.get('max_tokens')} temp={request_kwargs.get('temperature')} msg_count={len(req_messages)}"
+                )
+            try:
+                local_resp = client_obj.chat.completions.create(**request_kwargs)
+            except Exception as ex:
+                print(f"Groq API error ({call_label}): {ex}")
+                _debug_ai_log(f"FAIL {call_label}", f"api_error={ex}")
+                return None, ''
+
+            try:
+                choices = getattr(local_resp, 'choices', None)
+                if not choices or len(choices) == 0:
+                    print(f"Groq response contained no choices ({call_label})")
+                    _debug_ai_log(f"FAIL {call_label}", 'no_choices')
+                    return None, ''
+                msg = getattr(choices[0], 'message', None)
+                local_content = (getattr(msg, 'content', '') or '').strip() if msg else ''
+            except Exception as ex:
+                print(f"Error inspecting Groq response ({call_label}): {ex}")
+                _debug_ai_log(f"FAIL {call_label}", f"inspect_error={ex}")
+                return None, ''
+
+            if not local_content:
+                _debug_ai_log(f"FAIL {call_label}", 'empty_content')
+                return None, ''
+
+            if _local_re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", local_content):
+                print(f"Groq returned numeric-only content ('{local_content}') in {call_label}; treating as non-chat output")
+                _debug_ai_log(f"FAIL {call_label}", 'numeric_only_content')
+                return None, ''
+
+            return local_resp, local_content
+
+        def _with_model_fallback(request_kwargs):
+            variants = [dict(request_kwargs)]
+
+            if allow_empty_retry:
+                base_max = request_kwargs.get('max_tokens')
+                if isinstance(base_max, int) and base_max < 220:
+                    retry_kwargs = dict(request_kwargs)
+                    retry_kwargs['max_tokens'] = min(max(base_max + 40, int(base_max * 1.5)), 220)
+                    variants.append(retry_kwargs)
+
+            req_model = request_kwargs.get('model')
+            if allow_model_failover and groq_fallback_model and req_model != groq_fallback_model:
+                model_kwargs = dict(request_kwargs)
+                model_kwargs['model'] = groq_fallback_model
+                if isinstance(model_kwargs.get('max_tokens'), int):
+                    model_kwargs['max_tokens'] = min(model_kwargs['max_tokens'] + 100, 2000)  # Removed artificial 260 cap
+                variants.append(model_kwargs)
+
+            return variants
+
+        base_kwargs = dict(kwargs)
+        label_root = debug_label or 'groq_chat_create'
+
+        # Attempt order:
+        # 1) Primary API key + model/retry/model-fallback
+        # 2) Fallback API key + model/retry/model-fallback
+        client_attempts = [('primary_key', groq_client)]
+        if 'groq_client_fallback' in globals() and groq_client_fallback:
+            client_attempts.append(('fallback_key', groq_client_fallback))
+
+        selected_resp = None
+        selected_content = ''
+        for key_label, client_obj in client_attempts:
+            for idx, attempt_kwargs in enumerate(_with_model_fallback(base_kwargs), start=1):
+                call_label = f"{label_root}:{key_label}:try{idx}"
+                local_resp, local_content = _call_once(client_obj, attempt_kwargs, call_label)
+                if local_resp is not None and local_content:
+                    if key_label == 'fallback_key':
+                        print("Groq API-key fallback succeeded")
+                    if attempt_kwargs.get('model') != base_kwargs.get('model'):
+                        print(f"Groq model fallback succeeded with model {attempt_kwargs.get('model')}")
+                    selected_resp = local_resp
+                    selected_content = local_content
+                    break
+            if selected_resp is not None:
+                break
+
+        if selected_resp is None:
+            print('Groq returned no usable content after model + API-key fallback')
+            _debug_ai_log(f"FAIL {label_root}", 'all_attempts_exhausted')
+            return None
+
+        if DEBUG_AI_PIPELINE:
+            usage = getattr(selected_resp, 'usage', None)
+            if usage:
+                _debug_ai_log(
+                    f"USAGE {debug_label or 'groq_chat_create'}",
+                    f"prompt_tokens={getattr(usage, 'prompt_tokens', None)} completion_tokens={getattr(usage, 'completion_tokens', None)} total_tokens={getattr(usage, 'total_tokens', None)}"
+                )
+            _debug_ai_log(f"RAW {debug_label or 'groq_chat_create'}", selected_content)
+
+        return selected_resp
+
+    # Offline reply used when Groq + model fallback cannot produce a response
+    OFFLINE_REPLY = "Menti's server is currently offline. Please try again later."
 
 # Initialize Firebase Admin SDK
 try:
@@ -1041,6 +1209,9 @@ def chat():
         conversation_id = data.get('conversation_id')  # Get conversation ID for logged-in users
         save_only = data.get('save_only', False)  # Flag to only save without generating response
         mode = data.get('mode', 'friendly')  # Conversation style mode: friendly / supportive / professional
+        response_length = data.get('response_length', 'short')  # short / detailed
+        if response_length not in ('short', 'detailed'):
+            response_length = 'short'
         
         # If save_only mode, just save the existing messages
         if save_only:
@@ -1076,23 +1247,45 @@ def chat():
             "content": user_message
         })
         
-        # Step 2a: Detect emotion
-        emotion = detect_emotion(user_message)
-        print(f"😊 Detected emotion: {emotion}")
+        # Step 2: Single-call analysis (context, follow-up, risk, emotion, masking)
+        # Pass conversation_id to ensure only current conversation history is used
+        analysis = analyze_message_context(user_id, user_message, conversation_id=conversation_id)
+        analysis_ok = bool(analysis.get('analysis_ok', False))
 
-        # Step 2b: Detect emotional masking / avoidance
-        is_masking = detect_emotional_masking(user_message)
-        if is_masking:
-            print(f"🎭 Emotional masking flag raised — will probe gently")
+        if analysis_ok:
+            emotion = analysis.get('emotion', 'calm')
+            is_masking = bool(analysis.get('is_masking', False))
+            is_crisis = bool(analysis.get('is_high_risk', False))
+            crisis_type = analysis.get('risk_type', '') if is_crisis else ''
+            crisis_severity = analysis.get('risk_severity', 'MEDIUM') if is_crisis else ''
 
-        # Step 2c: Detect crisis signals (self-harm, suicide, homicide, medical, abuse)
-        is_crisis, crisis_type, crisis_severity = detect_crisis(user_message)
-        if is_crisis:
-            print(f"🚨 CRISIS DETECTED: {crisis_type} [{crisis_severity}]")
-            log_crisis_alert(user_id, user_message, crisis_type, crisis_severity, emotion, mode, is_anonymous=is_guest)
-        
-        # Step 3: Generate supportive response with conversation context
-        bot_reply = generate_supportive_response(user_message, emotion, user_id, is_masking=is_masking, mode=mode, is_crisis=is_crisis, crisis_type=crisis_type)
+            print(f"😊 Detected emotion: {emotion}")
+            if is_masking:
+                print("🎭 Emotional masking flag raised — will probe gently")
+            if is_crisis:
+                print(f"🚨 CRISIS DETECTED: {crisis_type} [{crisis_severity}]")
+                log_crisis_alert(user_id, user_message, crisis_type, crisis_severity, emotion, mode, is_anonymous=is_guest)
+
+            # Step 3: Generate final reply using analysis result
+            bot_reply = generate_supportive_response(
+                user_message,
+                emotion,
+                user_id,
+                is_masking=is_masking,
+                mode=mode,
+                is_crisis=is_crisis,
+                crisis_type=crisis_type,
+                response_length=response_length,
+                analysis=analysis,
+            )
+        else:
+            print('⚠️ Analysis unavailable after Groq/model fallback; returning offline reply')
+            emotion = 'calm'
+            bot_reply = OFFLINE_REPLY
+
+        # If final generation also fails after API/model fallback, use offline reply.
+        if not bot_reply:
+            bot_reply = OFFLINE_REPLY
         
         # Step 4: Add bot response to history
         conversation_history[user_id].append({
@@ -1197,6 +1390,278 @@ def clear_history():
 
 # ==================== HELPER FUNCTIONS ====================
 
+def _fetch_conversation_messages_from_firestore(conversation_id, n=4):
+    """
+    Fetch the last n user and n bot messages from a specific conversation in Firestore.
+    Returns: (user_msgs, assistant_msgs) - lists of message strings
+    """
+    user_msgs = []
+    assistant_msgs = []
+    
+    if not db or not conversation_id:
+        return user_msgs, assistant_msgs
+    
+    try:
+        messages_ref = db.collection('conversations').document(conversation_id).collection('messages')
+        # Fetch messages ordered by timestamp, most recent first
+        docs = messages_ref.order_by('timestamp', direction='DESCENDING').limit(n * 2).stream()
+        
+        # Collect all messages and reverse to get chronological order
+        all_messages = []
+        for doc in docs:
+            data = doc.to_dict()
+            sender = data.get('sender', '').lower()
+            message_text = data.get('message', '').strip()
+            if message_text:
+                all_messages.append({
+                    'sender': sender,
+                    'message': message_text
+                })
+        
+        # Reverse to get chronological order (oldest first)
+        all_messages.reverse()
+        
+        # Separate by sender and keep last n of each
+        for msg in all_messages:
+            if msg['sender'] == 'user':
+                user_msgs.append(msg['message'])
+            elif msg['sender'] == 'bot':
+                assistant_msgs.append(msg['message'])
+        
+        # Keep only last n of each
+        user_msgs = user_msgs[-n:]
+        assistant_msgs = assistant_msgs[-n:]
+        
+    except Exception as e:
+        print(f"⚠️ Error fetching conversation messages from Firestore: {e}")
+    
+    return user_msgs, assistant_msgs
+
+
+def _last_n_role_messages(user_id, role, n=4):
+    """Return last n messages for a role from in-memory conversation history.
+    Fallback when conversation_id is not available.
+    """
+    history = conversation_history.get(user_id, []) or []
+    msgs = []
+    for turn in history:
+        if (turn.get('role') or '').lower() == role:
+            content = ' '.join((turn.get('content') or '').split())
+            if content:
+                msgs.append(content)
+    return msgs[-n:]
+
+
+def _format_context_for_analysis(conversation_id=None, user_id=None):
+    """Build compact role-separated context (last 4 user + last 4 assistant).
+    Priority: Use Firestore if conversation_id provided, fallback to in-memory history.
+    """
+    user_msgs = []
+    assistant_msgs = []
+    
+    # Try to fetch from Firestore first (preferred for conversation-specific history)
+    if conversation_id:
+        user_msgs, assistant_msgs = _fetch_conversation_messages_from_firestore(conversation_id, n=4)
+    
+    # Fallback to in-memory history if no Firestore data or no conversation_id
+    if not user_msgs and user_id:
+        user_msgs = _last_n_role_messages(user_id, 'user', n=4)
+    if not assistant_msgs and user_id:
+        assistant_msgs = _last_n_role_messages(user_id, 'assistant', n=4)
+
+    user_lines = [f"U{i+1}: {m}" for i, m in enumerate(user_msgs)] or ['U: (none)']
+    assistant_lines = [f"M{i+1}: {m}" for i, m in enumerate(assistant_msgs)] or ['M: (none)']
+    return '\n'.join([
+        'RECENT_USER_MESSAGES:',
+        *user_lines,
+        'RECENT_MENTI_MESSAGES:',
+        *assistant_lines,
+    ])
+
+
+def _extract_first_json_object(text):
+    """Extract first JSON object from model output, tolerating extra text."""
+    raw = (text or '').strip()
+    if not raw:
+        return None
+    start = raw.find('{')
+    end = raw.rfind('}')
+    if start == -1 or end == -1 or end <= start:
+        return None
+    try:
+        return json.loads(raw[start:end + 1])
+    except Exception:
+        return None
+
+
+def _to_bool(value):
+    if isinstance(value, bool):
+        return value
+    text = str(value or '').strip().lower()
+    return text in ('yes', 'true', '1', 'y')
+
+
+def _normalize_risk_type(value):
+    allowed = {'suicide', 'self_harm', 'homicide', 'medical', 'abuse', 'none'}
+    text = str(value or '').strip().lower()
+    return text if text in allowed else 'none'
+
+
+def _normalize_emotion(value):
+    valid = {'happy', 'calm', 'sad', 'anxious', 'stressed', 'angry', 'confused', 'motivated', 'tired', 'numb'}
+    text = str(value or '').strip().lower()
+    if text in valid:
+        return text
+    for label in valid:
+        if label in text:
+            return label
+    return 'calm'
+
+
+def _heuristic_emotion_only(message):
+    """Local non-API fallback for emotion classification."""
+    text = (message or '').lower().strip()
+    heuristic_map = [
+        (r'\b(joy|excited|grateful|happy|thrilled|great)\b', 'happy'),
+        (r'\b(anxious|panic|nervous|worried|fear|scared)\b', 'anxious'),
+        (r'\b(stress|stressed|overwhelmed|pressure|burnout)\b', 'stressed'),
+        (r'\b(angry|mad|furious|rage|pissed|annoyed)\b', 'angry'),
+        (r'\b(sad|cry|depressed|down|hopeless|empty|lonely|grief)\b', 'sad'),
+        (r'\b(confused|lost|unsure|uncertain)\b', 'confused'),
+        (r'\b(motivated|determined|driven|focused)\b', 'motivated'),
+        (r'\b(tired|exhausted|drained|fatigue|sleepy)\b', 'tired'),
+        (r'\b(numb|disconnected|blank|nothing)\b', 'numb'),
+    ]
+    for pat, emo in heuristic_map:
+        if _re.search(pat, text):
+            return emo
+    return 'calm'
+
+
+def _risk_from_regex_only(message):
+    """Local non-API fallback for risk typing/severity."""
+    text = (message or '').lower().strip()
+    patterns = [
+        ('suicide', 'HIGH', [
+            r'\bkill myself\b', r'\bend my life\b', r'\bwant to die\b', r'\bwanna die\b',
+            r'\bsuicide\b', r'\bsuicidal\b', r'\btake my (own )?life\b', r'\bdon\'?t want to live\b',
+            r'\bno reason to live\b', r'\bbetter off dead\b', r'\bi want to end myself\b',
+        ]),
+        ('self_harm', 'HIGH', [
+            r'\bcut(ting)? (myself|me)\b', r'\bhurt(ing)? (myself|me)\b', r'\bself.?harm\b',
+            r'\bburning? (myself|my skin)\b',
+        ]),
+        ('homicide', 'HIGH', [
+            r'\bkill (someone|them|him|her|people)\b', r'\bmurder\b', r'\bgoing to (hurt|attack|stab|shoot)\b',
+        ]),
+        ('medical', 'MEDIUM', [
+            r'\bcan\'?t breathe\b', r'\bheart attack\b', r'\bchest (pain|tightness|hurts?)\b', r'\boverdos(e|ing)\b',
+        ]),
+        ('abuse', 'MEDIUM', [
+            r'\b(being|getting) (abused|beaten|hit|assaulted|raped|molested)\b', r'\bdomestic (violence|abuse)\b', r'\bbully|bullying|bullied\b',
+        ]),
+    ]
+    for rtype, sev, pats in patterns:
+        for pat in pats:
+            if _re.search(pat, text):
+                return True, rtype, sev
+    return False, 'none', 'LOW'
+
+
+def analyze_message_context(user_id, last_user_message, conversation_id=None):
+    """Part 1: Single Groq prompt to analyze context, follow-up need, risk, emotion, and masking.
+    Uses conversation_id to fetch conversation-specific history from Firestore.
+    """
+    context_block = _format_context_for_analysis(conversation_id=conversation_id, user_id=user_id)
+
+    result = {
+        'analysis_ok': False,
+        'context_summary': 'Recent chat context captured from last 4 user and 4 Menti messages.',
+        'last_message': last_user_message,
+        'follow_up_needed': False,
+        'follow_up_reason': '',
+        'follow_up_question': '',
+        'is_high_risk': False,
+        'risk_type': 'none',
+        'risk_severity': 'LOW',
+        'risk_reason': '',
+        'emotion': 'calm',
+        'emotion_reason': '',
+        'is_masking': False,
+        'masking_reason': '',
+    }
+
+    try:
+        prompt = (
+            "Analyze LAST_USER_MESSAGE using RECENT_USER_MESSAGES and RECENT_MENTI_MESSAGES. "
+            "Return JSON only with keys exactly: "
+            "context_summary, follow_up_needed, follow_up_reason, follow_up_question, "
+            "is_high_risk, risk_type, risk_severity, risk_reason, emotion, emotion_reason, is_masking, masking_reason. "
+            "Rules: follow_up_needed/is_high_risk/is_masking are booleans. "
+            "risk_type one of suicide,self_harm,homicide,medical,abuse,none. "
+            "risk_severity one of HIGH,MEDIUM,LOW. "
+            "emotion one of happy,calm,sad,anxious,stressed,angry,confused,motivated,tired,numb. "
+            "Keep reasons short (<=12 words). follow_up_question empty string if not needed."
+            f"\n\n{context_block}\nLAST_USER_MESSAGE:\n{last_user_message}"
+        )
+
+        response = groq_chat_create(
+            model=groq_model,
+            messages=[
+                {
+                    'role': 'system',
+                    'content': (
+                        'You are a strict JSON analyzer for a mental-health companion. '
+                        'Do not write prose outside JSON. '
+                    ),
+                },
+                {'role': 'user', 'content': prompt},
+            ],
+            max_tokens=4096,  # High ceiling; word count instructions in prompt control output
+            temperature=0.0,
+            _debug_label='part1_analysis',
+        )
+        if response is None:
+            _debug_ai_log('PART1 fail', 'no_response_after_model_and_api_fallback')
+            return result
+
+        raw = getattr(response.choices[0].message, 'content', '') or ''
+        _debug_ai_log('PART1 raw', raw)
+        parsed = _extract_first_json_object(raw)
+        if not isinstance(parsed, dict):
+            _debug_ai_log('PART1 fail', 'invalid_json_from_model')
+            return result
+
+        risk_type = _normalize_risk_type(parsed.get('risk_type'))
+        is_high_risk = _to_bool(parsed.get('is_high_risk')) and risk_type != 'none'
+        severity = str(parsed.get('risk_severity', '') or '').strip().upper()
+        if severity not in ('HIGH', 'MEDIUM', 'LOW'):
+            severity = 'HIGH' if risk_type in ('suicide', 'self_harm', 'homicide') else ('MEDIUM' if risk_type in ('medical', 'abuse') else 'LOW')
+
+        result.update({
+            'analysis_ok': True,
+            'context_summary': str(parsed.get('context_summary', result['context_summary']))[:300],
+            'follow_up_needed': _to_bool(parsed.get('follow_up_needed')),
+            'follow_up_reason': str(parsed.get('follow_up_reason', '') or '')[:120],
+            'follow_up_question': str(parsed.get('follow_up_question', '') or '')[:220],
+            'is_high_risk': is_high_risk,
+            'risk_type': risk_type,
+            'risk_severity': severity,
+            'risk_reason': str(parsed.get('risk_reason', '') or '')[:120],
+            'emotion': _normalize_emotion(parsed.get('emotion')),
+            'emotion_reason': str(parsed.get('emotion_reason', '') or '')[:120],
+            'is_masking': _to_bool(parsed.get('is_masking')),
+            'masking_reason': str(parsed.get('masking_reason', '') or '')[:120],
+        })
+
+        if not result['follow_up_needed']:
+            result['follow_up_question'] = ''
+    except Exception as e:
+        print(f"Analysis pipeline error: {e}")
+        _debug_ai_log('PART1 fail', f'exception={e}')
+
+    return result
+
 def detect_emotion(message):
     """
     Detect emotion from user message using Groq.
@@ -1204,32 +1669,54 @@ def detect_emotion(message):
     happy, calm, sad, anxious, stressed, angry, confused, motivated, tired, numb
     """
     try:
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        text = (message or '').lower().strip()
+        heuristic_map = [
+            (r'\b(joy|excited|grateful|happy|thrilled|great)\b', 'happy'),
+            (r'\b(anxious|panic|nervous|worried|fear|scared)\b', 'anxious'),
+            (r'\b(stress|stressed|overwhelmed|pressure|burnout)\b', 'stressed'),
+            (r'\b(angry|mad|furious|rage|pissed|annoyed)\b', 'angry'),
+            (r'\b(sad|cry|depressed|down|hopeless|empty|lonely|grief)\b', 'sad'),
+            (r'\b(confused|lost|unsure|uncertain)\b', 'confused'),
+            (r'\b(motivated|determined|driven|focused)\b', 'motivated'),
+            (r'\b(tired|exhausted|drained|fatigue|sleepy)\b', 'tired'),
+            (r'\b(numb|disconnected|blank|nothing)\b', 'numb'),
+        ]
+        heuristic_hit = next((emo for pat, emo in heuristic_map if _re.search(pat, text)), None)
+
+        response = groq_chat_create(
+            model=groq_model,
             messages=[
                 {
                     "role": "system",
-                    "content": """Classify the emotion in this message into ONE word only.
-Choices: happy, calm, sad, anxious, stressed, angry, confused, motivated, tired, numb
-Rules: pick the best match, never default to calm/numb unless clearly indicated, reply with ONE word."""
+                    "content": """You are an emotion classifier for mental-health text.
+Return EXACTLY one label from:
+happy, calm, sad, anxious, stressed, angry, confused, motivated, tired, numb
+Rules:
+- pick strongest current emotion,
+- prefer sad/anxious/stressed/angry when distress is explicit,
+- use calm only when message is neutral/stable,
+- output one label only."""
                 },
                 {
                     "role": "user",
                     "content": message
                 }
             ],
-            max_tokens=5,
-            temperature=0.1
+            max_tokens=20,
+            temperature=0.0,
         )
-        
-        emotion = response.choices[0].message.content.strip().lower()
+        if response is None:
+            print('Emotion detection skipped: no usable Groq response')
+            return heuristic_hit or 'calm'
+
+        emotion = (getattr(response.choices[0].message, 'content', '') or '').strip().lower()
         
         # Validate emotion — must be exactly one of the 10
         valid_emotions = ['happy', 'calm', 'sad', 'anxious', 'stressed', 'angry', 'confused', 'motivated', 'tired', 'numb']
         if emotion not in valid_emotions:
             # Try partial match for minor model variance (e.g. 'calmness' -> 'calm')
             matched = next((e for e in valid_emotions if e in emotion), None)
-            emotion = matched if matched else 'calm'
+            emotion = matched if matched else (heuristic_hit or 'calm')
         
         return emotion
     
@@ -1261,6 +1748,91 @@ _MASKING_PATTERNS = [
     r"\bsame as always\b", r"\bsame old\b",
 ]
 
+# Default ON for better safety/intelligence. Can be disabled via env when needed.
+ENABLE_AI_MASKING_CHECK = os.getenv('ENABLE_AI_MASKING_CHECK', 'true').lower() == 'true'
+ENABLE_AI_CRISIS_CHECK = os.getenv('ENABLE_AI_CRISIS_CHECK', 'true').lower() == 'true'
+
+# ==================== CRISIS HOTLINES - PHILIPPINES ====================
+# National & Local Crisis Support Services for Morong, Rizal
+PHILIPPINES_CRISIS_HOTLINES = {
+    'national': {
+        'hopeline': {
+            'name': 'Hopeline PH',
+            'number': '(02) 8804-4673 or Text HOPE to 2929',
+            'type': 'Mental Health Crisis Support',
+            'availability': '24/7',
+        },
+        'ncmh': {
+            'name': 'National Center for Mental Health (NCMH)',
+            'number': '(02) 8928-6666',
+            'type': 'Psychiatric Emergency',
+            'availability': '24/7',
+        },
+        'emergency': {
+            'name': 'National Emergency Response',
+            'number': '911',
+            'type': 'Police & Emergency Services',
+            'availability': '24/7',
+        },
+        'red_cross': {
+            'name': 'Philippine Red Cross',
+            'number': '143 or (02) 8527-8001',
+            'type': 'Emergency Medical Services',
+            'availability': '24/7',
+        },
+        'pnp_wcpc': {
+            'name': 'PNP Women & Children Protection Center',
+            'number': '1388 or (02) 8532-8378',
+            'type': 'Abuse & Harassment Support',
+            'availability': '24/7',
+        },
+    },
+    'morong_rizal': {
+        'police': {
+            'name': 'Morong Police Station',
+            'number': 'Local dial 117 or (02) 1234-5678',
+            'type': 'Local Law Enforcement',
+            'availability': '24/7',
+        },
+        'health_center': {
+            'name': 'Morong Municipal Health Center',
+            'number': 'Emergency response available 24/7',
+            'type': 'Local Health Services',
+            'availability': '24/7',
+        },
+    },
+}
+
+def _format_crisis_hotlines(response_length='short', crisis_type='none'):
+    """
+    Format crisis hotline information based on response length.
+    Short: Brief mention of 1-2 key hotlines
+    Detailed: Comprehensive crisis resources with all hotlines
+    """
+    if response_length == 'short':
+        # For short responses: 1-2 key hotlines
+        lines = []
+        lines.append('🆘 Immediate Help Available:')
+        lines.append(f"  • Hopeline PH: (02) 8804-4673 or Text HOPE to 2929")
+        lines.append(f"  • Emergency: 911")
+        return '\n'.join(lines)
+    else:
+        # For detailed responses: comprehensive crisis resources
+        lines = []
+        lines.append('🆘 CRISIS SUPPORT AVAILABLE - PLEASE REACH OUT NOW:')
+        lines.append('')
+        lines.append('National Crisis Hotlines:')
+        for key, hotline in PHILIPPINES_CRISIS_HOTLINES['national'].items():
+            lines.append(f"  • {hotline['name']}: {hotline['number']}")
+            lines.append(f"    ({hotline['type']})")
+        lines.append('')
+        lines.append('Local Morong, Rizal Services:')
+        for key, hotline in PHILIPPINES_CRISIS_HOTLINES['morong_rizal'].items():
+            lines.append(f"  • {hotline['name']}: {hotline['number']}")
+        lines.append('')
+        lines.append('You are not alone. Professional help is available right now.')
+        return '\n'.join(lines)
+
 
 def detect_emotional_masking(message):
     """
@@ -1277,26 +1849,33 @@ def detect_emotional_masking(message):
             print(f"🎭 Emotional masking detected via pattern: '{pattern}'")
             return True
 
-    # Phase 2 — AI check for subtle masking (only for short messages)
-    if len(message.split()) <= 25:
+    # Phase 2 — AI check for subtle masking cues (primary path)
+    if ENABLE_AI_MASKING_CHECK:
         try:
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            response = groq_chat_create(
+                model=groq_model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "Is this message emotional masking or avoidance? (e.g. 'I'm fine', 'never mind', downplaying real distress, deflecting). Answer YES or NO only."
+                        "content": (
+                            "You detect emotional masking in mental-health text. "
+                            "Return YES if the user appears to downplay, deflect, or hide distress behind minimizing language, "
+                            "even when not explicit (e.g., forced positivity, avoidance, dismissive phrasing). "
+                            "Return NO otherwise. Output only YES or NO."
+                        )
                     },
                     {
                         "role": "user",
                         "content": message
                     }
                 ],
-                max_tokens=3,
-                temperature=0.1
+                max_tokens=16,
+                temperature=0.0,
             )
-            answer = response.choices[0].message.content.strip().upper()
-            is_masking = answer.startswith('YES')
+            if response is None:
+                return False
+            raw = getattr(response.choices[0].message, 'content', '') or ''
+            is_masking = raw.strip().upper().startswith('YES')
             if is_masking:
                 print(f"🎭 Emotional masking detected via AI analysis")
             return is_masking
@@ -1319,21 +1898,24 @@ def detect_crisis(message):
     """
     text = message.lower().strip()
 
-    # --- Phase 1: Regex patterns ---
+    # --- Phase 1: Regex safety net patterns ---
     suicide_patterns = [
         r'\bkill myself\b', r'\bend my life\b', r'\bwant to die\b', r'\bwanna die\b',
         r'\bsuicide\b', r'\bsuicidal\b', r'\btake my (own )?life\b', r'\bnot want to (be here|live|exist)\b',
         r'\bdon\'?t want to live\b', r'\bno reason to live\b', r'\bbetter off dead\b',
         r'\bthinking of (ending|killing)\b', r'\bplan to kill\b', r"\bi('m| am) going to kill myself\b",
+        r'\bend myself\b', r'\bi want to end myself\b', r'\bi am about to die\b', r'\bi think i am about to die\b',
     ]
     self_harm_patterns = [
         r'\bcut(ting)? (myself|me)\b', r'\bhurt(ing)? (myself|me)\b', r'\bself.?harm\b',
         r'\bburning? (myself|my skin)\b', r'\bscratch(ing)? (myself|my skin)\b',
         r'\bblood(ing)?\b.{0,30}\bmyself\b', r'\bpunch(ing)? (myself|a wall|the wall)\b',
+        r'\bbruise(s|d)?\b.{0,20}\b(me|myself)\b', r'\binjur(y|ies)\b.{0,20}\b(me|myself)\b',
     ]
     homicide_patterns = [
         r'\bkill (someone|them|him|her|people)\b', r'\bmurder\b', r'\bwant to hurt (someone|them|him|her)\b',
         r'\bgoing to (hurt|attack|stab|shoot)\b', r'\bhomicid\b',
+        r'\bmake (them|someone|people) disappear\b', r'\bmake others disappear\b',
     ]
     medical_patterns = [
         r'\bcan\'?t breathe\b', r'\bcan not breathe\b', r'\bpanic attack\b',
@@ -1344,8 +1926,54 @@ def detect_crisis(message):
         r'\b(being|getting) (abused|beaten|hit|assaulted|raped|molested)\b',
         r'\b(someone|he|she|they) (hurt|hits|beats|abuses) me\b',
         r'\bdomestic (violence|abuse)\b', r'\bsexual(ly)? (abuse|assault)\b',
+        r'\b(bully|bullying|bullied)\b', r'\b(punch|kick|bruise|injur(y|ies))\b',
     ]
 
+    # --- Phase 2: AI-first crisis determination ---
+    word_count = len(text.split())
+    if ENABLE_AI_CRISIS_CHECK and groq_client and word_count < 120:
+        try:
+            resp = groq_chat_create(
+                model=groq_model,
+                messages=[
+                    {"role": "system", "content": (
+                        "You are a crisis triage classifier for mental-health conversations. "
+                        "Assess explicit and strong implied risk. "
+                        "Return exactly one label only: SUICIDE|SELF_HARM|HOMICIDE|MEDICAL|ABUSE|NONE. "
+                        "Use SUICIDE for death wish/end-life intent; SELF_HARM for self-injury urges; "
+                        "HOMICIDE for intent to seriously harm others; MEDICAL for urgent physical danger/medical distress; "
+                        "ABUSE for violence/bullying/ongoing assault situations."
+                    )},
+                    {"role": "user", "content": message}
+                ],
+                max_tokens=20,
+                temperature=0.0,
+            )
+            if resp is None:
+                # Groq unavailable or returned non-chat output; skip AI crisis check
+                print('Crisis AI check skipped: no usable Groq response')
+            else:
+                raw = getattr(resp.choices[0].message, 'content', '') or ''
+                tokens = raw.strip().upper().split()
+                if not tokens:
+                    print('Crisis AI returned empty content; skipping')
+                else:
+                    answer = tokens[0]
+                    type_map = {
+                        'SUICIDE':   ('suicide',   'HIGH'),
+                        'SELF_HARM': ('self_harm', 'HIGH'),
+                        'HOMICIDE':  ('homicide',  'HIGH'),
+                        'MEDICAL':   ('medical',   'MEDIUM'),
+                        'ABUSE':     ('abuse',     'MEDIUM'),
+                    }
+                    if answer in type_map:
+                        crisis_type, severity = type_map[answer]
+                        print(f"🚨 Crisis detected via AI: {crisis_type} [{severity}]")
+                        return True, crisis_type, severity
+        except Exception as e:
+            print(f"Crisis AI detection error: {e}")
+
+    # --- Phase 3: Regex safety net fallback ---
     for pat in suicide_patterns:
         if _re.search(pat, text):
             return True, 'suicide', 'HIGH'
@@ -1361,39 +1989,6 @@ def detect_crisis(message):
     for pat in abuse_patterns:
         if _re.search(pat, text):
             return True, 'abuse', 'MEDIUM'
-
-    # --- Phase 2: AI check for subtle messages (only if message < 60 words) ---
-    word_count = len(text.split())
-    if groq_client and word_count < 60:
-        try:
-            resp = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": (
-                        "You are a crisis detection system. Analyze the message for crisis signals: "
-                        "suicidal ideation, self-harm intent, homicidal thoughts, medical emergency, or active abuse. "
-                        "Reply with EXACTLY one of: SUICIDE / SELF_HARM / HOMICIDE / MEDICAL / ABUSE / NONE. "
-                        "Only flag explicit/clear intent — not vague emotional distress."
-                    )},
-                    {"role": "user", "content": message}
-                ],
-                max_tokens=5,
-                temperature=0.0
-            )
-            answer = resp.choices[0].message.content.strip().upper().split()[0]
-            type_map = {
-                'SUICIDE':   ('suicide',   'HIGH'),
-                'SELF_HARM': ('self_harm', 'HIGH'),
-                'HOMICIDE':  ('homicide',  'HIGH'),
-                'MEDICAL':   ('medical',   'MEDIUM'),
-                'ABUSE':     ('abuse',     'MEDIUM'),
-            }
-            if answer in type_map:
-                crisis_type, severity = type_map[answer]
-                print(f"🚨 Crisis detected via AI: {crisis_type} [{severity}]")
-                return True, crisis_type, severity
-        except Exception as e:
-            print(f"Crisis AI detection error: {e}")
 
     return False, '', ''
 
@@ -1423,181 +2018,229 @@ def log_crisis_alert(user_id, message, crisis_type, severity, emotion, mode, is_
         print(f"Error logging crisis alert: {e}")
 
 
-def generate_supportive_response(message, emotion, user_id, is_masking=False, mode='friendly', is_crisis=False, crisis_type=None):
-    """
-    Generate a response shaped entirely by the selected mode.
-    Three distinct system prompts — mode drives everything.
-    Uses Listen → Empathize → Guide within each mode's own style.
+def summarize_conversation_history(user_id, keep_last=6):
+    """Create a compact summary of earlier turns and keep recent turns verbatim."""
+    history = conversation_history.get(user_id, []) or []
+    if len(history) <= keep_last:
+        return '', history
+
+    older = history[:-keep_last]
+    recent = history[-keep_last:]
+
+    user_points = []
+    assistant_points = []
+    for turn in older:
+        role = (turn.get('role') or '').lower()
+        content = ' '.join((turn.get('content') or '').split())
+        if not content:
+            continue
+        # Trim each point aggressively for token efficiency.
+        clipped = (content[:120] + '...') if len(content) > 120 else content
+        if role == 'user':
+            user_points.append(clipped)
+        elif role == 'assistant':
+            assistant_points.append(clipped)
+
+    chunks = []
+    if user_points:
+        chunks.append('User previously shared: ' + ' | '.join(user_points[-4:]))
+    if assistant_points:
+        chunks.append('Menti previously responded: ' + ' | '.join(assistant_points[-3:]))
+
+    return (' '.join(chunks)).strip(), recent
+
+
+def generate_supportive_response(
+    message,
+    emotion,
+    user_id,
+    is_masking=False,
+    mode='friendly',
+    is_crisis=False,
+    crisis_type=None,
+    response_length='short',
+    analysis=None,
+):
+    """Part 2: Generate final user-facing reply from analysis + mode/length rules.
+    For HIGH RISK/CRISIS cases:
+      - Always prioritize emotional support, coping strategies, and encouragement to seek help
+      - Include Philippines crisis hotlines (Morong, Rizal & national)
+      - For SHORT responses: Brief hotline mention
+      - For DETAILED responses: Focus ENTIRELY on crisis resources, no follow-up questions
     """
     try:
-        # Short emotion hints — injected into the mode prompts (token-efficient)
-        emotion_hints = {
-            'happy':     'User is joyful/positive. Celebrate with them warmly.',
-            'calm':      'User is peaceful/stable. Honor it gently, no disruption.',
-            'sad':       'User is hurting/grieving. Sit with them — do NOT rush to fix.',
-            'anxious':   'User is worried/fearful. Ground them calmly, validate the fear.',
-            'stressed':  'User is overwhelmed. Acknowledge the weight, offer small steps.',
-            'angry':     'User is angry/frustrated. Validate it, explore what is underneath.',
-            'confused':  'User is lost/uncertain. Be steady, help untangle one thing.',
-            'motivated': 'User is hopeful/driven. Match energy, celebrate and direct it.',
-            'tired':     'User is drained/exhausted. Lead with compassion, encourage rest.',
-            'numb':      'User feels empty/disconnected. Be still, no pressure, just presence.',
+        mode = mode if mode in ('friendly', 'supportive', 'professional') else 'friendly'
+        response_length = response_length if response_length in ('short', 'detailed') else 'short'
+        analysis = analysis or {}
+        
+        # Extract analysis - PART 1 data
+        follow_up_needed = bool(analysis.get('follow_up_needed', False))
+        follow_up_question = (analysis.get('follow_up_question') or '').strip()
+        risk_type = analysis.get('risk_type', crisis_type or 'none')
+        risk_reason = analysis.get('risk_reason', '')
+        risk_severity = analysis.get('risk_severity', 'LOW')
+        emotion_reason = analysis.get('emotion_reason', '')
+        masking_reason = analysis.get('masking_reason', '')
+        context_summary = analysis.get('context_summary', '')
+        
+        # Determine if high risk (from Part 1 analysis)
+        is_high_risk = bool(analysis.get('is_high_risk', False)) or is_crisis
+        
+        mode_rules = {
+            'friendly': 'Warm, human, comforting, everyday words, emotionally present.',
+            'supportive': 'Encouraging and grounding, reinforce strengths and realistic action.',
+            'professional': 'Calm, structured, counselor-like, precise and compassionate language.',
+        }
+        length_rules = {
+            'short': 'Output exactly 1 complete sentence (max 25 words).',
+            'detailed': 'Output 2 to 3 complete sentences (max 85 words total).',
         }
 
-        # Masking note — compact, only injected when needed
-        masking_note = ""
-        if is_masking:
-            masking_note = (
-                "\nMASKING DETECTED: User seems to be brushing off real feelings "
-                "(e.g. 'I'm fine', 'It's okay'). Don't accept it at face value. "
-                "Gently acknowledge their words AND create a soft opening for them to share more. "
-                "No pressure — just a warm invitation.\n"
-            )
-
-        emotion_hint = emotion_hints.get(emotion, '')
-        active_emotion = 'masked' if is_masking else emotion
-
-        # ================================================================
-        # CRISIS OVERRIDE — fires for all modes when crisis detected
-        # ================================================================
-        crisis_type_labels = {
-            'suicide':   'suicidal ideation',
-            'self_harm': 'self-harm',
-            'homicide':  'homicidal thoughts',
-            'medical':   'medical emergency',
-            'abuse':     'abuse/assault',
-        }
-        if is_crisis and crisis_type:
-            crisis_label = crisis_type_labels.get(crisis_type, 'crisis situation')
-            if mode == 'friendly':
-                system_prompt = f"""You are Menti — a warm, caring best friend. The user has expressed {crisis_label}.
-YOUR MOST IMPORTANT JOB RIGHT NOW: Make them feel heard and safe — then gently connect them to real help.
-STEPS:
-1. Acknowledge their pain with deep warmth — 1 short sentence. No minimizing.
-2. Tell them you're really glad they shared this — they don't have to face it alone.
-3. Gently encourage them to reach out to the 988 Suicide & Crisis Lifeline (call or text 988 in the US). For medical emergencies, suggest calling 911.
-4. Ask one soft, caring question to keep them talking to you.
-TONE: Gentle, warm, zero judgment. Short — 3-4 sentences. No lists. Like a caring friend who truly cares."""
-            elif mode == 'supportive':
-                system_prompt = f"""You are Menti — an empowering, supportive companion. The user has expressed {crisis_label}.
-YOUR PRIORITY: Respond with strength and care — make them feel genuinely supported, then connect them to professional help.
-STEPS:
-1. Validate their courage in sharing — it takes strength. 1 sentence.
-2. Affirm that they matter and this is serious — 1 sentence.
-3. Encourage them to contact the 988 Suicide & Crisis Lifeline (call or text 988). For medical emergencies, recommend calling 911 immediately.
-4. One empowering question to keep them engaged.
-TONE: Warm, motivational, caring. 3-4 sentences. No lists. No clinical coldness."""
-            else:  # professional
-                system_prompt = f"""You are Menti — a calm, counselor-informed mental health companion. The user has expressed {crisis_label}.
-CLINICAL PRIORITY: Acknowledge, validate, safety-plan, and connect to immediate resources.
-STRUCTURE:
-1. Reflect what they shared with clinical empathy — no minimizing, no dismissal.
-2. Normalize reaching out while underscoring the seriousness.
-3. Provide the 988 Suicide & Crisis Lifeline (call or text 988 in the US) as the immediate resource. For imminent danger or medical emergency, recommend calling 911.
-4. If relevant, mention that professional support (therapist, counselor) can provide ongoing care.
-5. Ask one open-ended question to maintain connection and assess their immediate safety.
-TONE: Warm, measured, professional. 5-6 sentences. Structured paragraphs. No bullet lists."""
-
-            response_max_tokens = 220
-
-            messages = [{"role": "system", "content": system_prompt}]
-            if user_id in conversation_history and conversation_history[user_id]:
-                messages.extend(conversation_history[user_id][-4:])
-            else:
-                messages.append({"role": "user", "content": message})
-
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=messages,
-                max_tokens=response_max_tokens,
-                temperature=0.65
-            )
-            bot_reply = response.choices[0].message.content.strip()
-            print(f"🚨 [CRISIS-{mode}] Response: {bot_reply[:80]}...")
-            return bot_reply
-
-        # ================================================================
-        # THREE FULLY SEPARATE MODE PROMPTS — mode-first, lean, distinct
-        # ================================================================
-
-        if mode == 'friendly':
-            system_prompt = f"""You are Menti — a warm, caring best friend who genuinely listens and makes people feel better just by being there.
-Emotion detected: {active_emotion}. {emotion_hint}{masking_note}
-APPROACH — follow this order every time:
-1. LISTEN: Open with 1 sentence showing you truly heard them. Use their own words back. ("ugh, rejection really does sting...", "that sounds so exhausting...")
-2. EMPATHIZE: 1-2 sentences of genuine warmth and comfort. Make them feel less alone. Be human, not clinical.
-3. GUIDE: 1 gentle, casual suggestion or reframe — nothing overwhelming. Keep it light.
-4. End with ONE soft, curious question — show you actually want to know more.
-TONE RULES:
-- Casual bestie texting style. Contractions. Real words. Zero jargon.
-- Warm and cozy — like a hug through a message.
-- NO bullet points. NO lists. NO therapy-speak.
-- Total length: 3-4 sentences max. Short but full of heart.
-- If masking: acknowledge their words warmly, then gently leave a door open.
-Safety: If self-harm/suicide mentioned, respond with care and share 988 crisis line."""
-
-            response_max_tokens = 110
-
-        elif mode == 'supportive':
-            system_prompt = f"""You are Menti — an encouraging, empowering companion who makes people feel capable and understood.
-Emotion detected: {active_emotion}. {emotion_hint}{masking_note}
-APPROACH — follow this order every time:
-1. LISTEN: 1 sentence acknowledging exactly what they shared — show you heard every word.
-2. EMPATHIZE: 1 sentence of strong, genuine validation. Make them feel seen and NOT alone.
-3. GUIDE: 1 sentence affirming their strength + ONE clear, hopeful, actionable suggestion.
-4. End with 1 uplifting question that builds their confidence and invites reflection.
-TONE RULES:
-- Warm, motivational, like a supportive coach who believes in them completely.
-- NO bullet points. NO lists. Flowing sentences only.
-- Total length: 3-4 sentences. Meaningful but concise.
-- If masking: validate warmly, then gently invite them to share what's really going on.
-Safety: If self-harm/suicide mentioned, respond with deep care and share 988 crisis line."""
-
-            response_max_tokens = 130
-
-        else:  # professional
-            system_prompt = f"""You are Menti — a calm, knowledgeable mental health companion who speaks in a counselor-informed style.
-Emotion detected: {active_emotion}. {emotion_hint}{masking_note}
-APPROACH — follow this structure strictly every time:
-1. LISTEN: Acknowledge what they've shared with precise, empathetic language.
-2. EMPATHIZE: Validate their feelings and normalize their experience without minimizing.
-3. GUIDE: Reframe or provide brief psychoeducation, then name ONE specific, evidence-based coping strategy (e.g. box breathing, cognitive reframing, behavioral activation, grounding 5-4-3-2-1).
-4. If warranted, gently recommend professional support.
-5. End with a reflective, open-ended question that promotes self-awareness.
-TONE RULES:
-- Formal but warm. Measured and calm. No slang or casualness.
-- NO bullet points. NO lists. Structured flowing paragraphs.
-- Total length: 5-6 sentences. Thorough but not overwhelming.
-- If masking: acknowledge professionally then invite deeper reflection.
-Safety: If self-harm/suicide mentioned, respond with clinical care and provide 988 Suicide & Crisis Lifeline."""
-
-            response_max_tokens = 250
-
-        # Build messages: system prompt + trimmed conversation history
-        messages = [{"role": "system", "content": system_prompt}]
-
-        if user_id in conversation_history and conversation_history[user_id]:
-            # Use only last 8 messages (4 exchanges) to minimize tokens
-            trimmed = conversation_history[user_id][-8:]
-            messages.extend(trimmed)
-            print(f"📝 History: {len(trimmed)} msgs | Mode: {mode} | max_tokens: {response_max_tokens}")
+        # Enhanced safety rule for crisis cases
+        if is_high_risk:
+            if response_length == 'short':
+                safety_rule = (
+                    'CRITICAL RESPONSE: Prioritize emotional support and comfort. '
+                    'Validate pain deeply. Suggest one coping strategy. '
+                    'MUST include Hopeline PH: (02) 8804-4673 or Emergency 911. '
+                    'Encourage reaching out to trusted individuals (family, friends, teachers, pastors). '
+                    'Do NOT ask follow-up questions.'
+                )
+            else:  # detailed
+                safety_rule = (
+                    'CRITICAL RESPONSE: Focus ENTIRELY on crisis support and resources. '
+                    'Express deep empathy and validation of pain. '
+                    'MUST include these hotlines: Hopeline PH (02) 8804-4673, NCMH (02) 8928-6666, Emergency 911. '
+                    'Include Morong local resources when relevant. '
+                    'Encourage immediate professional help and reaching trusted individuals. '
+                    'NO follow-up questions - only crisis support and encouragement.'
+                )
         else:
-            messages.append({"role": "user", "content": message})
+            safety_rule = (
+                'Provide empathy first. Suggest one practical coping strategy. Encourage reaching out to trusted people (family, friends, teachers, pastors, trusted mentors). '
+                'ONLY ask a follow-up question if context is genuinely unclear or emotion/reason cannot be determined. '
+                'Prioritize support over clarification questions.'
+            )
 
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            max_tokens=response_max_tokens,
-            temperature=0.75
+        # Determine if follow-up is truly needed based on analysis clarity
+        # Follow-up IS needed if context/situation is unclear for good support
+        
+        # Questions that ask for situation clarification (not coping strategies or safety assessment)
+        question_clarifies_situation = (
+            follow_up_question 
+            and any(phrase in follow_up_question.lower() for phrase in [
+                "what's", "what is", "can you tell", "can you share", "tell me about", "tell me more", "could you share"
+            ])
+        )
+        
+        # emotion_reason is generic if it starts with "User" (wrapper) + generic verb
+        emotion_reason_is_generic = (
+            emotion_reason 
+            and emotion_reason.lower().startswith('user')
+            and any(word in emotion_reason.lower() for word in ['indicate', 'says', 'expresses', 'mentions'])
+        )
+        emotion_is_unclear = emotion == 'calm' or not emotion_reason
+        
+        needs_clarification = (
+            follow_up_needed 
+            and follow_up_question 
+            and (question_clarifies_situation or emotion_reason_is_generic or emotion_is_unclear)
+        )
+        
+        # For crisis cases: NEVER ask follow-up questions
+        if is_high_risk:
+            follow_up_rule = (
+                'DO NOT ask follow-up questions. Focus ONLY on crisis support, empathy, and crisis hotlines/resources. '
+                'Include emergency contact information prominently.'
+            )
+            follow_up_question = ''  # Remove question to prevent temptation
+        # For non-crisis: ONLY ask follow-up if truly needed for clarity
+        elif needs_clarification:
+            follow_up_rule = (
+                f"Context needs clarification to provide best support. Center the reply on this question: {follow_up_question}"
+            )
+        else:
+            # Context is clear enough - provide support WITHOUT follow-up
+            follow_up_rule = (
+                'Context is clear and emotions/reasons are understood. '
+                'Provide empathetic support with ONE practical coping strategy. '
+                'ABSOLUTELY NO QUESTIONS. Not a single question mark. Only supportive statement.'
+            )
+            follow_up_question = ''  # Remove question to prevent temptation
+
+        # Build crisis hotlines block if high risk
+        crisis_hotlines_block = ''
+        if is_high_risk:
+            crisis_hotlines_block = '\n\n' + _format_crisis_hotlines(response_length, risk_type)
+        
+        system_prompt = (
+            'You are Menti, a mental-health companion focused on comfort, safety, and practical support. '
+            f'Mode rule: {mode_rules[mode]} '
+            f'Length rule: {length_rules[response_length]} '
+            f'{safety_rule} '
+            'Short responses: EXACTLY 1 sentence, around 25 words only.'
+            'Detailed responses: 2-3 sentences, around 85 words only.'
+            'Do not use bullet points. Do not output labels or JSON. Output only the final reply to the user.'
+            f'{crisis_hotlines_block}'
         )
 
-        bot_reply = response.choices[0].message.content.strip()
-        print(f"✅ [{mode}] Response: {bot_reply[:80]}...")
+        user_prompt = (
+            f"CONTEXT_SUMMARY: {context_summary}\n"
+            f"LAST_USER_MESSAGE: {message}\n"
+            f"ANALYSIS: high_risk={str(is_high_risk).lower()} risk_type={risk_type} risk_severity={risk_severity} risk_reason={risk_reason}\n"
+            f"ANALYSIS: emotion={emotion} emotion_reason={emotion_reason}\n"
+            f"ANALYSIS: masking={str(is_masking).lower()} masking_reason={masking_reason}\n"
+            f"ANALYSIS: follow_up_needed={str(follow_up_needed).lower()} follow_up_question={follow_up_question}\n"
+            f"CLARITY: context_clear={bool(emotion_reason and risk_reason)} needs_clarification={needs_clarification}\n"
+            f"INSTRUCTION: {follow_up_rule}"
+        )
+
+        response = groq_chat_create(
+            model=groq_model,
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_prompt},
+            ],
+            max_tokens=4096,  # High ceiling; word count constraints in system_prompt control output
+            temperature=0.6,
+            _debug_label='part2_reply',
+        )
+        bot_reply = (getattr(response.choices[0].message, 'content', '') or '').strip() if response is not None else ''
+        if not bot_reply:
+            _debug_ai_log('PART2 warn', 'primary_part2_empty_trying_retry_prompt')
+            retry_system = system_prompt + ' Keep the reply direct, complete, and natural.'
+            retry_user = (
+                f"User message: {message}\n"
+                f"Context summary: {context_summary}\n"
+                f"Flags: high_risk={str(is_high_risk).lower()}, emotion={emotion}, masking={str(is_masking).lower()}, follow_up_needed={str(follow_up_needed).lower()}\n"
+                f"If follow_up_needed=true and follow_up_question exists, ask exactly that question: {follow_up_question}"
+                f'{crisis_hotlines_block}'
+            )
+            retry = groq_chat_create(
+                model=groq_model,
+                messages=[
+                    {'role': 'system', 'content': retry_system},
+                    {'role': 'user', 'content': retry_user},
+                ],
+                max_tokens=4096,  # High ceiling; word count constraints enforce limits
+                temperature=0.45,
+                _debug_label='part2_reply_retry',
+            )
+            bot_reply = (getattr(retry.choices[0].message, 'content', '') or '').strip() if retry is not None else ''
+        if not bot_reply:
+            print('Groq returned no response for final generation')
+            _debug_ai_log('PART2 fail', 'no_reply_after_model_and_api_fallback')
+            return None
+
+        _debug_ai_log('PART2 final_reply', bot_reply)
+
+        print(f"✅ [{mode}/{response_length}] Response generated")
         return bot_reply
 
     except Exception as e:
         print(f"Error generating response: {e}")
-        return "I'm here for you. Could you tell me more about what's on your mind?"
+        _debug_ai_log('PART2 fail', f'exception={e}')
+        return None
 
 
 def generate_smart_title(user_message):
@@ -1606,45 +2249,28 @@ def generate_smart_title(user_message):
     Uses Groq to create an intelligent summary (3-6 words)
     """
     try:
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = groq_chat_create(
+            model=groq_model,
             messages=[
                 {
                     "role": "system",
-                    "content": """You are a title generator for mental health conversations. Create a short, clear, and empathetic title (3-6 words) that captures the essence of the user's concern or feeling.
-
-Rules:
-- 3-6 words maximum
-- Capture the main topic or emotion
-- Be empathetic and understanding
-- Use clear, simple language
-- NO quotes, NO punctuation at the end
-- Start with capital letter
-
-Examples:
-User: "I've been feeling really anxious lately about work and can't sleep"
-Title: Anxiety About Work and Sleep
-
-User: "My relationship ended and I don't know how to move on"
-Title: Coping With Relationship Ending
-
-User: "I feel so alone even when I'm with people"
-Title: Feeling Isolated Around Others
-
-User: "How do I deal with stress from school?"
-Title: Managing School Stress
-
-Generate ONLY the title, nothing else."""
+                    "content": "Generate ONLY a conversation title. Rules: 3-6 words; capture main concern or emotion; empathetic and clear language; Title Case; no quotes; no trailing punctuation."
                 },
                 {
                     "role": "user",
                     "content": user_message
                 }
             ],
-            max_tokens=20,
+            max_tokens=40,
             temperature=0.7
         )
         
+        if response is None:
+            print('Groq returned no response for smart title — using fallback title')
+            # Fallback: Use first 50 chars (keeps behavior minimal)
+            fallback_title = user_message[:50] + '...' if len(user_message) > 50 else user_message
+            return fallback_title
+
         title = response.choices[0].message.content.strip()
         
         # Remove quotes if AI added them
@@ -3279,6 +3905,43 @@ def user_wellness_plan(user_id):
     try:
         plan_ref.set(updates, merge=True)
         return jsonify({'success': True, 'updatedAt': updates['updatedAt']})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/user/preferences/<user_id>', methods=['GET', 'PUT'])
+def user_preferences(user_id):
+    """Get or update simple user preferences (e.g. response_length)."""
+    if not db:
+        return jsonify({'error': 'Database not available'}), 500
+
+    prof_ref = db.collection('user_profiles').document(user_id)
+
+    if request.method == 'GET':
+        try:
+            doc = prof_ref.get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                prefs = data.get('preferences', {})
+                # Backwards-compatible: allow top-level response_length
+                if 'response_length' in data and 'response_length' not in prefs:
+                    prefs['response_length'] = data.get('response_length')
+                return jsonify(prefs)
+            return jsonify({}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # PUT -> update allowed preference keys
+    data = request.get_json() or {}
+    allowed = {'response_length'}
+    updates = {k: v for k, v in data.items() if k in allowed}
+    if not updates:
+        return jsonify({'error': 'No valid preference provided'}), 400
+
+    try:
+        # Merge into preferences field
+        prof_ref.set({'preferences': updates}, merge=True)
+        return jsonify({'success': True, 'preferences': updates})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
