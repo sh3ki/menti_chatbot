@@ -81,6 +81,42 @@
         .header-mode-btn:hover { border-color: #7C3AED; color: #C4B5FD; background: #1E1040; }
         .header-mode-btn.active { background: #4C1D95; border-color: #7C3AED; color: #E9D5FF; }
 
+        /* ===== RESPONSE LENGTH TOGGLE (copied from chat.html) ===== */
+        .header-length-selector {
+            display: none;
+            gap: 6px;
+            align-items: center;
+            margin-left: 24px;
+        }
+
+        .header-length-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border: 1.5px solid #2D1654;
+            border-radius: 12px;
+            background: transparent;
+            font-size: 13px;
+            font-weight: 600;
+            color: #C4B5FD;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .header-length-toggle .icon { font-size: 14px; }
+
+        .header-length-toggle.active {
+            background: #2D1654;
+            border-color: #7C3AED;
+            color: #E9D5FF;
+        }
+
+        /* Welcome-screen length toggle */
+        .length-toggle-welcome { display:flex; gap:8px; justify-content:center; margin-top:18px; }
+        .length-toggle-welcome .mode-card-small { padding:8px 12px; border-radius:10px; border:1px solid #2D1654; background:transparent; cursor:pointer; font-weight:600; color:#C4B5FD; }
+        .length-toggle-welcome .mode-card-small.active { background:#2D1654; border-color:#7C3AED; color:#E9D5FF; }
+
         .exit-btn {
             padding: 9px 18px;
             background: #2D1654;
@@ -389,8 +425,20 @@
             <button class="header-mode-btn active" id="headerBtn-friendly" onclick="selectMode('friendly')">💬 Friendly</button>
             <button class="header-mode-btn" id="headerBtn-supportive" onclick="selectMode('supportive')">🤝 Supportive</button>
             <button class="header-mode-btn" id="headerBtn-professional" onclick="selectMode('professional')">📋 Professional</button>
-        </div>
+        
 
+            <!-- Response length selector (short / detailed) -->
+            <div class="header-length-selector" id="headerLengthSelector">
+                <button class="header-length-toggle active" id="headerLenCard-short" onclick="selectResponseLength('short')">
+                    <span class="icon">⚡</span>
+                    <span class="label">Short</span>
+                </button>
+                <button class="header-length-toggle" id="headerLenCard-detailed" onclick="selectResponseLength('detailed')">
+                    <span class="icon">📚</span>
+                    <span class="label">Detailed</span>
+                </button>
+            </div>
+        </div>
         <button class="exit-btn" id="exitBtn">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
             Exit Private Mode
@@ -438,6 +486,19 @@
                             <div class="mode-card-name">Professional Mode</div>
                             <div class="mode-card-preview">Structured, counselor-style.</div>
                             <ul class="mode-card-bullets"><li>Calm formal guidance</li><li>Evidence-based</li><li>Deep reflection</li></ul>
+                        </div>
+                    </div>
+                    <!-- Response-length toggle for welcome screen -->
+                    <div class="length-toggle-welcome" id="lengthToggleWelcome" style="margin-top:16px;">
+                        <div class="mode-card-small active" id="welcomeLenCard-short" onclick="selectResponseLength('short')">
+                            <div class="mode-card-icon">⚡</div>
+                            <div class="mode-card-name">Short</div>
+                            <div class="mode-card-preview">Concise replies, quick to read.</div>
+                        </div>
+                        <div class="mode-card-small" id="welcomeLenCard-detailed" onclick="selectResponseLength('detailed')">
+                            <div class="mode-card-icon">📚</div>
+                            <div class="mode-card-name">Detailed</div>
+                            <div class="mode-card-preview">Longer, explanatory responses.</div>
                         </div>
                     </div>
                 </div>
@@ -506,6 +567,33 @@
             if (te) te.textContent = c.text;
         };
 
+        // ===== RESPONSE LENGTH (SHORT / DETAILED) =====
+        let currentResponseLength = 'short'; // 'short' or 'detailed'
+
+        window.selectResponseLength = function(len, save=true) {
+            currentResponseLength = len;
+            const hShort = document.getElementById('headerLenCard-short');
+            const hDet = document.getElementById('headerLenCard-detailed');
+            if (hShort && hDet) {
+                if (len === 'short') { hShort.classList.add('active'); hDet.classList.remove('active'); } else { hShort.classList.remove('active'); hDet.classList.add('active'); }
+            }
+
+            const wShort = document.getElementById('welcomeLenCard-short');
+            const wDet = document.getElementById('welcomeLenCard-detailed');
+            if (wShort && wDet) {
+                if (len === 'short') { wShort.classList.add('active'); wDet.classList.remove('active'); } else { wShort.classList.remove('active'); wDet.classList.add('active'); }
+            }
+
+            if (save) {
+                try { localStorage.setItem('menti_response_length', currentResponseLength); } catch(e) {}
+            }
+        };
+
+        window.toggleResponseLength = function() {
+            const next = (currentResponseLength === 'short') ? 'detailed' : 'short';
+            window.selectResponseLength(next);
+        };
+
         // ===== AUTH =====
         onAuthStateChanged(auth, (user) => {
             if (user) {
@@ -566,7 +654,8 @@
                         is_guest:        true,          // treat as guest so no permanent logs
                         is_incognito:    true,
                         conversation_id: incognitoConvId,
-                        mode:            currentMode
+                        mode:            currentMode,
+                        response_length: currentResponseLength
                     })
                 });
                 if (!response.ok) throw new Error('Network response not ok');
@@ -634,7 +723,10 @@
             const welcome = document.querySelector('.welcome-message');
             if (welcome) {
                 welcome.remove();
-                document.getElementById('headerModeSelector').style.display = 'flex';
+                const headerMode = document.getElementById('headerModeSelector');
+                if (headerMode) headerMode.style.display = 'flex';
+                const headerLen = document.getElementById('headerLengthSelector');
+                if (headerLen) headerLen.style.display = 'flex';
             }
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -658,7 +750,10 @@
             if (ti) ti.remove();
         }
 
-        window.addEventListener('load', () => chatInput.focus());
+        window.addEventListener('load', () => {
+            try { const saved = localStorage.getItem('menti_response_length'); if (saved) selectResponseLength(saved, false); else selectResponseLength(currentResponseLength, false); } catch(e){}
+            chatInput.focus();
+        });
 
         // ===== VOICE INTERACTION (Open-Source) =====
         // Uses Vosk for speech-to-text (offline) and Coqui TTS for neural text-to-speech
