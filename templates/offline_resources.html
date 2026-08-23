@@ -105,7 +105,8 @@
         .version-pill { display: inline-block; padding: 5px 10px; background: #E8F5E9; color: #2C5E31; border-radius: 999px; font-size: 12px; font-weight: 700; margin-bottom: 16px; }
 
         .resource-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-        .resource-card { background: #FFF; border: 1px solid #E8E8E8; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .resource-card { background: #FFF; border: 1px solid #E8E8E8; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer; transition: box-shadow 0.2s; }
+        .resource-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
         .resource-category { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: #2C5E31; font-weight: 700; margin-bottom: 8px; }
         .resource-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
         .resource-summary { font-size: 13px; color: #666; line-height: 1.5; margin-bottom: 12px; }
@@ -116,7 +117,7 @@
 
         .modal { display: none; position: fixed; inset: 0; background: rgba(15,15,15,0.5); z-index: 1000; }
         .modal.show { display: flex; align-items: center; justify-content: center; }
-        .modal-content { background: #FFF; border-radius: 14px; padding: 20px; width: 90%; max-width: 560px; max-height: 80vh; overflow-y: auto; }
+        .modal-content { background: #FFF; border-radius: 14px; padding: 20px; width: 90%; max-width: 900px; max-height: 80vh; overflow-y: auto; }
         .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
         .modal-body { font-size: 14px; color: #333; line-height: 1.6; white-space: pre-wrap; }
 
@@ -320,13 +321,13 @@
             document.getElementById('resourceVersion').textContent = `Version: ${data.version || '--'}`;
             const grid = document.getElementById('resourceGrid');
             grid.innerHTML = currentResources.map((item, idx) => `
-                <div class="resource-card">
+                <div class="resource-card" onclick="window.openResource(${idx})">
                     <div class="resource-category">${escHtml(item.category || 'Resource')}</div>
                     <div class="resource-title">${escHtml(item.title || 'Untitled')}</div>
                     <div class="resource-summary">${escHtml(item.summary || '')}</div>
                     <div class="resource-actions">
-                        <button class="btn btn-primary" onclick="window.openResource(${idx})">Open</button>
-                        <button class="btn btn-secondary" onclick="window.downloadResource(${idx})">Download</button>
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); window.openResource(${idx})">Open</button>
+                        <button class="btn btn-secondary" onclick="event.stopPropagation(); window.downloadResource(${idx})">Download</button>
                     </div>
                 </div>
             `).join('');
