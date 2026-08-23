@@ -2885,6 +2885,7 @@ def _default_offline_resources():
                 'category': 'Mental Health Articles',
                 'title': 'Understanding Anxiety Disorders: A Comprehensive Guide',
                 'summary': 'Learn about different types of anxiety, their symptoms, and evidence-based treatments.',
+                'image': '/static/resources/anxiety-guide.jpg',
                 'content': '''UNDERSTANDING ANXIETY DISORDERS: A COMPREHENSIVE GUIDE
 
 What is Anxiety?
@@ -2918,6 +2919,7 @@ Resources:
                 'category': 'Mental Health Articles',
                 'title': 'Depression: Recognition and Recovery',
                 'summary': 'Understand depression symptoms, causes, and paths to recovery.',
+                'image': '/static/resources/depression-guide.jpg',
                 'content': '''DEPRESSION: RECOGNITION AND RECOVERY
 
 What is Clinical Depression?
@@ -2958,6 +2960,7 @@ Getting Help:
                 'category': 'Wellness Guides',
                 'title': 'Sleep Hygiene: Better Sleep for Better Mental Health',
                 'summary': 'Practical tips for improving sleep quality and supporting mental wellness.',
+                'image': '/static/resources/sleep-hygiene.jpg',
                 'content': '''SLEEP HYGIENE: BETTER SLEEP FOR BETTER MENTAL HEALTH
 
 Why Sleep Matters:
@@ -3010,6 +3013,7 @@ If Sleep Problems Persist:
                 'category': 'Wellness Guides',
                 'title': 'Exercise and Mental Health: Movement as Medicine',
                 'summary': 'How physical activity supports emotional well-being and mental health.',
+                'image': '/static/resources/exercise-mental-health.jpg',
                 'content': '''EXERCISE AND MENTAL HEALTH: MOVEMENT AS MEDICINE
 
 The Mind-Body Connection:
@@ -3065,6 +3069,7 @@ Remember: Something is always better than nothing. Even a 10-minute walk provide
                 'category': 'Wellness Guides',
                 'title': 'Nutrition for Mental Health: Food and Mood Connection',
                 'summary': 'Understanding how diet impacts mental well-being and emotional health.',
+                'image': '/static/resources/nutrition-health.jpg',
                 'content': '''NUTRITION FOR MENTAL HEALTH: FOOD AND MOOD CONNECTION
 
 The Gut-Brain Axis:
@@ -3130,6 +3135,7 @@ Remember: Food is not a cure, but proper nutrition is foundational to mental hea
                 'category': 'Coping Techniques',
                 'title': 'Cognitive Behavioral Therapy (CBT) Basics for Self-Help',
                 'summary': 'Learn core CBT principles to challenge unhelpful thoughts and change patterns.',
+                'image': '/static/resources/cbt-basics.jpg',
                 'content': '''COGNITIVE BEHAVIORAL THERAPY (CBT) BASICS FOR SELF-HELP
 
 What is CBT?
@@ -3211,6 +3217,7 @@ CBT is a skill - it improves with practice. Small thought shifts lead to signifi
                 'category': 'Coping Techniques',
                 'title': 'Mindfulness and Meditation for Anxiety Relief',
                 'summary': 'Practical mindfulness and meditation exercises to calm the mind.',
+                'image': '/static/resources/mindfulness-meditation.jpg',
                 'content': '''MINDFULNESS AND MEDITATION FOR ANXIETY RELIEF
 
 What is Mindfulness?
@@ -3307,6 +3314,7 @@ Remember: Meditation is not about emptying your mind. It\'s about observing your
                 'category': 'Mental Health Awareness',
                 'title': 'Breaking Mental Health Stigma: Facts vs. Myths',
                 'summary': 'Challenge common misconceptions and build understanding around mental health.',
+                'image': '/static/resources/mental-health-awareness.jpg',
                 'content': '''BREAKING MENTAL HEALTH STIGMA: FACTS VS. MYTHS
 
 Understanding Stigma:
@@ -3374,6 +3382,7 @@ Your mental health is as important as your physical health. Let\'s normalize the
                 'category': 'Mental Health Awareness',
                 'title': 'Understanding the Stress-Health Connection',
                 'summary': 'Learn how chronic stress affects physical and mental health.',
+                'image': '/static/resources/stress-health.jpg',
                 'content': '''UNDERSTANDING THE STRESS-HEALTH CONNECTION
 
 What is Stress?
@@ -3504,6 +3513,7 @@ Addressing chronic stress isn\'t selfish - it\'s essential maintenance for your 
                 'category': 'Mental Health Awareness',
                 'title': 'Building Emotional Resilience: Bouncing Back from Adversity',
                 'summary': 'Develop skills to handle life challenges and grow stronger through difficulty.',
+                'image': '/static/resources/emotional-resilience.jpg',
                 'content': '''BUILDING EMOTIONAL RESILIENCE: BOUNCING BACK FROM ADVERSITY
 
 What is Resilience?
@@ -3644,6 +3654,7 @@ Remember: Resilience isn\'t about being tough. It\'s about bending without break
                 'category': 'Self-Help Resources',
                 'title': 'Emotional Regulation Workbook: Managing Your Feelings',
                 'summary': 'Practical exercises to understand, accept, and manage emotions effectively.',
+                'image': '/static/resources/emotional-regulation.jpg',
                 'content': '''EMOTIONAL REGULATION WORKBOOK: MANAGING YOUR FEELINGS
 
 What is Emotional Regulation?
@@ -3806,6 +3817,7 @@ Remember: Emotional regulation isn\'t perfection. It\'s noticing feelings, under
                 'category': 'Breathing & Relaxation',
                 'title': '2-Minute Calming Breath',
                 'summary': 'A quick breathing cycle to settle racing thoughts.',
+                'image': '/static/resources/calming-breath.jpg',
                 'content': 'Inhale 4 seconds, exhale 6 seconds. Repeat for 2 minutes. Keep shoulders relaxed.'
             },
             {
@@ -3813,6 +3825,7 @@ Remember: Emotional regulation isn\'t perfection. It\'s noticing feelings, under
                 'category': 'Grounding Techniques',
                 'title': '5-4-3-2-1 Grounding',
                 'summary': 'Reconnect with your senses during overwhelm.',
+                'image': '/static/resources/grounding-senses.jpg',
                 'content': 'Name 5 things you see, 4 you feel, 3 you hear, 2 you smell, 1 you taste.'
             },
             {
@@ -3820,6 +3833,7 @@ Remember: Emotional regulation isn\'t perfection. It\'s noticing feelings, under
                 'category': 'Stress & Anxiety Guides',
                 'title': 'Stress Response Reset',
                 'summary': 'A short guide for reducing stress load in the moment.',
+                'image': '/static/resources/stress-reset.jpg',
                 'content': 'Pause, unclench jaw and shoulders, take 5 slower breaths, and pick one next safe action.'
             },
             {
@@ -3827,6 +3841,7 @@ Remember: Emotional regulation isn\'t perfection. It\'s noticing feelings, under
                 'category': 'Self-Care Routines',
                 'title': 'Low-Energy Self-Care Plan',
                 'summary': 'Tiny self-care steps for hard days.',
+                'image': '/static/resources/self-care.jpg',
                 'content': 'Drink water, wash face, open a window, and send one message to a trusted person.'
             },
             {
@@ -3834,6 +3849,7 @@ Remember: Emotional regulation isn\'t perfection. It\'s noticing feelings, under
                 'category': 'Emergency Hotlines',
                 'title': 'Crisis Contacts',
                 'summary': 'Immediate support contacts for urgent emotional distress.',
+                'image': '/static/resources/crisis-support.jpg',
                 'content': 'US: Call/Text 988. Emergency danger: call 911. Add local campus and country hotline numbers in settings.'
             },
         ]
