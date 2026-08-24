@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/dark-mode.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #F0F0F0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; color: #0F0F0F; }
@@ -34,6 +35,59 @@
         }
         .incognito-topbar-btn:hover { background: #EDE9FE; border-color: #C4B5FD; }
         .incognito-topbar-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+        
+        /* Dark Mode Toggle Button */
+        .dark-mode-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #F0F0F0;
+            color: #2C5E31;
+            border: 1.5px solid #E0E0E0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+        .dark-mode-toggle:hover {
+            background: #E8E8E8;
+            border-color: #2C5E31;
+        }
+        .dark-mode-toggle svg {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            transition: opacity 0.3s ease;
+        }
+        .dark-mode-toggle .sun-icon {
+            opacity: 1;
+        }
+        .dark-mode-toggle .moon-icon {
+            opacity: 0;
+            display: none;
+        }
+        body.dark-mode .dark-mode-toggle {
+            background: #2C5E31;
+            color: #FFFFFF;
+            border-color: #3A7A41;
+        }
+        body.dark-mode .dark-mode-toggle:hover {
+            background: #3A7A41;
+            border-color: #4FA858;
+        }
+        body.dark-mode .dark-mode-toggle .sun-icon {
+            opacity: 0;
+            display: none;
+        }
+        body.dark-mode .dark-mode-toggle .moon-icon {
+            opacity: 1;
+            display: inline;
+        }
+        
         .profile-menu-wrap { position: relative; display: none; }
         .profile-menu-trigger { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 5px; border: 1.5px solid #E0E0E0; border-radius: 22px; background: none; cursor: pointer; }
         .header-avatar { width: 30px; height: 30px; border-radius: 50%; background: #E8F5E9; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #2C5E31; overflow: hidden; }
@@ -140,6 +194,10 @@
             <h1>Menti</h1>
         </div>
         <div class="header-right">
+            <button class="dark-mode-toggle" id="darkModeToggle" title="Toggle Dark Mode">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 18C8.68 18 6 15.32 6 12s2.68-6 6-6 6 2.68 6 6-2.68 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zM12 4c.55 0 1-0.45 1-1V1c0-.55-.45-1-1-1s-1 .45-1 1v2c0 .55.45 1 1 1zm0 16c-.55 0-1 .45-1 1v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1zM5.64 6.36c-.39-.39-1.02-.39-1.41 0L3.51 7.08c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l.72-.72c.39-.39.39-1.02 0-1.41zm12.72 12.72c-.39-.39-1.02-.39-1.41 0l-.72.72c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l.72-.72c.39-.39.39-1.02 0-1.41zM4 12c0-.55-.45-1-1-1H1c-.55 0-1 .45-1 1s.45 1 1 1h2c.55 0 1-.45 1-1zm16 0c0-.55.45-1 1-1h2c.55 0 1 .45 1 1s-.45 1-1 1h-2c-.55 0-1-.45-1-1zM6.36 18.36c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.02 0 1.41l.72.72c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41l-.72-.72zm12.72-12.72c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.02 0 1.41l.72.72c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41l-.72-.72z"/></svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9.37,5.51C9.9,9.62 13.3,12.86 17.47,12.86c0.4,0 0.82,0.05 1.23,0.12C17.85,17.75 14.64,21 10.5,21C5.04,21 1,16.96 1,11.5C1,7.36 4.25,4.15 8.26,3.78C8.16,4.3 8.12,4.83 8.12,5.38C8.12,5.46 8.12,5.54 8.12,5.62C8.12,5.62 8.12,5.62 8.12,5.62L9.37,5.51Z"/></svg>
+            </button>
             <button class="incognito-topbar-btn" id="incognitoTopBtn">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
                 Private
@@ -426,6 +484,34 @@
             await loadSidebarConversations(user.uid);
             await loadResources(user.uid);
         });
+
+        // ===== DARK MODE =====
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        
+        // Initialize dark mode from localStorage
+        function initializeDarkMode() {
+            const isDarkMode = localStorage.getItem('menti_dark_mode') === 'true';
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+            }
+        }
+        
+        // Toggle dark mode
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            const isDarkMode = document.body.classList.contains('dark-mode');
+            try {
+                localStorage.setItem('menti_dark_mode', isDarkMode);
+            } catch(e) {
+                console.log('Could not save dark mode preference');
+            }
+        }
+        
+        // Add dark mode toggle event listener
+        darkModeToggle.addEventListener('click', toggleDarkMode);
+        
+        // Initialize dark mode on page load
+        initializeDarkMode();
     </script>
 </body>
 </html>
