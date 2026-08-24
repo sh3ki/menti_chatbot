@@ -535,27 +535,101 @@ body.dark-mode .journal-entry-content {
 }
 
 /* ===== PROGRESS PAGE SPECIFIC ===== */
-body.dark-mode .progress-section {
+body.dark-mode .prog-card {
     background: #2C2C2C;
     border-color: #3A3A3A;
+    color: #FFFFFF;
 }
 
-body.dark-mode .progress-chart {
-    background: #1A1A1A;
+body.dark-mode .prog-stats {
+    display: flex;
+    gap: 12px;
 }
 
-body.dark-mode .stat-card {
+body.dark-mode .prog-stat {
     background: #2C2C2C;
     border-color: #3A3A3A;
+    color: #FFFFFF;
 }
 
-body.dark-mode .stat-value {
+body.dark-mode .prog-stat-value {
     color: #4FA858;
 }
 
-body.dark-mode .stat-label {
+body.dark-mode .prog-stat-label {
     color: #FFFFFF;
-}}
+}
+
+body.dark-mode .prog-section-title {
+    color: #FFFFFF;
+}
+
+body.dark-mode .prog-tab {
+    background: #1A1A1A;
+    color: #FFFFFF;
+    border-color: #3A3A3A;
+}
+
+body.dark-mode .prog-tab:hover {
+    background: #3A3A3A;
+    border-color: #4FA858;
+}
+
+body.dark-mode .prog-tab.active {
+    background: #2C5E31;
+    color: #FFFFFF;
+    border-color: #3A7A41;
+}
+
+body.dark-mode .mood-strip {
+    background: #1A1A1A;
+}
+
+body.dark-mode .mood-day {
+    background: #3A3A3A;
+}
+
+body.dark-mode .emotion-bars {
+    color: #FFFFFF;
+}
+
+body.dark-mode .ebar-row {
+    color: #FFFFFF;
+}
+
+body.dark-mode .ebar-label {
+    color: #FFFFFF;
+}
+
+body.dark-mode .ebar-track {
+    background: #1A1A1A;
+}
+
+body.dark-mode .ebar-count {
+    color: #FFFFFF;
+}
+
+body.dark-mode .milestone-card {
+    background: #2C2C2C;
+    border-color: #3A3A3A;
+    color: #FFFFFF;
+}
+
+body.dark-mode .milestone-card.unlocked {
+    border-color: #4FA858;
+}
+
+body.dark-mode .milestone-card.locked {
+    opacity: 0.6;
+}
+
+body.dark-mode .milestone-title {
+    color: #FFFFFF;
+}
+
+body.dark-mode .milestone-desc {
+    color: #D0D0D0;
+}
 
 /* ===== PLAN PAGE SPECIFIC ===== */
 body.dark-mode .plan-card {
