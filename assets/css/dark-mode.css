@@ -604,6 +604,133 @@ body.dark-mode .entry-content {
     color: #FFFFFF;
 }
 
+/* ===== PROFILE PAGE: HERO & FORM ===== */
+body.dark-mode .profile-hero {
+    background: #2C2C2C;
+    border-radius: 12px;
+    padding: 24px;
+    color: #FFFFFF;
+}
+
+body.dark-mode .avatar-img {
+    border-color: #2C5E31;
+    background: #1F3A21;
+    color: #FFFFFF;
+}
+
+body.dark-mode .avatar-change-btn {
+    background: #2C5E31;
+    color: #FFFFFF;
+    border-color: #1A1A1A;
+}
+
+body.dark-mode .profile-info h3 {
+    color: #FFFFFF;
+}
+
+body.dark-mode .profile-info p {
+    color: #D0D0D0;
+}
+
+body.dark-mode .form-label {
+    color: #FFFFFF;
+}
+
+body.dark-mode .form-input {
+    background: #1A1A1A;
+    color: #FFFFFF;
+    border: 1.5px solid #3A3A3A;
+}
+
+body.dark-mode .form-input:focus {
+    background: #1A1A1A;
+    border-color: #4FA858;
+    outline: none;
+}
+
+body.dark-mode .form-input:disabled {
+    background: #2C2C2C;
+    color: #888;
+}
+
+body.dark-mode .btn-secondary {
+    background: #2C2C2C;
+    color: #FFFFFF;
+    border: 1px solid #3A3A3A;
+}
+
+/* ===== PROFILE: CARD STYLES ===== */
+body.dark-mode .card {
+    background: #1A1A1A;
+    border: 1px solid #2F2F2F;
+    color: #EDEDED;
+    box-shadow: none;
+}
+
+body.dark-mode .card .card-header {
+    background: linear-gradient(180deg,#242424,#1A1A1A);
+    border-bottom: 1px solid #2F2F2F;
+    color: #FFFFFF;
+}
+
+body.dark-mode .card .card-body {
+    background: transparent;
+    color: #D0D0D0;
+}
+
+body.dark-mode .card .card-title {
+    color: #FFFFFF;
+}
+
+body.dark-mode .card .card-text {
+    color: #CFCFCF;
+}
+
+body.dark-mode .card .card-footer {
+    background: transparent;
+    border-top: 1px solid #2F2F2F;
+    color: #BFBFBF;
+}
+
+body.dark-mode .card a {
+    color: #7FD18A;
+}
+
+body.dark-mode .card .list-group-item {
+    background: transparent;
+    border-color: #2A2A2A;
+    color: #D0D0D0;
+}
+
+body.dark-mode .card .btn {
+    background: #2C5E31;
+    color: #FFFFFF;
+    border: 1px solid #234925;
+}
+
+/* Force white text inside profile cards for better contrast (Brave fixes) */
+body.dark-mode .card,
+body.dark-mode .card .card-header,
+body.dark-mode .card .card-body,
+body.dark-mode .card .card-title,
+body.dark-mode .card .card-text,
+body.dark-mode .card .card-footer,
+body.dark-mode .card .list-group-item,
+body.dark-mode .card .form-label,
+body.dark-mode .card .form-input,
+body.dark-mode .card .form-control,
+body.dark-mode .card small {
+    color: #FFFFFF !important;
+}
+
+body.dark-mode .card input::placeholder,
+body.dark-mode .card textarea::placeholder {
+    color: #BFBFBF !important;
+}
+
+
+
+
 
 /* ===== PROGRESS PAGE SPECIFIC ===== */
 body.dark-mode .prog-card {
