@@ -728,6 +728,34 @@ body.dark-mode .card textarea::placeholder {
     color: #BFBFBF !important;
 }
 
+/* Force white/near-white for headers and data-driven stat elements used on profile */
+body.dark-mode .card .card-header h1,
+body.dark-mode .card .card-header h2,
+body.dark-mode .card .card-header h3,
+body.dark-mode .card .card-header .title,
+body.dark-mode .card .card-header .heading {
+    color: #FFFFFF !important;
+}
+
+body.dark-mode [data-stat],
+body.dark-mode [data-stat-label],
+body.dark-mode [data-stat-value],
+body.dark-mode [data-conv-header],
+body.dark-mode [data-conv],
+body.dark-mode .data-stats .data-stat,
+body.dark-mode .stat-value,
+body.dark-mode .conv-header {
+    color: #FFFFFF !important;
+}
+
+/* Slightly muted secondary stat text */
+body.dark-mode [data-stat-subtext],
+body.dark-mode .stat-subtext,
+body.dark-mode .conv-subtext {
+    color: #CFCFCF !important;
+}
+
+
 
 
 
