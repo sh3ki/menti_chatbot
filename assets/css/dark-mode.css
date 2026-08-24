@@ -270,63 +270,7 @@ body.dark-mode .theme-option.selected {
 /* Do not apply dark mode to .chat-messages or message elements */
 
 /* ===== CHAT INPUT ===== */
-body.dark-mode .chat-input-container {
-    background: #242424;
-    border-top-color: #3A3A3A;
-}
-
-body.dark-mode .chat-input {
-    background: #1A1A1A;
-    color: #FFFFFF;
-    border-color: #3A3A3A;
-}
-
-body.dark-mode .chat-input::placeholder {
-    color: #808080;
-}
-
-body.dark-mode .chat-input:focus {
-    border-color: #4FA858;
-    background: #2C2C2C;
-}
-
-body.dark-mode .send-btn {
-    background: #2C5E31;
-    color: #FFFFFF;
-}
-
-body.dark-mode .send-btn:hover:not(:disabled) {
-    background: #3A7A41;
-}
-
-body.dark-mode .voice-btn {
-    background: #2C2C2C;
-    color: #A0D8A0;
-    border-color: #3A3A3A;
-}
-
-body.dark-mode .voice-btn:hover:not(:disabled) {
-    background: #3A3A3A;
-    border-color: #4FA858;
-}
-
-body.dark-mode .voice-btn.recording {
-    background: #DC2626;
-    color: #FFFFFF;
-    border-color: #DC2626;
-}
-
-body.dark-mode .voice-btn.transcribing {
-    background: #F59E0B;
-    color: #FFFFFF;
-    border-color: #F59E0B;
-}
-
-body.dark-mode .voice-btn.muted {
-    background: #1F3A21;
-    color: #A0D8A0;
-    border-color: #3A6A3E;
-}
+/* NOTE: chat-input-container and its icons are NOT affected by dark mode - stay in light mode */
 
 /* ===== TYPING INDICATOR ===== */
 body.dark-mode .typing-indicator {
@@ -356,39 +300,7 @@ body.dark-mode .welcome-message p {
 body.dark-mode .mode-selector-welcome {
     color: #FFFFFF;
 }
-
-body.dark-mode .mode-card {
-    background: #2C2C2C;
-    border-color: #3A3A3A;
-    color: #FFFFFF;
-}
-
-body.dark-mode .mode-card:hover {
-    border-color: #4FA858;
-    background: #3A3A3A;
-}
-
-body.dark-mode .mode-card.active {
-    background: #1F3A21;
-    border-color: #4FA858;
-    color: #A0D8A0;
-}
-
-body.dark-mode .mode-card-small {
-    background: #2C2C2C;
-    border-color: #3A3A3A;
-    color: #FFFFFF;
-}
-
-body.dark-mode .mode-card-small:hover {
-    border-color: #4FA858;
-}
-
-body.dark-mode .mode-card-small.active {
-    background: #1F3A21;
-    border-color: #4FA858;
-    color: #A0D8A0;
-}
+/* NOTE: mode-card and mode-card-small are NOT affected by dark mode - stay in light mode */
 
 /* ===== HEADER MODE SELECTOR ===== */
 body.dark-mode .header-mode-selector {
