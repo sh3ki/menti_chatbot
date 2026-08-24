@@ -349,8 +349,8 @@ body.dark-mode .welcome-message h2 {
 }
 
 body.dark-mode .welcome-message p {
-    color: #D0D0D0;
-}
+    color: #FFFFFF;
+}}
 
 /* ===== MODE SELECTORS ===== */
 body.dark-mode .mode-selector-welcome {
@@ -599,7 +599,7 @@ body.dark-mode .profile-section h2 {
 }
 
 body.dark-mode .form-group label {
-    color: #D0D0D0;
+    color: #FFFFFF;
 }
 
 body.dark-mode .form-field {
@@ -619,7 +619,7 @@ body.dark-mode .journal-entry-date {
 }
 
 body.dark-mode .journal-entry-content {
-    color: #D0D0D0;
+    color: #FFFFFF;
 }
 
 /* ===== PROGRESS PAGE SPECIFIC ===== */
@@ -642,8 +642,8 @@ body.dark-mode .stat-value {
 }
 
 body.dark-mode .stat-label {
-    color: #D0D0D0;
-}
+    color: #FFFFFF;
+}}
 
 /* ===== PLAN PAGE SPECIFIC ===== */
 body.dark-mode .plan-card {
