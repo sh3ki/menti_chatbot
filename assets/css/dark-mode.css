@@ -474,29 +474,30 @@ body.dark-mode .page-content::-webkit-scrollbar-thumb:hover {
 }
 
 /* ===== FORM ELEMENTS ===== */
-body.dark-mode input[type="text"],
+/* NOTE: .chat-input is excluded from dark mode - stays in light mode */
+body.dark-mode input[type="text"]:not(.chat-input),
 body.dark-mode input[type="email"],
 body.dark-mode input[type="password"],
-body.dark-mode textarea,
+body.dark-mode textarea:not(.chat-input),
 body.dark-mode select {
     background: #1A1A1A;
     color: #FFFFFF;
     border-color: #3A3A3A;
 }
 
-body.dark-mode input[type="text"]:focus,
+body.dark-mode input[type="text"]:not(.chat-input):focus,
 body.dark-mode input[type="email"]:focus,
 body.dark-mode input[type="password"]:focus,
-body.dark-mode textarea:focus,
+body.dark-mode textarea:not(.chat-input):focus,
 body.dark-mode select:focus {
     border-color: #4FA858;
     background: #2C2C2C;
 }
 
-body.dark-mode input[type="text"]::placeholder,
+body.dark-mode input[type="text"]:not(.chat-input)::placeholder,
 body.dark-mode input[type="email"]::placeholder,
 body.dark-mode input[type="password"]::placeholder,
-body.dark-mode textarea::placeholder {
+body.dark-mode textarea:not(.chat-input)::placeholder {
     color: #808080;
 }
 
