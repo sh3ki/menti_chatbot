@@ -6,18 +6,32 @@ Emotional Support Chatbot with Firebase Authentication and OpenAI Integration
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for, Response
 from flask_cors import CORS
 from functools import wraps
-import os, json, queue, threading
+import os, json, queue, threading, sys
 from dotenv import load_dotenv
-from groq import Groq
+try:
+    from openai import OpenAI
+except ImportError:  # Keep the app bootable and return a safe fallback until dependencies are installed.
+    OpenAI = None
 import firebase_admin
 from firebase_admin import credentials, firestore, auth as firebase_auth
-from datetime import datetime, timedelta
+from google.cloud.firestore_v1.base_query import FieldFilter
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 import hashlib
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 # Load environment variables
 load_dotenv()
+
+# OpenAI is used for all active chatbot analysis, response generation, and speech.
+openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY')) if OpenAI and os.getenv('OPENAI_API_KEY') else None
+OPENAI_ANALYSIS_MODEL = os.getenv('OPENAI_ANALYSIS_MODEL', 'gpt-4o-mini')
+OPENAI_RESPONSE_MODEL = os.getenv('OPENAI_RESPONSE_MODEL', 'gpt-4o-mini')
+OPENAI_TTS_MODEL = os.getenv('OPENAI_TTS_MODEL', 'gpt-4o-mini-tts')
 
 
 def _is_truthy_env(value):
@@ -43,10 +57,40 @@ app = Flask(__name__,
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 CORS(app)
 
+
+@app.route('/favicon.ico')
+def favicon_noop():
+    return ('', 204)
+
+
+@app.route('/api/music', methods=['GET'])
+def get_background_music():
+    """Return the available background music grouped by category."""
+    music_root = os.path.join(app.static_folder, 'music')
+    categories = ('calming', 'gentle', 'peaceful', 'relaxing', 'soothing')
+    supported_extensions = ('.mp3', '.wav', '.ogg', '.m4a')
+    music = {}
+
+    for category in categories:
+        category_path = os.path.join(music_root, category)
+        if not os.path.isdir(category_path):
+            music[category] = []
+            continue
+        tracks = []
+        for filename in sorted(os.listdir(category_path), key=str.casefold):
+            if filename.lower().endswith(supported_extensions):
+                tracks.append({
+                    'title': os.path.splitext(filename)[0],
+                    'url': url_for('static', filename=f'music/{category}/{filename}')
+                })
+        music[category] = tracks
+
+    return jsonify({'categories': list(categories), 'music': music})
+
 # In-memory conversation storage (use Redis/database for production)
 conversation_history = {}
 
-# Unified offline response when Groq and model fallback both fail.
+# Unified offline response when OpenAI is unavailable.
 OFFLINE_REPLY = "Menti's server is currently offline. Please try again later."
 
 # ==================== ADMIN CONFIGURATION ====================
@@ -69,162 +113,228 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Initialize Groq Client
-groq_api_key = os.getenv('GROQ_API_KEY')
-groq_api_key_fallback = (os.getenv('GROQ_API_KEY_FALLBACK') or '').strip()
-if not groq_api_key:
-    print("❌ ERROR: GROQ_API_KEY not found in environment variables!")
-    print("Please add GROQ_API_KEY to your .env file")
-else:
-    groq_client = Groq(api_key=groq_api_key)
-    groq_client_fallback = None
-    if groq_api_key_fallback and groq_api_key_fallback != groq_api_key:
-        groq_client_fallback = Groq(api_key=groq_api_key_fallback)
-        print("✅ Groq fallback API client initialized successfully")
-    print("✅ Groq primary API client initialized successfully")
-    # Prefer a chat-capable model by default.
-    # Keep backward compatibility with GROQ_MODEL, but allow GROQ_CHAT_MODEL override.
-    DEFAULT_CHAT_MODEL = 'openai/gpt-oss-20b'
-    configured_model = os.getenv('GROQ_CHAT_MODEL') or os.getenv('GROQ_MODEL') or DEFAULT_CHAT_MODEL
-    groq_fallback_model = os.getenv('GROQ_FALLBACK_MODEL', 'openai/gpt-oss-120b')
 
-    # Guard against common non-chat classifier/moderation models that return empty content.
-    _non_chat_hints = ('prompt-guard', 'guard', 'moderation', 'classifier')
-    if any(h in configured_model.lower() for h in _non_chat_hints):
-        print(
-            f"⚠️ GROQ model '{configured_model}' appears non-chat. "
-            f"Falling back to chat model '{DEFAULT_CHAT_MODEL}'."
-        )
-        groq_model = DEFAULT_CHAT_MODEL
-    else:
-        groq_model = configured_model
+PROVIDER_ROLES = {'psychiatrist', 'psychologist'}
+PROVIDER_STATUSES = {'pending', 'approved', 'rejected', 'disabled'}
+MANILA_TZ = ZoneInfo('Asia/Manila')
+APPOINTMENT_STATUSES = {'pending', 'approved', 'declined', 'cancelled', 'completed', 'no_show'}
+SESSION_DURATIONS = {30, 45, 60, 90, 120}
 
-    print(f"ℹ️ Using Groq model: {groq_model}")
-    print(f"ℹ️ Backup Groq model: {groq_fallback_model}")
+# Firestore budget guardrails for non-critical analytics endpoints.
+FIRESTORE_DAILY_QUERY_LIMIT = max(1000, int(os.getenv('FIRESTORE_DAILY_QUERY_LIMIT', '45000') or 45000))
+FIRESTORE_NONCRITICAL_SOFT_LIMIT_RATIO = min(0.99, max(0.10, float(os.getenv('FIRESTORE_NONCRITICAL_SOFT_LIMIT_RATIO', '0.85') or 0.85)))
+ADMIN_CACHE_TTL_SECONDS = max(10, int(os.getenv('ADMIN_CACHE_TTL_SECONDS', '60') or 60))
 
-    # Centralized Groq chat wrapper: returns the SDK response or None on any error
-    def groq_chat_create(**kwargs):
-        """Call Groq chat completions safely.
-        Returns the raw response object, or None on any API error or when the model returns a
-        non-chat/classifier-style output (e.g., numeric score outputs).
-        """
-        if 'groq_client' not in globals() or not groq_client:
-            print('Groq client not initialized')
-            return None
+_fs_budget_lock = threading.Lock()
+_fs_budget_state = {'date': '', 'reads': 0}
+_admin_cache = {}
 
-        if 'top_p' not in kwargs:
-            kwargs['top_p'] = 1
-        if 'stream' not in kwargs:
-            kwargs['stream'] = False
 
-        allow_empty_retry = kwargs.pop('_allow_empty_retry', True)
-        allow_model_failover = kwargs.pop('_allow_model_failover', True)
-        debug_label = kwargs.pop('_debug_label', '')
-        import re as _local_re
+def _manila_today_key():
+    return datetime.now(MANILA_TZ).strftime('%Y-%m-%d')
 
-        def _call_once(client_obj, request_kwargs, call_label):
-            if DEBUG_AI_PIPELINE:
-                req_messages = request_kwargs.get('messages') or []
-                _debug_ai_log(
-                    f"REQ {call_label}",
-                    f"model={request_kwargs.get('model')} max_tokens={request_kwargs.get('max_tokens')} temp={request_kwargs.get('temperature')} msg_count={len(req_messages)}"
-                )
-            try:
-                local_resp = client_obj.chat.completions.create(**request_kwargs)
-            except Exception as ex:
-                print(f"Groq API error ({call_label}): {ex}")
-                _debug_ai_log(f"FAIL {call_label}", f"api_error={ex}")
-                return None, ''
 
-            try:
-                choices = getattr(local_resp, 'choices', None)
-                if not choices or len(choices) == 0:
-                    print(f"Groq response contained no choices ({call_label})")
-                    _debug_ai_log(f"FAIL {call_label}", 'no_choices')
-                    return None, ''
-                msg = getattr(choices[0], 'message', None)
-                local_content = (getattr(msg, 'content', '') or '').strip() if msg else ''
-            except Exception as ex:
-                print(f"Error inspecting Groq response ({call_label}): {ex}")
-                _debug_ai_log(f"FAIL {call_label}", f"inspect_error={ex}")
-                return None, ''
+def _record_firestore_reads(units=1):
+    units = max(0, int(units or 0))
+    if units == 0:
+        return
+    with _fs_budget_lock:
+        today = _manila_today_key()
+        if _fs_budget_state['date'] != today:
+            _fs_budget_state['date'] = today
+            _fs_budget_state['reads'] = 0
+        _fs_budget_state['reads'] += units
 
-            if not local_content:
-                _debug_ai_log(f"FAIL {call_label}", 'empty_content')
-                return None, ''
 
-            if _local_re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", local_content):
-                print(f"Groq returned numeric-only content ('{local_content}') in {call_label}; treating as non-chat output")
-                _debug_ai_log(f"FAIL {call_label}", 'numeric_only_content')
-                return None, ''
+def _budget_snapshot():
+    with _fs_budget_lock:
+        today = _manila_today_key()
+        if _fs_budget_state['date'] != today:
+            _fs_budget_state['date'] = today
+            _fs_budget_state['reads'] = 0
+        reads = _fs_budget_state['reads']
+    ratio = (reads / FIRESTORE_DAILY_QUERY_LIMIT) if FIRESTORE_DAILY_QUERY_LIMIT else 0
+    return {'date': today, 'reads': reads, 'limit': FIRESTORE_DAILY_QUERY_LIMIT, 'ratio': ratio}
 
-            return local_resp, local_content
 
-        def _with_model_fallback(request_kwargs):
-            variants = [dict(request_kwargs)]
+def _noncritical_firestore_allowed():
+    snap = _budget_snapshot()
+    return snap['ratio'] < FIRESTORE_NONCRITICAL_SOFT_LIMIT_RATIO
 
-            if allow_empty_retry:
-                base_max = request_kwargs.get('max_tokens')
-                if isinstance(base_max, int) and base_max < 220:
-                    retry_kwargs = dict(request_kwargs)
-                    retry_kwargs['max_tokens'] = min(max(base_max + 40, int(base_max * 1.5)), 220)
-                    variants.append(retry_kwargs)
 
-            req_model = request_kwargs.get('model')
-            if allow_model_failover and groq_fallback_model and req_model != groq_fallback_model:
-                model_kwargs = dict(request_kwargs)
-                model_kwargs['model'] = groq_fallback_model
-                if isinstance(model_kwargs.get('max_tokens'), int):
-                    model_kwargs['max_tokens'] = min(model_kwargs['max_tokens'] + 100, 2000)  # Removed artificial 260 cap
-                variants.append(model_kwargs)
+def _admin_cache_get(key, ttl_seconds=None):
+    item = _admin_cache.get(key)
+    if not item:
+        return None
+    if ttl_seconds is None:
+        return item.get('payload')
+    age = (_now_utc() - item['created_at']).total_seconds()
+    if age <= ttl_seconds:
+        return item.get('payload')
+    return None
 
-            return variants
 
-        base_kwargs = dict(kwargs)
-        label_root = debug_label or 'groq_chat_create'
+def _admin_cache_set(key, payload):
+    _admin_cache[key] = {'payload': payload, 'created_at': _now_utc()}
 
-        # Attempt order:
-        # 1) Primary API key + model/retry/model-fallback
-        # 2) Fallback API key + model/retry/model-fallback
-        client_attempts = [('primary_key', groq_client)]
-        if 'groq_client_fallback' in globals() and groq_client_fallback:
-            client_attempts.append(('fallback_key', groq_client_fallback))
 
-        selected_resp = None
-        selected_content = ''
-        for key_label, client_obj in client_attempts:
-            for idx, attempt_kwargs in enumerate(_with_model_fallback(base_kwargs), start=1):
-                call_label = f"{label_root}:{key_label}:try{idx}"
-                local_resp, local_content = _call_once(client_obj, attempt_kwargs, call_label)
-                if local_resp is not None and local_content:
-                    if key_label == 'fallback_key':
-                        print("Groq API-key fallback succeeded")
-                    if attempt_kwargs.get('model') != base_kwargs.get('model'):
-                        print(f"Groq model fallback succeeded with model {attempt_kwargs.get('model')}")
-                    selected_resp = local_resp
-                    selected_content = local_content
-                    break
-            if selected_resp is not None:
-                break
+def _admin_cache_or_budget_block(cache_key, ttl_seconds=ADMIN_CACHE_TTL_SECONDS):
+    fresh = _admin_cache_get(cache_key, ttl_seconds=ttl_seconds)
+    if fresh is not None:
+        return jsonify(fresh)
+    if _noncritical_firestore_allowed():
+        return None
+    stale = _admin_cache_get(cache_key, ttl_seconds=None)
+    if stale is not None:
+        return jsonify(stale)
+    snap = _budget_snapshot()
+    return jsonify({
+        'error': 'Non-critical analytics temporarily paused to protect Firestore daily quota.',
+        'firestoreBudget': snap,
+    }), 503
 
-        if selected_resp is None:
-            print('Groq returned no usable content after model + API-key fallback')
-            _debug_ai_log(f"FAIL {label_root}", 'all_attempts_exhausted')
-            return None
 
-        if DEBUG_AI_PIPELINE:
-            usage = getattr(selected_resp, 'usage', None)
-            if usage:
-                _debug_ai_log(
-                    f"USAGE {debug_label or 'groq_chat_create'}",
-                    f"prompt_tokens={getattr(usage, 'prompt_tokens', None)} completion_tokens={getattr(usage, 'completion_tokens', None)} total_tokens={getattr(usage, 'total_tokens', None)}"
-                )
-            _debug_ai_log(f"RAW {debug_label or 'groq_chat_create'}", selected_content)
+def _now_utc():
+    return datetime.now(timezone.utc)
 
-        return selected_resp
 
-    # Offline reply used when Groq + model fallback cannot produce a response
-    OFFLINE_REPLY = "Menti's server is currently offline. Please try again later."
+def _iso_now():
+    return _now_utc().isoformat()
+
+
+def _parse_iso(value):
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=MANILA_TZ)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _current_user_uid():
+    """Verify the Firebase bearer token used by the regular user portal."""
+    decoded = _verify_provider_token()
+    return decoded.get('uid') if decoded else None
+
+
+def _where_eq(query, field, value):
+    """Firestore equality helper using keyword filter to avoid positional-arg warnings."""
+    return query.where(filter=FieldFilter(field, '==', value))
+
+
+def _provider_name(uid):
+    snap = db.collection('providers').document(uid).get() if db else None
+    if snap and snap.exists:
+        data = snap.to_dict() or {}
+        return data.get('displayName') or data.get('email') or 'Provider'
+    return 'Provider'
+
+
+def _rtc_ice_servers():
+    servers = [{'urls': 'stun:stun.l.google.com:19302'}]
+    turn_url = os.getenv('TURN_SERVER_URL', '').strip()
+    if turn_url:
+        turn = {'urls': turn_url}
+        if os.getenv('TURN_SERVER_USERNAME'):
+            turn['username'] = os.getenv('TURN_SERVER_USERNAME')
+        if os.getenv('TURN_SERVER_CREDENTIAL'):
+            turn['credential'] = os.getenv('TURN_SERVER_CREDENTIAL')
+        servers.append(turn)
+    return servers
+
+
+def _appointment_payload(doc):
+    data = doc.to_dict() or {}
+    data['id'] = doc.id
+    data.setdefault('status', 'pending')
+    return data
+
+
+def _appointment_for_actor(appointment_id, actor_uid, is_provider=False):
+    snap = db.collection('appointments').document(appointment_id).get() if db else None
+    if not snap or not snap.exists:
+        return None, 'Appointment not found'
+    data = snap.to_dict() or {}
+    owner_key = 'providerId' if is_provider else 'userId'
+    if data.get(owner_key) != actor_uid:
+        return None, 'You do not have access to this appointment'
+    return snap, None
+
+
+def _slot_is_available(provider_id, start, end, config):
+    """Validate a requested slot against the provider's recurring Manila schedule."""
+    local_start = start.astimezone(MANILA_TZ)
+    local_end = end.astimezone(MANILA_TZ)
+    if local_start.date() != local_end.date():
+        return False
+    weekday = str((local_start.weekday() + 1) % 7)  # Sunday=0 to match the browser calendar
+    rules = (config.get('weekly') or {}).get(weekday, [])
+    start_minutes = local_start.hour * 60 + local_start.minute
+    end_minutes = local_end.hour * 60 + local_end.minute
+    valid_window = any(
+        start_minutes >= int(str(rule.get('start', '00:00')).split(':')[0]) * 60 + int(str(rule.get('start', '00:00')).split(':')[1])
+        and end_minutes <= int(str(rule.get('end', '00:00')).split(':')[0]) * 60 + int(str(rule.get('end', '00:00')).split(':')[1])
+        for rule in rules if rule.get('start') and rule.get('end')
+    )
+    if not valid_window:
+        return False
+    for blocked in (config.get('blocked') or []) + (config.get('exceptions') or []):
+        blocked_start, blocked_end = _parse_iso(blocked.get('start')), _parse_iso(blocked.get('end'))
+        if blocked_start and blocked_end and start < blocked_end and end > blocked_start:
+            return False
+    return True
+
+
+def _verify_provider_token():
+    """Verify the Firebase ID token supplied by the provider frontend."""
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None
+    try:
+        return firebase_auth.verify_id_token(auth_header[7:].strip())
+    except Exception as exc:
+        print(f'[provider] Firebase token verification failed: {exc}')
+        return None
+
+
+def _verify_firebase_id_token(raw_token):
+    """Verify a raw Firebase ID token and return decoded claims."""
+    token = str(raw_token or '').strip()
+    if not token:
+        return None
+    try:
+        return firebase_auth.verify_id_token(token)
+    except Exception as exc:
+        print(f'[auth] Firebase token verification failed: {exc}')
+        return None
+
+
+def provider_session_required(f):
+    """Require a provider session, including pending/rejected status pages."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_provider'):
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'error': 'Provider authentication required'}), 401
+            return redirect('/providers/login')
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def provider_required(f):
+    """Protect approved provider portal/API routes using the server-side session."""
+    @provider_session_required
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if db:
+            snap = db.collection('providers').document(session.get('provider_uid', '')).get()
+            if not snap.exists or (snap.to_dict() or {}).get('status') != 'approved':
+                if request.is_json:
+                    return jsonify({'error': 'Provider account is not approved'}), 403
+                return redirect('/providers/status')
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Initialize Firebase Admin SDK
 try:
@@ -304,6 +414,1261 @@ def admin_dashboard():
     return render_template('admin_dashboard.html', admin_username=session.get('admin_username', 'Admin'))
 
 
+# ==================== PROVIDER AUTHENTICATION ====================
+
+def _provider_payload(doc_id, data):
+    """Return provider data safe for the browser; license numbers are masked here."""
+    license_number = str(data.get('licenseNumber') or '')
+    masked = ('*' * max(0, len(license_number) - 4) + license_number[-4:]) if license_number else ''
+    return {
+        'id': doc_id,
+        'uid': doc_id,
+        'email': data.get('email', ''),
+        'firstName': data.get('firstName', ''),
+        'middleName': data.get('middleName', ''),
+        'lastName': data.get('lastName', ''),
+        'displayName': data.get('displayName', ''),
+        'role': data.get('role', ''),
+        'status': data.get('status', 'pending'),
+        'licenseNumber': masked,
+        'createdAt': str(data.get('createdAt', '')),
+        'updatedAt': str(data.get('updatedAt', '')),
+        'approvedAt': str(data.get('approvedAt', '')),
+        'rejectedAt': str(data.get('rejectedAt', '')),
+        'rejectionReason': data.get('rejectionReason', '')
+    }
+
+
+@app.route('/providers/login')
+def provider_login():
+    return render_template('provider_login.html')
+
+
+@app.route('/providers/signup')
+def provider_signup():
+    return render_template('provider_signup.html')
+
+
+@app.route('/providers/authenticate', methods=['POST'])
+def provider_authenticate():
+    """Exchange a Firebase login for a provider session and return provider status."""
+    decoded = _verify_provider_token()
+    if not decoded:
+        return jsonify({'success': False, 'error': 'Invalid authentication token'}), 401
+    if not db:
+        return jsonify({'success': False, 'error': 'Database is not available'}), 503
+    ref = db.collection('providers').document(decoded['uid'])
+    snap = ref.get()
+    if not snap.exists:
+        return jsonify({'success': False, 'error': 'No provider application found for this account. Please sign up as a provider first.'}), 403
+    data = snap.to_dict() or {}
+    status = data.get('status', 'pending')
+    session.clear()
+    session.update({
+        'is_provider': True,
+        'provider_uid': decoded['uid'],
+        'provider_email': decoded.get('email', data.get('email', '')),
+        'provider_role': data.get('role')
+    })
+    session.permanent = True
+    return jsonify({'success': True, 'provider': _provider_payload(snap.id, data), 'redirect': '/providers/dashboard' if status == 'approved' else '/providers/status'})
+
+
+@app.route('/providers/register', methods=['POST'])
+def provider_register():
+    """Create or update a provider application after Firebase signup."""
+    decoded = _verify_provider_token()
+    if not decoded:
+        return jsonify({'success': False, 'error': 'Invalid authentication token'}), 401
+    if not db:
+        return jsonify({'success': False, 'error': 'Database is not available'}), 503
+    payload = request.get_json() or {}
+    role = str(payload.get('role', '')).strip().lower()
+    license_number = str(payload.get('licenseNumber', '')).strip()
+    first_name = str(payload.get('firstName', '')).strip()
+    last_name = str(payload.get('lastName', '')).strip()
+    if role not in PROVIDER_ROLES:
+        return jsonify({'success': False, 'error': 'Select a valid provider role'}), 400
+    if not first_name or not last_name or not license_number:
+        return jsonify({'success': False, 'error': 'First name, last name, and professional license number are required'}), 400
+    ref = db.collection('providers').document(decoded['uid'])
+    existing = ref.get()
+    old = existing.to_dict() if existing.exists else {}
+    if old.get('status') == 'approved':
+        return jsonify({'success': False, 'error': 'Approved provider details cannot be resubmitted'}), 409
+    now = datetime.now().isoformat()
+    record = {
+        'email': (decoded.get('email') or payload.get('email') or '').lower(),
+        'firstName': first_name,
+        'middleName': str(payload.get('middleName', '')).strip(),
+        'lastName': last_name,
+        'displayName': ' '.join(x for x in [first_name, str(payload.get('middleName', '')).strip(), last_name] if x),
+        'role': role,
+        'licenseNumber': license_number,
+        'status': 'pending',
+        'updatedAt': now,
+        'createdAt': old.get('createdAt', now),
+        'rejectionReason': '',
+        'rejectedAt': None,
+    }
+    ref.set(record, merge=True)
+    return jsonify({'success': True, 'provider': _provider_payload(decoded['uid'], record), 'redirect': '/providers/status'})
+
+
+@app.route('/providers/status')
+@provider_session_required
+def provider_status():
+    return render_template('provider_status.html')
+
+
+@app.route('/providers/dashboard')
+@provider_required
+def provider_dashboard():
+    provider_name = session.get('provider_email', 'Provider')
+    if db and session.get('provider_uid'):
+        provider_snap = db.collection('providers').document(session['provider_uid']).get()
+        if provider_snap.exists:
+            provider_name = (provider_snap.to_dict() or {}).get('displayName') or provider_name
+    return render_template('provider_dashboard.html',
+                           provider_name=provider_name,
+                           provider_email=session.get('provider_email', 'Provider'),
+                           provider_role=session.get('provider_role', 'provider'))
+
+
+# ==================== COUNSELING SCHEDULING ====================
+
+@app.route('/providers/calendar')
+@provider_required
+def provider_calendar_page():
+    return render_template('provider_calendar.html', provider_name=_provider_name(session['provider_uid']),
+                           provider_email=session.get('provider_email', ''),
+                           provider_role=session.get('provider_role', 'provider'))
+
+
+@app.route('/providers/video-call')
+@provider_required
+def provider_video_call_page():
+    return render_template('provider_video_call.html', provider_name=_provider_name(session['provider_uid']),
+                           provider_email=session.get('provider_email', ''),
+                           provider_role=session.get('provider_role', 'provider'), rtc_ice_servers=_rtc_ice_servers())
+
+
+@app.route('/counseling-appointments')
+def counseling_appointments_page():
+    return render_template('counseling_appointments.html', rtc_ice_servers=_rtc_ice_servers())
+
+
+# ==================== PSYCHOLOGICAL WELL-BEING ASSESSMENT ====================
+ASSESSMENT_CATEGORIES = {
+    'Mood & Emotional Well-being': [1, 2, 3, 4, 5],
+    'Stress & Anxiety': [6, 7, 8, 9, 10],
+    'Sleep & Energy': [11, 12, 13, 14],
+    'Daily Functioning': [15, 16, 17, 18],
+    'Social & Emotional Support': [19, 20, 21, 22],
+    'Coping & Self-Management': [23, 24, 25, 26],
+}
+# Positive statements are reversed so every category score measures difficulty.
+ASSESSMENT_POSITIVE_ITEMS = {1, 14, 18, 20, 21, 23, 24, 25, 26}
+ASSESSMENT_PROFILES = [
+    (20, 'Flourishing', 'Based on your responses, you appear to be experiencing generally positive emotional well-being. Continue maintaining healthy habits, meaningful connections, and activities that support your well-being.'),
+    (41, 'Managing', 'Based on your responses, you appear to be managing your current emotional well-being fairly well, although some areas may benefit from additional attention.'),
+    (62, 'Strained', 'Based on your responses, you may currently be experiencing emotional difficulties affecting some areas of your well-being. Consider rest, reflection, and reaching out for support.'),
+    (83, 'Overwhelmed', 'Based on your responses, you may be experiencing significant emotional pressure across several areas. Consider reaching out to someone you trust or a qualified mental health professional.'),
+    (104, 'High Emotional Distress', 'Based on your responses, you may be experiencing a high level of emotional distress. You may benefit from support from someone you trust or a qualified mental health professional.'),
+]
+ASSESSMENT_RECOMMENDATIONS = {
+    'Mood & Emotional Well-being': 'Make space for enjoyable activities, name your emotions, and consider talking with a trusted person.',
+    'Stress & Anxiety': 'Try paced breathing, break responsibilities into smaller steps, and schedule short recovery periods.',
+    'Sleep & Energy': 'Keep a consistent sleep routine, reduce stimulating screen use before bed, and seek help for persistent fatigue.',
+    'Daily Functioning': 'Prioritize one manageable task at a time and consider professional support if responsibilities remain difficult.',
+    'Social & Emotional Support': 'Reconnect with a trusted person or support group; you do not have to manage difficult feelings alone.',
+    'Coping & Self-Management': 'Continue healthy coping strategies and add one small, repeatable activity that supports hope and control.',
+}
+
+
+def _assessment_result(answers, crisis_answers):
+    clean = {}
+    for i in range(1, 27):
+        try:
+            clean[str(i)] = max(0, min(4, int(answers.get(str(i), answers.get(i, 0)) or 0)))
+        except (TypeError, ValueError):
+            clean[str(i)] = 0
+    scores = {}
+    for category, items in ASSESSMENT_CATEGORIES.items():
+        scores[category] = sum(4 - clean[str(i)] if i in ASSESSMENT_POSITIVE_ITEMS else clean[str(i)] for i in items)
+    total = sum(scores.values())
+    profile = next((name for limit, name, _ in ASSESSMENT_PROFILES if total <= limit), 'High Emotional Distress')
+    description = next(description for limit, name, description in ASSESSMENT_PROFILES if name == profile)
+    safety = {key: str(value).lower() in {'yes', 'true', '1', 'often'} for key, value in (crisis_answers or {}).items()}
+    crisis = any(safety.values())
+    return {
+        'answers': clean, 'categoryScores': scores, 'totalScore': total,
+        'maxScore': 104, 'profile': profile, 'profileDescription': description,
+        'recommendations': [ASSESSMENT_RECOMMENDATIONS[c] for c, score in scores.items() if score >= (len(ASSESSMENT_CATEGORIES[c]) * 2)],
+        'crisisDetected': crisis, 'crisisAnswers': safety,
+        'completedAt': _iso_now(), 'version': 1,
+    }
+
+
+@app.route('/api/assessment', methods=['GET', 'POST'])
+def assessment_api():
+    uid = _current_user_uid()
+    if not uid or not db:
+        return jsonify({'error': 'Sign in is required'}), 401
+    ref = db.collection('user_assessments')
+    if request.method == 'GET':
+        items = []
+        for doc in _where_eq(ref, 'userId', uid).stream():
+            item = doc.to_dict() or {}; item['id'] = doc.id; items.append(item)
+        items.sort(key=lambda x: x.get('completedAt', ''), reverse=True)
+        return jsonify(items)
+    payload = request.get_json() or {}
+    answers = payload.get('answers') if isinstance(payload.get('answers'), dict) else {}
+    if any(str(i) not in answers and i not in answers for i in range(1, 27)):
+        return jsonify({'error': 'Please answer all 26 assessment questions'}), 400
+    try:
+        if any(int(answers.get(str(i), answers.get(i))) not in range(5) for i in range(1, 27)):
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Assessment answers must be values from 0 to 4'}), 400
+    result = _assessment_result(answers, payload.get('crisisAnswers'))
+    result['userId'] = uid
+    try:
+        user = firebase_auth.get_user(uid)
+        result['userEmail'] = user.email or ''
+        result['userName'] = user.display_name or user.email or uid
+    except Exception:
+        result['userEmail'] = ''; result['userName'] = uid
+    doc = ref.document(); doc.set(result)
+    result['id'] = doc.id
+    return jsonify(result), 201
+
+
+@app.route('/admin/api/assessments')
+@admin_required
+def admin_api_assessments():
+    if not db:
+        return jsonify([])
+    items = []
+    for doc in db.collection('user_assessments').stream():
+        item = doc.to_dict() or {}; item['id'] = doc.id; items.append(item)
+    items.sort(key=lambda x: x.get('completedAt', ''), reverse=True)
+    return jsonify(items)
+
+
+@app.route('/admin/api/assessment-analytics')
+@admin_required
+def admin_api_assessment_analytics():
+    """Return anonymized aggregate assessment analytics for the admin dashboard."""
+    if not db:
+        return jsonify({'totalAssessments': 0, 'profiles': {}, 'categories': {}, 'trend': []})
+    try:
+        from collections import defaultdict
+        from datetime import datetime
+
+        start = request.args.get('from', '')[:10]
+        end = request.args.get('to', '')[:10]
+        granularity = request.args.get('granularity', 'weekly')
+        if granularity not in {'daily', 'weekly', 'monthly'}:
+            granularity = 'weekly'
+
+        profiles = {name: 0 for _, name, _ in ASSESSMENT_PROFILES}
+        category_totals = defaultdict(float)
+        trend_buckets = defaultdict(lambda: {'count': 0, 'score': 0.0})
+        total = score_total = 0
+        support_user_ids = set()
+        for doc in db.collection('user_assessments').stream():
+            item = doc.to_dict() or {}
+            completed = str(item.get('completedAt', ''))
+            date = completed[:10]
+            if not date or (start and date < start) or (end and date > end):
+                continue
+            total += 1
+            profile = item.get('profile') or 'Unknown'
+            if profile in profiles:
+                profiles[profile] += 1
+            if profile in {'Overwhelmed', 'High Emotional Distress'} or item.get('crisisDetected'):
+                # Keep the identifier server-side only so the card counts people, not repeat submissions.
+                support_user_ids.add(str(item.get('userId') or doc.id))
+            raw_score = item.get('totalScore')
+            try:
+                difficulty = float(raw_score)
+            except (TypeError, ValueError):
+                difficulty = 0.0
+            well_being = max(0.0, min(100.0, (1 - difficulty / 104) * 100))
+            score_total += well_being
+            for category, value in (item.get('categoryScores') or {}).items():
+                try:
+                    category_totals[category] += float(value)
+                except (TypeError, ValueError):
+                    pass
+            try:
+                dt = datetime.fromisoformat(completed.replace('Z', '+00:00'))
+            except (ValueError, TypeError):
+                continue
+            if granularity == 'daily':
+                bucket = dt.strftime('%Y-%m-%d')
+            elif granularity == 'monthly':
+                bucket = dt.strftime('%Y-%m')
+            else:
+                iso = dt.isocalendar()
+                bucket = f'{iso.year}-W{iso.week:02d}'
+            trend_buckets[bucket]['count'] += 1
+            trend_buckets[bucket]['score'] += well_being
+
+        category_order = list(ASSESSMENT_CATEGORIES.keys())
+        trend = [{'label': key, 'count': value['count'],
+                  'averageScore': round(value['score'] / value['count'], 1)}
+                 for key, value in sorted(trend_buckets.items())]
+        return jsonify({
+            'totalAssessments': total,
+            'mostCommonProfile': max(profiles, key=profiles.get) if total else '—',
+            'averageWellBeingScore': round(score_total / total, 1) if total else 0,
+            'usersRequiringSupport': len(support_user_ids),
+            'profiles': profiles,
+            'categories': {key: round(category_totals.get(key, 0) / total, 1) if total else 0 for key in category_order},
+            'trend': trend,
+            'privacyNote': 'Aggregated results only; no user identifiers are included.'
+        })
+    except Exception as e:
+        print(f'Error in admin_api_assessment_analytics: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/providers/api/availability', methods=['GET', 'PUT'])
+@provider_required
+def provider_availability_api():
+    uid = session['provider_uid']
+    ref = db.collection('provider_availability').document(uid)
+    if request.method == 'GET':
+        snap = ref.get()
+        default = {'timezone': 'Asia/Manila', 'slotMinutes': 30,
+                   'durations': [30, 45, 60, 90, 120], 'weekly': {}, 'exceptions': [], 'blocked': []}
+        if snap.exists:
+            default.update(snap.to_dict() or {})
+        return jsonify(default)
+    payload = request.get_json() or {}
+    durations = [int(x) for x in payload.get('durations', [30, 45, 60, 90, 120]) if str(x).isdigit()]
+    durations = [x for x in durations if x in SESSION_DURATIONS] or [30]
+    record = {
+        'timezone': 'Asia/Manila',
+        'slotMinutes': max(15, int(payload.get('slotMinutes', 30) or 30)),
+        'durations': durations,
+        'weekly': payload.get('weekly') if isinstance(payload.get('weekly'), dict) else {},
+        'exceptions': payload.get('exceptions') if isinstance(payload.get('exceptions'), list) else [],
+        'blocked': payload.get('blocked') if isinstance(payload.get('blocked'), list) else [],
+        'updatedAt': _iso_now()
+    }
+    ref.set(record, merge=True)
+    return jsonify({'success': True, **record})
+
+
+@app.route('/providers/api/events', methods=['GET', 'POST', 'DELETE'])
+@provider_required
+def provider_events_api():
+    uid = session['provider_uid']
+    if request.method == 'GET':
+        events = []
+        for doc in db.collection('provider_events').where('providerId', '==', uid).stream():
+            events.append(_appointment_payload(doc))
+        return jsonify(events)
+    if request.method == 'DELETE':
+        event_id = (request.get_json() or {}).get('id')
+        if not event_id:
+            return jsonify({'error': 'Event id is required'}), 400
+        ref = db.collection('provider_events').document(event_id)
+        snap = ref.get()
+        if not snap.exists or (snap.to_dict() or {}).get('providerId') != uid:
+            return jsonify({'error': 'Event not found'}), 404
+        ref.delete()
+        return jsonify({'success': True})
+    payload = request.get_json() or {}
+    title = str(payload.get('title', '')).strip()
+    start = _parse_iso(payload.get('start'))
+    end = _parse_iso(payload.get('end'))
+    if not title or not start or not end or end <= start:
+        return jsonify({'error': 'A title, valid start, and valid end are required'}), 400
+    ref = db.collection('provider_events').document()
+    record = {'providerId': uid, 'title': title, 'start': start.isoformat(), 'end': end.isoformat(),
+              'description': str(payload.get('description', '')).strip(), 'createdAt': _iso_now()}
+    ref.set(record)
+    return jsonify({'success': True, 'event': {'id': ref.id, **record}})
+
+
+@app.route('/providers/api/appointments', methods=['GET', 'POST'])
+@provider_required
+def provider_appointments_api():
+    uid = session['provider_uid']
+    if request.method == 'POST':
+        payload = request.get_json() or {}
+        user_id = str(payload.get('userId', '')).strip()
+        user_email = str(payload.get('userEmail', '')).strip().lower()
+        if not user_id and user_email:
+            try:
+                user_id = firebase_auth.get_user_by_email(user_email).uid
+            except Exception:
+                return jsonify({'error': 'No registered user was found for that email'}), 404
+        start, end = _parse_iso(payload.get('start')), _parse_iso(payload.get('end'))
+        duration = int(payload.get('duration', 30) or 30)
+        if not user_id or not start or not end or end <= start or duration not in SESSION_DURATIONS:
+            return jsonify({'error': 'User email, valid schedule, and supported duration are required'}), 400
+        availability = db.collection('provider_availability').document(uid).get()
+        config = availability.to_dict() if availability.exists else {}
+        if duration not in config.get('durations', [30]):
+            return jsonify({'error': 'This duration is not enabled in your provider settings'}), 400
+        if not _slot_is_available(uid, start, end, config):
+            return jsonify({'error': 'The session must fall within your configured availability'}), 409
+        for other in db.collection('appointments').where('providerId', '==', uid).stream():
+            item = other.to_dict() or {}
+            if item.get('status') in {'approved', 'pending'}:
+                os_, oe = _parse_iso(item.get('start')), _parse_iso(item.get('end'))
+                if os_ and oe and start < oe and end > os_:
+                    return jsonify({'error': 'This appointment overlaps another appointment'}), 409
+        profile = db.collection('user_profiles').document(user_id).get()
+        user_data = profile.to_dict() if profile.exists else {}
+        ref = db.collection('appointments').document()
+        record = {'userId': user_id, 'userName': user_data.get('displayName') or user_email or user_id,
+                  'providerId': uid, 'providerName': _provider_name(uid), 'start': start.isoformat(),
+                  'end': end.isoformat(), 'duration': duration, 'status': 'approved',
+                  'reason': str(payload.get('reason', '')).strip(), 'providerNotes': '',
+                  'createdAt': _iso_now(), 'updatedAt': _iso_now(), 'createdByProvider': True}
+        ref.set(record)
+        db.collection('notifications').document().set({'userId': user_id, 'type': 'appointment_update',
+            'appointmentId': ref.id, 'message': 'Your provider created a counseling appointment for you.',
+            'read': False, 'createdAt': _iso_now()})
+        return jsonify({'success': True, 'appointment': {'id': ref.id, **record}}), 201
+    appointments = [_appointment_payload(doc) for doc in db.collection('appointments').where('providerId', '==', uid).stream()]
+    for appointment in appointments:
+        events = [doc.to_dict() or {} for doc in db.collection('call_history')
+                  .where('appointmentId', '==', appointment['id']).stream()]
+        starts = sorted([e for e in events if e.get('action') == 'initiated'], key=lambda e: e.get('timestamp', ''))
+        completed = sorted([e for e in events if e.get('action') == 'completed'], key=lambda e: e.get('timestamp', ''))
+        call_history = []
+        for ended in completed:
+            ended_at = ended.get('endedAt') or ended.get('timestamp')
+            prior = [e for e in starts if e.get('timestamp', '') <= (ended_at or '')]
+            started_at = prior[-1].get('timestamp') if prior else None
+            call_history.append({'startedAt': started_at, 'endedAt': ended_at,
+                                 'duration': ended.get('duration')})
+        if not completed and starts:
+            call_history.append({'startedAt': starts[-1].get('timestamp'), 'endedAt': None, 'duration': None})
+        appointment['callHistory'] = call_history
+    appointments.sort(key=lambda x: x.get('start', ''))
+    return jsonify(appointments)
+
+
+@app.route('/providers/api/appointments/<appointment_id>/decision', methods=['POST'])
+@provider_required
+def provider_appointment_decision(appointment_id):
+    uid = session['provider_uid']
+    snap, error = _appointment_for_actor(appointment_id, uid, True)
+    if error:
+        return jsonify({'error': error}), 404
+    data = snap.to_dict() or {}
+    payload = request.get_json() or {}
+    decision = str(payload.get('status', '')).lower()
+    if decision not in {'approved', 'declined', 'cancelled', 'completed', 'no_show'}:
+        return jsonify({'error': 'Invalid appointment status'}), 400
+    decline_reason = str(payload.get('declineReason', '')).strip()
+    cancellation_reason = str(payload.get('cancellationReason', '')).strip()
+    if decision == 'declined' and not decline_reason:
+        return jsonify({'error': 'A reason is required when declining an appointment'}), 400
+    if decision == 'cancelled' and not cancellation_reason:
+        return jsonify({'error': 'A reason is required when cancelling an appointment'}), 400
+    if decision == 'approved':
+        start, end = _parse_iso(data.get('start')), _parse_iso(data.get('end'))
+        if not start or not end:
+            return jsonify({'error': 'Appointment has an invalid schedule'}), 400
+        for other in db.collection('appointments').where('providerId', '==', uid).where('status', '==', 'approved').stream():
+            other_data = other.to_dict() or {}
+            if other.id == appointment_id:
+                continue
+            other_start, other_end = _parse_iso(other_data.get('start')), _parse_iso(other_data.get('end'))
+            if other_start and other_end and start < other_end and end > other_start:
+                return jsonify({'error': 'This appointment overlaps another approved appointment'}), 409
+    updates = {'status': decision, 'updatedAt': _iso_now()}
+    if decision == 'declined':
+        updates['declineReason'] = decline_reason
+    if decision == 'cancelled':
+        updates['cancellationReason'] = cancellation_reason
+    if payload.get('providerNote') is not None:
+        updates['providerNote'] = str(payload.get('providerNote', '')).strip()
+    snap.reference.set(updates, merge=True)
+    notification_message = f'Your counseling appointment was {decision}.'
+    if decision == 'cancelled':
+        notification_message += f' Reason: {cancellation_reason}'
+    db.collection('notifications').document().set({
+        'userId': data.get('userId'), 'type': 'appointment_update', 'appointmentId': appointment_id,
+        'message': notification_message, 'read': False, 'createdAt': _iso_now()
+    })
+    return jsonify({'success': True, 'appointment': {'id': appointment_id, **data, **updates}})
+
+
+@app.route('/providers/api/appointments/<appointment_id>/notes', methods=['GET', 'PUT'])
+@provider_required
+def provider_appointment_notes(appointment_id):
+    snap, error = _appointment_for_actor(appointment_id, session['provider_uid'], True)
+    if error:
+        return jsonify({'error': error}), 404
+    if request.method == 'GET':
+        return jsonify({'providerNotes': (snap.to_dict() or {}).get('providerNotes', '')})
+    notes = str((request.get_json() or {}).get('notes', '')).strip()
+    snap.reference.set({'providerNotes': notes, 'notesUpdatedAt': _iso_now()}, merge=True)
+    return jsonify({'success': True})
+
+
+@app.route('/api/counseling/providers')
+def counseling_providers_api():
+    if not db:
+        return jsonify({'error': 'Database is not available'}), 503
+    providers = []
+    for doc in db.collection('providers').where('status', '==', 'approved').stream():
+        data = doc.to_dict() or {}
+        providers.append({'id': doc.id, 'displayName': data.get('displayName') or data.get('email'),
+                          'role': data.get('role', ''), 'email': data.get('email', '')})
+    return jsonify(providers)
+
+
+@app.route('/api/counseling/providers/<provider_id>/schedule')
+def counseling_provider_schedule(provider_id):
+    if not db:
+        return jsonify({'error': 'Database is not available'}), 503
+    provider = db.collection('providers').document(provider_id).get()
+    if not provider.exists or (provider.to_dict() or {}).get('status') != 'approved':
+        return jsonify({'error': 'Provider not found'}), 404
+    availability = db.collection('provider_availability').document(provider_id).get()
+    config = availability.to_dict() if availability.exists else {'timezone': 'Asia/Manila', 'slotMinutes': 30, 'durations': [30]}
+    appointments = []
+    for doc in db.collection('appointments').where('providerId', '==', provider_id).stream():
+        item = doc.to_dict() or {}
+        if item.get('status') in {'approved', 'pending'}:
+            appointments.append({'start': item.get('start'), 'end': item.get('end'), 'status': item.get('status')})
+    events = []
+    for doc in db.collection('provider_events').where('providerId', '==', provider_id).stream():
+        item = doc.to_dict() or {}
+        events.append({'start': item.get('start'), 'end': item.get('end')})
+    return jsonify({'provider': {'id': provider_id, 'displayName': (provider.to_dict() or {}).get('displayName', 'Provider')},
+                    'availability': config, 'appointments': appointments, 'events': events})
+
+
+@app.route('/api/counseling/appointments', methods=['GET', 'POST'])
+def counseling_appointments_api():
+    uid = _current_user_uid()
+    if not uid:
+        return jsonify({'error': 'Authentication required'}), 401
+    if request.method == 'GET':
+        items = [_appointment_payload(doc) for doc in db.collection('appointments').where('userId', '==', uid).stream()]
+        items.sort(key=lambda x: x.get('start', ''))
+        return jsonify(items)
+    payload = request.get_json() or {}
+    provider_id = str(payload.get('providerId', '')).strip()
+    start, end = _parse_iso(payload.get('start')), _parse_iso(payload.get('end'))
+    duration = int(payload.get('duration', 30) or 30)
+    if not provider_id or not start or not end or duration not in SESSION_DURATIONS or end <= start:
+        return jsonify({'error': 'Provider, valid schedule, and supported duration are required'}), 400
+    provider = db.collection('providers').document(provider_id).get()
+    if not provider.exists or (provider.to_dict() or {}).get('status') != 'approved':
+        return jsonify({'error': 'Provider not found'}), 404
+    availability = db.collection('provider_availability').document(provider_id).get()
+    config = availability.to_dict() if availability.exists else {}
+    if duration not in config.get('durations', [30]):
+        return jsonify({'error': 'This duration is not offered by the provider'}), 400
+    if not _slot_is_available(provider_id, start, end, config):
+        return jsonify({'error': 'That time is outside the provider availability'}), 409
+    for other in db.collection('appointments').where('providerId', '==', provider_id).stream():
+        item = other.to_dict() or {}
+        if item.get('status') in {'approved', 'pending'}:
+            other_start, other_end = _parse_iso(item.get('start')), _parse_iso(item.get('end'))
+            if other_start and other_end and start < other_end and end > other_start:
+                return jsonify({'error': 'That time is no longer available'}), 409
+    for event in db.collection('provider_events').where('providerId', '==', provider_id).stream():
+        item = event.to_dict() or {}
+        event_start, event_end = _parse_iso(item.get('start')), _parse_iso(item.get('end'))
+        if event_start and event_end and start < event_end and end > event_start:
+            return jsonify({'error': 'That time is blocked by the provider'}), 409
+    user_profile = db.collection('user_profiles').document(uid).get()
+    user_data = user_profile.to_dict() if user_profile.exists else {}
+    ref = db.collection('appointments').document()
+    record = {'userId': uid, 'userName': user_data.get('displayName', ''), 'providerId': provider_id,
+              'providerName': (provider.to_dict() or {}).get('displayName', 'Provider'),
+              'start': start.isoformat(), 'end': end.isoformat(), 'duration': duration,
+              'status': 'pending', 'reason': str(payload.get('reason', '')).strip(),
+              'providerNotes': '', 'createdAt': _iso_now(), 'updatedAt': _iso_now()}
+    ref.set(record)
+    db.collection('notifications').document().set({'userId': uid, 'providerId': provider_id,
+        'type': 'appointment_request', 'appointmentId': ref.id, 'read': False, 'createdAt': _iso_now()})
+    return jsonify({'success': True, 'appointment': {'id': ref.id, **record}}), 201
+
+
+@app.route('/api/counseling/appointments/<appointment_id>', methods=['POST'])
+def counseling_appointment_action(appointment_id):
+    uid = _current_user_uid()
+    if not uid:
+        return jsonify({'error': 'Authentication required'}), 401
+    snap, error = _appointment_for_actor(appointment_id, uid, False)
+    if error:
+        return jsonify({'error': error}), 404
+    item = snap.to_dict() or {}
+    action = str((request.get_json() or {}).get('action', '')).lower()
+    start = _parse_iso(item.get('start'))
+    if action == 'cancel':
+        if start and start - _now_utc() < timedelta(hours=24):
+            return jsonify({'error': 'Appointments cannot be cancelled within 24 hours'}), 409
+        snap.reference.set({'status': 'cancelled', 'updatedAt': _iso_now()}, merge=True)
+        return jsonify({'success': True})
+    if action == 'reschedule':
+        new_start, new_end = _parse_iso((request.get_json() or {}).get('start')), _parse_iso((request.get_json() or {}).get('end'))
+        if not new_start or not new_end or new_end <= new_start:
+            return jsonify({'error': 'A valid new schedule is required'}), 400
+        availability = db.collection('provider_availability').document(item.get('providerId')).get()
+        config = availability.to_dict() if availability.exists else {}
+        duration = int((request.get_json() or {}).get('duration', item.get('duration', 30)) or 30)
+        if not _slot_is_available(item.get('providerId'), new_start, new_end, config):
+            return jsonify({'error': 'That time is outside the provider availability'}), 409
+        for other in db.collection('appointments').where('providerId', '==', item.get('providerId')).stream():
+            other_data = other.to_dict() or {}
+            if other.id != appointment_id and other_data.get('status') in {'approved', 'pending'}:
+                os_, oe = _parse_iso(other_data.get('start')), _parse_iso(other_data.get('end'))
+                if os_ and oe and new_start < oe and new_end > os_:
+                    return jsonify({'error': 'That time is no longer available'}), 409
+        new_ref = db.collection('appointments').document()
+        replacement = {**item, 'start': new_start.isoformat(), 'end': new_end.isoformat(), 'duration': duration,
+                       'status': 'pending', 'createdAt': _iso_now(), 'updatedAt': _iso_now(), 'rescheduledFrom': appointment_id}
+        replacement.pop('providerNotes', None)
+        new_ref.set(replacement)
+        snap.reference.set({'status': 'cancelled', 'rescheduledTo': new_ref.id, 'updatedAt': _iso_now()}, merge=True)
+        return jsonify({'success': True, 'appointmentId': new_ref.id})
+    return jsonify({'error': 'Unsupported action'}), 400
+
+
+@app.route('/api/counseling/notifications')
+def counseling_notifications_api():
+    uid = _current_user_uid()
+    if not uid:
+        return jsonify({'error': 'Authentication required'}), 401
+    items = []
+    for doc in db.collection('notifications').where('userId', '==', uid).stream():
+        items.append({'id': doc.id, **(doc.to_dict() or {})})
+    items.sort(key=lambda x: x.get('createdAt', ''), reverse=True)
+    return jsonify(items[:50])
+
+
+@app.route('/api/counseling/notifications/<notification_id>/read', methods=['POST'])
+def counseling_notification_read(notification_id):
+    uid = _current_user_uid()
+    if not uid:
+        return jsonify({'error': 'Authentication required'}), 401
+    ref = db.collection('notifications').document(notification_id)
+    snap = ref.get()
+    if not snap.exists or (snap.to_dict() or {}).get('userId') != uid:
+        return jsonify({'error': 'Notification not found'}), 404
+    ref.set({'read': True, 'readAt': _iso_now()}, merge=True)
+    return jsonify({'success': True})
+
+
+@app.route('/api/video/<appointment_id>/signal', methods=['GET', 'POST'])
+def video_signal_api(appointment_id):
+    provider_uid = session.get('provider_uid') if session.get('is_provider') else None
+    # Always verify user bearer token too; both identities may exist in one browser profile.
+    user_uid = _current_user_uid()
+    snap = db.collection('appointments').document(appointment_id).get() if db else None
+    if not snap or not snap.exists:
+        return jsonify({'error': 'Appointment not found'}), 404
+    appointment = snap.to_dict() or {}
+    provider_match = provider_uid and provider_uid == appointment.get('providerId')
+    user_match = user_uid and user_uid == appointment.get('userId')
+
+    if not provider_match and not user_match:
+        return jsonify({'error': 'Access denied'}), 403
+    if appointment.get('status') != 'approved':
+        return jsonify({'error': 'The appointment is not approved'}), 409
+
+    # Prefer the role indicated by the authenticated appointment actor.
+    role = 'user' if user_match else 'provider'
+    actor_uid = user_uid if role == 'user' else provider_uid
+
+    ref = db.collection('video_signals').document(appointment_id)
+    if request.method == 'GET':
+        signal_snap = ref.get()
+        _record_firestore_reads(1)
+        signal = signal_snap.to_dict() if signal_snap.exists else {}
+        return jsonify(signal or {})
+    payload = request.get_json() or {}
+    existing_snap = ref.get()
+    _record_firestore_reads(1)
+    existing = existing_snap.to_dict() if existing_snap.exists else {}
+    updates = {'updatedAt': _iso_now(), 'active': True}
+
+    if payload.get('offer') and role == 'provider':
+        updates['offer'] = payload['offer']
+        # Reset previous call state when a new offer starts.
+        updates['answer'] = firestore.DELETE_FIELD
+        updates['providerCandidates'] = []
+        updates['userCandidates'] = []
+        updates['userDeclined'] = False
+        updates['callEnded'] = False
+        updates['endedBy'] = None
+        # Log call initiation
+        _log_call_event(appointment_id, 'initiated', actor_uid)
+
+    if payload.get('answer') and role == 'user':
+        updates['answer'] = payload['answer']
+        updates['connectedAt'] = existing.get('connectedAt') or _iso_now()
+        # Log call accepted
+        _log_call_event(appointment_id, 'accepted', actor_uid)
+
+    if payload.get('userDeclined'):
+        updates['userDeclined'] = True
+        updates['active'] = False
+        updates['callEnded'] = True
+        updates['endedBy'] = 'user'
+        # Log call declined
+        _log_call_event(appointment_id, 'declined', actor_uid)
+
+    if payload.get('callEnded'):
+        updates['callEnded'] = True
+        updates['endedBy'] = payload.get('endedBy', role)
+        updates['active'] = False
+        updates['endedAt'] = _iso_now()
+        _complete_call(appointment_id, actor_uid, payload.get('duration'))
+
+    candidate_key = 'providerCandidates' if role == 'provider' else 'userCandidates'
+    incoming_candidates = payload.get(candidate_key)
+    if not isinstance(incoming_candidates, list):
+        incoming_candidates = payload.get('candidates')
+    if isinstance(incoming_candidates, list):
+        existing_candidates = existing.get(candidate_key, []) if isinstance(existing.get(candidate_key), list) else []
+        merged_candidates = (existing_candidates + incoming_candidates)[-120:]
+        updates[candidate_key] = merged_candidates
+
+    ref.set(updates, merge=True)
+    return jsonify({'success': True})
+
+
+@app.route('/api/video/<appointment_id>/status', methods=['GET', 'POST'])
+def get_call_status(appointment_id):
+    """Get or update call status."""
+    provider_uid = session.get('provider_uid') if session.get('is_provider') else None
+    user_uid = _current_user_uid() if not provider_uid else None
+
+    if not (provider_uid or user_uid):
+        return jsonify({'error': 'Authentication required'}), 401
+
+    snap = db.collection('appointments').document(appointment_id).get() if db else None
+    if not snap or not snap.exists:
+        return jsonify({'error': 'Appointment not found'}), 404
+
+    appointment = snap.to_dict() or {}
+    if provider_uid and provider_uid != appointment.get('providerId'):
+        return jsonify({'error': 'Access denied'}), 403
+    if user_uid and user_uid != appointment.get('userId'):
+        return jsonify({'error': 'Access denied'}), 403
+
+    if request.method == 'POST':
+        payload = request.get_json() or {}
+        status = payload.get('status')
+        ref = db.collection('video_signals').document(appointment_id)
+        if status == 'ended':
+            ref.set({
+                'active': False,
+                'callEnded': True,
+                'endedBy': 'provider' if provider_uid else 'user',
+                'endedAt': _iso_now(),
+                'updatedAt': _iso_now(),
+            }, merge=True)
+            _complete_call(appointment_id, provider_uid or user_uid, payload.get('duration'))
+            return jsonify({'success': True})
+        return jsonify({'error': 'Unsupported status'}), 400
+
+    # Get signal status
+    signal_ref = db.collection('video_signals').document(appointment_id).get()
+    _record_firestore_reads(1)
+    signal = signal_ref.to_dict() if signal_ref.exists else {}
+
+    # Get call history (avoid order_by to skip requiring a composite Firestore index; sort in Python)
+    history_docs = list(db.collection('call_history').where('appointmentId', '==', appointment_id).stream())
+    _record_firestore_reads(len(history_docs))
+    history_items = [doc.to_dict() or {} for doc in history_docs]
+    history_items.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+    latest_event = history_items[0] if history_items else {}
+
+    effective_status = latest_event.get('action', 'idle')
+    if signal.get('userDeclined'):
+        effective_status = 'declined'
+    elif signal.get('callEnded'):
+        effective_status = 'completed'
+
+    return jsonify({
+        'appointmentId': appointment_id,
+        'status': effective_status,
+        'hasOffer': bool(signal.get('offer')),
+        'hasAnswer': bool(signal.get('answer')),
+        'userConnected': bool(signal.get('answer')) and bool(signal.get('userCandidates')),
+        'isActive': bool(signal.get('active')),
+        'callEnded': bool(signal.get('callEnded')),
+        'endedBy': signal.get('endedBy'),
+        'lastUpdate': signal.get('updatedAt')
+    })
+
+
+def _signal_to_status_payload(appointment_id, signal):
+    signal = signal or {}
+    if signal.get('userDeclined'):
+        status = 'declined'
+    elif signal.get('callEnded'):
+        status = 'completed'
+    elif signal.get('offer') and not signal.get('answer'):
+        status = 'initiated'
+    elif signal.get('answer'):
+        status = 'connected'
+    else:
+        status = 'idle'
+    return {
+        'appointmentId': appointment_id,
+        'status': status,
+        'hasOffer': bool(signal.get('offer')),
+        'hasAnswer': bool(signal.get('answer')),
+        'userConnected': bool(signal.get('answer')) and bool(signal.get('userCandidates')),
+        'isActive': bool(signal.get('active')),
+        'callEnded': bool(signal.get('callEnded')),
+        'endedBy': signal.get('endedBy'),
+        'lastUpdate': signal.get('updatedAt')
+    }
+
+
+@app.route('/providers/api/video-status-stream')
+@provider_required
+def provider_video_status_stream():
+    """Realtime provider call status updates over SSE to avoid endpoint polling."""
+    if not db:
+        def no_db():
+            yield 'event: error\ndata: {"msg": "Firestore not available"}\n\n'
+        return Response(no_db(), mimetype='text/event-stream')
+
+    provider_uid = session['provider_uid']
+    client_q = queue.SimpleQueue()
+    signal_watches = {}
+
+    def _send(event_name, payload):
+        client_q.put_nowait(f"event: {event_name}\\ndata: {json.dumps(payload)}\\n\\n")
+
+    def _attach_signal_listener(appointment_id):
+        if appointment_id in signal_watches:
+            return
+
+        def _on_signal(doc_snapshot, changes, read_time):
+            for doc in doc_snapshot:
+                _send('status_update', _signal_to_status_payload(appointment_id, doc.to_dict() if doc.exists else {}))
+
+        signal_watches[appointment_id] = db.collection('video_signals').document(appointment_id).on_snapshot(_on_signal)
+
+    def _detach_signal_listener(appointment_id):
+        watch = signal_watches.pop(appointment_id, None)
+        if watch:
+            try:
+                watch.unsubscribe()
+            except Exception:
+                pass
+
+    def _on_appointments(col_snapshot, changes, read_time):
+        live_approved = set()
+        for doc in col_snapshot:
+            data = doc.to_dict() or {}
+            if data.get('status') == 'approved':
+                live_approved.add(doc.id)
+                _attach_signal_listener(doc.id)
+
+        stale = [appointment_id for appointment_id in list(signal_watches.keys()) if appointment_id not in live_approved]
+        for appointment_id in stale:
+            _detach_signal_listener(appointment_id)
+            _send('status_update', _signal_to_status_payload(appointment_id, {}))
+
+    appointments_watch = db.collection('appointments').where('providerId', '==', provider_uid).on_snapshot(_on_appointments)
+
+    def generate():
+        try:
+            yield 'event: connected\ndata: {}\n\n'
+            while True:
+                try:
+                    msg = client_q.get(timeout=25)
+                    yield msg
+                except queue.Empty:
+                    yield ': heartbeat\n\n'
+        finally:
+            try:
+                appointments_watch.unsubscribe()
+            except Exception:
+                pass
+            for appointment_id in list(signal_watches.keys()):
+                _detach_signal_listener(appointment_id)
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
+
+
+@app.route('/api/video/incoming-stream')
+def user_video_incoming_stream():
+    """Realtime user call updates over SSE using server-side Firestore listeners."""
+    uid = _current_user_uid()
+    if not uid:
+        query_token = request.args.get('token', '')
+        claims = _verify_firebase_id_token(query_token)
+        uid = claims.get('uid') if claims else None
+    if not uid:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if not db:
+        def no_db():
+            yield 'event: error\ndata: {"msg": "Firestore not available"}\n\n'
+        return Response(no_db(), mimetype='text/event-stream')
+
+    client_q = queue.SimpleQueue()
+    signal_watches = {}
+    approved_appointments = {}
+
+    def _send(event_name, payload):
+        client_q.put_nowait(f"event: {event_name}\\ndata: {json.dumps(payload)}\\n\\n")
+
+    def _appointment_payload(appointment_id, data):
+        return {'id': appointment_id, **(data or {})}
+
+    def _attach_signal_listener(appointment_id):
+        if appointment_id in signal_watches:
+            return
+
+        def _on_signal(doc_snapshot, changes, read_time):
+            for doc in doc_snapshot:
+                signal = doc.to_dict() if doc.exists else {}
+                _send('signal_update', {
+                    'appointmentId': appointment_id,
+                    'appointment': _appointment_payload(appointment_id, approved_appointments.get(appointment_id, {})),
+                    'signal': signal or {}
+                })
+
+        signal_watches[appointment_id] = db.collection('video_signals').document(appointment_id).on_snapshot(_on_signal)
+
+    def _detach_signal_listener(appointment_id):
+        watch = signal_watches.pop(appointment_id, None)
+        if watch:
+            try:
+                watch.unsubscribe()
+            except Exception:
+                pass
+
+    def _on_appointments(col_snapshot, changes, read_time):
+        live_approved = set()
+        for doc in col_snapshot:
+            data = doc.to_dict() or {}
+            if data.get('status') != 'approved':
+                continue
+            appointment_id = doc.id
+            live_approved.add(appointment_id)
+            approved_appointments[appointment_id] = data
+            _attach_signal_listener(appointment_id)
+            _send('appointment_update', {
+                'appointmentId': appointment_id,
+                'appointment': _appointment_payload(appointment_id, data)
+            })
+
+        stale = [appointment_id for appointment_id in list(signal_watches.keys()) if appointment_id not in live_approved]
+        for appointment_id in stale:
+            _detach_signal_listener(appointment_id)
+            approved_appointments.pop(appointment_id, None)
+            _send('appointment_removed', {'appointmentId': appointment_id})
+
+    appointments_watch = db.collection('appointments').where('userId', '==', uid).on_snapshot(_on_appointments)
+
+    def generate():
+        try:
+            yield 'event: connected\ndata: {}\n\n'
+            while True:
+                try:
+                    msg = client_q.get(timeout=25)
+                    yield msg
+                except queue.Empty:
+                    yield ': heartbeat\n\n'
+        finally:
+            try:
+                appointments_watch.unsubscribe()
+            except Exception:
+                pass
+            for appointment_id in list(signal_watches.keys()):
+                _detach_signal_listener(appointment_id)
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
+
+
+@app.route('/api/call-history', methods=['POST'])
+def log_call_history():
+    """Store call events in call history"""
+    user_uid = _current_user_uid()
+    provider_uid = session.get('provider_uid') if session.get('is_provider') else None
+    
+    if not (user_uid or provider_uid):
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    payload = request.get_json() or {}
+    appointment_id = payload.get('appointmentId')
+    action = payload.get('action')  # 'initiated', 'accepted', 'declined', 'completed', 'missed'
+    timestamp = payload.get('timestamp', _iso_now())
+    duration = payload.get('duration')  # in seconds
+    
+    if not appointment_id or not action:
+        return jsonify({'error': 'appointmentId and action are required'}), 400
+    
+    # Verify appointment access
+    snap = db.collection('appointments').document(appointment_id).get() if db else None
+    if not snap or not snap.exists:
+        return jsonify({'error': 'Appointment not found'}), 404
+    
+    appointment = snap.to_dict() or {}
+    if user_uid and user_uid != appointment.get('userId'):
+        return jsonify({'error': 'Access denied'}), 403
+    if provider_uid and provider_uid != appointment.get('providerId'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Store in call_history collection
+    history_doc = {
+        'appointmentId': appointment_id,
+        'userId': appointment.get('userId'),
+        'providerId': appointment.get('providerId'),
+        'action': action,
+        'timestamp': timestamp,
+        'duration': duration,
+        'createdBy': provider_uid or user_uid
+    }
+    
+    db.collection('call_history').add(history_doc)
+    
+    return jsonify({'success': True, 'message': 'Call history logged'})
+
+
+@app.route('/video/<room_token>')
+def video_call_room(room_token):
+    """Open video call room in separate tab (like Google Meet)"""
+    # Determine user role
+    provider_uid = session.get('provider_uid') if session.get('is_provider') else None
+    user_uid = _current_user_uid()
+    
+    if not (provider_uid or user_uid):
+        return redirect(url_for('login'))
+
+    role = 'provider' if provider_uid else 'user'
+    requested_role = (request.args.get('role') or '').strip().lower()
+    
+    # Verify appointment access
+    snap = db.collection('appointments').document(room_token).get() if db else None
+    if not snap or not snap.exists:
+        return jsonify({'error': 'Appointment not found'}), 404
+    
+    appointment = snap.to_dict() or {}
+    provider_match = provider_uid and provider_uid == appointment.get('providerId')
+    user_match = user_uid and user_uid == appointment.get('userId')
+    if not provider_match and not user_match:
+        return jsonify({'error': 'Access denied'}), 403
+
+    role = 'user' if user_match else 'provider'
+    if requested_role not in ('provider', 'user'):
+        requested_role = role
+    
+    provider_name = appointment.get('providerName') or _provider_name(appointment.get('providerId'))
+    user_name = appointment.get('userName') or 'Client'
+
+    return render_template(
+        'video_call_room.html',
+        server_role=role,
+        requested_role=requested_role,
+        provider_name=provider_name,
+        user_name=user_name,
+        room_token=room_token,
+    )
+
+
+def _complete_call(appointment_id, user_id, duration=None):
+    """Persist the final duration on the appointment and completed call record."""
+    try:
+        appointment_snap = db.collection('appointments').document(appointment_id).get()
+        if not appointment_snap.exists:
+            return
+        appointment = appointment_snap.to_dict() or {}
+        try:
+            duration = max(0, int(float(duration))) if duration is not None else 0
+        except (TypeError, ValueError):
+            duration = 0
+        ended_at = _iso_now()
+        db.collection('appointments').document(appointment_id).set({
+            'callDurationSeconds': duration, 'callEndedAt': ended_at,
+            'callEndedBy': user_id, 'updatedAt': ended_at,
+        }, merge=True)
+        completed = [doc for doc in db.collection('call_history')
+                     .where('appointmentId', '==', appointment_id).stream()
+                     if (doc.to_dict() or {}).get('action') == 'completed'][:1]
+        if completed:
+            completed[0].reference.set({'duration': duration, 'endedAt': ended_at}, merge=True)
+        else:
+            db.collection('call_history').add({
+                'appointmentId': appointment_id, 'userId': appointment.get('userId'),
+                'providerId': appointment.get('providerId'), 'action': 'completed',
+                'timestamp': ended_at, 'endedAt': ended_at, 'duration': duration,
+                'createdBy': user_id,
+            })
+    except Exception as e:
+        print(f"Error recording completed call: {e}")
+
+
+def _log_call_event(appointment_id, action, user_id):
+    """Helper to log call events (internal use)"""
+    try:
+        appointment_snap = db.collection('appointments').document(appointment_id).get()
+        if not appointment_snap.exists:
+            return
+        
+        appointment = appointment_snap.to_dict() or {}
+        history_doc = {
+            'appointmentId': appointment_id,
+            'userId': appointment.get('userId'),
+            'providerId': appointment.get('providerId'),
+            'action': action,
+            'timestamp': _iso_now(),
+            'createdBy': user_id
+        }
+        db.collection('call_history').add(history_doc)
+    except Exception as e:
+        print(f"Error logging call event: {e}")
+
+
+@app.route('/providers/profile', methods=['GET', 'POST'])
+@provider_required
+def provider_profile():
+    ref = db.collection('providers').document(session['provider_uid'])
+    snap = ref.get()
+    if not snap.exists:
+        return redirect('/providers/login')
+    profile = snap.to_dict() or {}
+    if request.method == 'POST':
+        data = request.form
+        role = str(data.get('role', '')).strip().lower()
+        first_name = str(data.get('firstName', '')).strip()
+        last_name = str(data.get('lastName', '')).strip()
+        license_number = str(data.get('licenseNumber', '')).strip()
+        if role not in PROVIDER_ROLES or not first_name or not last_name or not license_number:
+            return render_template('provider_profile.html', provider=profile, error='First name, last name, role, and license number are required.')
+        middle_name = str(data.get('middleName', '')).strip()
+        updates = {
+            'firstName': first_name,
+            'middleName': middle_name,
+            'lastName': last_name,
+            'displayName': ' '.join(x for x in [first_name, middle_name, last_name] if x),
+            'role': role,
+            'licenseNumber': license_number,
+            'updatedAt': datetime.now().isoformat()
+        }
+        ref.set(updates, merge=True)
+        session['provider_role'] = role
+        profile.update(updates)
+        return render_template('provider_profile.html', provider=profile, success='Your profile has been updated successfully.')
+    return render_template('provider_profile.html', provider=profile)
+
+
+@app.route('/providers/api/me')
+@provider_session_required
+def provider_me():
+    snap = db.collection('providers').document(session['provider_uid']).get() if db else None
+    if not snap or not snap.exists:
+        session.clear()
+        return jsonify({'error': 'Provider record not found'}), 404
+    return jsonify(_provider_payload(snap.id, snap.to_dict() or {}))
+
+
+@app.route('/providers/api/resubmit', methods=['POST'])
+def provider_resubmit():
+    decoded = _verify_provider_token()
+    if not decoded or not db:
+        return jsonify({'error': 'Authentication or database unavailable'}), 401
+    snap = db.collection('providers').document(decoded['uid']).get()
+    if not snap.exists or (snap.to_dict() or {}).get('status') != 'rejected':
+        return jsonify({'error': 'Only rejected applications can be resubmitted'}), 409
+    payload = request.get_json() or {}
+    payload['status'] = 'pending'
+    # Reuse registration validation and update path without creating a second record.
+    with app.test_request_context('/providers/register', method='POST', json=payload, headers={'Authorization': request.headers.get('Authorization', '')}):
+        return provider_register()
+
+
+@app.route('/providers/logout', methods=['POST'])
+def provider_logout():
+    for key in ('is_provider', 'provider_uid', 'provider_email', 'provider_role'):
+        session.pop(key, None)
+    return jsonify({'success': True})
+
+
+# ==================== ADMIN PROVIDER MANAGEMENT ====================
+
+@app.route('/admin/api/providers')
+@admin_required
+def admin_api_providers():
+    if not db:
+        return jsonify([])
+    status = request.args.get('status', '').strip().lower()
+    providers = []
+    for doc in db.collection('providers').stream():
+        data = doc.to_dict() or {}
+        if status and data.get('status') != status:
+            continue
+        providers.append(_provider_payload(doc.id, data))
+    providers.sort(key=lambda x: x.get('createdAt', ''), reverse=True)
+    return jsonify(providers)
+
+
+@app.route('/admin/api/providers/<uid>', methods=['PATCH'])
+@admin_required
+def admin_api_provider_update(uid):
+    if not db:
+        return jsonify({'error': 'Database is not available'}), 503
+    ref = db.collection('providers').document(uid)
+    snap = ref.get()
+    if not snap.exists:
+        return jsonify({'error': 'Provider not found'}), 404
+    payload = request.get_json() or {}
+    current = snap.to_dict() or {}
+    updates = {'updatedAt': datetime.now().isoformat()}
+    action = payload.get('action')
+    if action == 'approve' and current.get('status') == 'pending':
+        updates.update({'status': 'approved', 'approvedAt': datetime.now().isoformat(), 'rejectionReason': '', 'rejectedAt': None})
+    elif action == 'reject' and current.get('status') == 'pending':
+        reason = str(payload.get('reason', '')).strip()
+        if not reason:
+            return jsonify({'error': 'A rejection reason is required'}), 400
+        updates.update({'status': 'rejected', 'rejectionReason': reason, 'rejectedAt': datetime.now().isoformat()})
+    elif action == 'disable' and current.get('status') == 'approved':
+        updates['status'] = 'disabled'
+    elif action == 'enable' and current.get('status') == 'disabled':
+        updates['status'] = 'approved'
+    elif action == 'change_role' and payload.get('role') in PROVIDER_ROLES:
+        updates['role'] = payload['role']
+    else:
+        return jsonify({'error': 'Invalid provider action for the current status'}), 400
+    ref.set(updates, merge=True)
+    updated = dict(current)
+    updated.update(updates)
+    return jsonify({'success': True, 'provider': _provider_payload(uid, updated)})
+
+
 # ==================== ADMIN HELPER ====================
 
 def _fetch_all_emotion_logs():
@@ -312,7 +1677,9 @@ def _fetch_all_emotion_logs():
     if not db:
         return []
     try:
-        return [doc.to_dict() for doc in db.collection('emotion_logs').stream()]
+        docs = list(db.collection('emotion_logs').stream())
+        _record_firestore_reads(len(docs))
+        return [doc.to_dict() for doc in docs]
     except Exception as e:
         print(f'[admin] Error fetching emotion_logs: {e}')
         return []
@@ -323,7 +1690,9 @@ def _fetch_all_conversations_meta():
     if not db:
         return []
     try:
-        return [doc.to_dict() for doc in db.collection('conversations').stream()]
+        docs = list(db.collection('conversations').stream())
+        _record_firestore_reads(len(docs))
+        return [doc.to_dict() for doc in docs]
     except Exception as e:
         print(f'[admin] Error fetching conversations: {e}')
         return []
@@ -352,7 +1721,9 @@ def _get_admin_emails():
     emails = {ADMIN_USERNAME.lower()}
     if db:
         try:
-            for doc in db.collection('admins').stream():
+            docs = list(db.collection('admins').stream())
+            _record_firestore_reads(len(docs))
+            for doc in docs:
                 data = doc.to_dict()
                 if data.get('email'):
                     emails.add(data['email'].lower())
@@ -416,6 +1787,9 @@ def mask_email(email):
 @admin_required
 def admin_api_stats():
     """Return overall system statistics — all filtering done in Python."""
+    guarded = _admin_cache_or_budget_block('admin:stats', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if guarded is not None:
+        return guarded
     try:
         today_str = datetime.now().strftime('%Y-%m-%d')
         seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
@@ -482,6 +1856,7 @@ def admin_api_stats():
         stats['activeUsersToday'] = len(active_today_set)
         stats['riskAlertCount'] = sum(1 for cnt in risk_user_neg.values() if cnt >= 5)
 
+        _admin_cache_set('admin:stats', stats)
         return jsonify(stats)
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -496,8 +1871,12 @@ def admin_api_users():
     Query param ?type=all|registered|anonymous (default: all)
     Results are sorted newest-first by createdAt / first seen.
     """
+    user_type = request.args.get('type', 'all').lower()
+    cache_key = f'admin:users:{user_type}'
+    guarded = _admin_cache_or_budget_block(cache_key, ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if guarded is not None:
+        return guarded
     try:
-        user_type = request.args.get('type', 'all').lower()  # all | registered | anonymous
         seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
 
         # ---- Build per-user stats from emotion_logs (single pass) ----
@@ -627,6 +2006,7 @@ def admin_api_users():
         # Sort: registered by createdAtTs desc, anonymous by createdAt desc, then interleave newest-first
         users_list.sort(key=lambda u: (u.get('createdAt') or ''), reverse=True)
 
+        _admin_cache_set(cache_key, users_list)
         return jsonify(users_list)
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -638,6 +2018,9 @@ def admin_api_users():
 @admin_required
 def admin_api_emotions():
     """Return emotion trends for the last 30 days — all filtering in Python."""
+    guarded = _admin_cache_or_budget_block('admin:emotions', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if guarded is not None:
+        return guarded
     try:
         today = datetime.now()
         date_labels = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(29, -1, -1)]
@@ -657,12 +2040,14 @@ def admin_api_emotions():
         datasets = {e: [trends[e][d] for d in date_labels] for e in emotion_keys}
         short_labels = [d[5:] for d in date_labels]  # MM-DD
 
-        return jsonify({
+        payload = {
             'labels': short_labels,
             'full_labels': date_labels,
             'datasets': datasets,
             'emotion_keys': emotion_keys
-        })
+        }
+        _admin_cache_set('admin:emotions', payload)
+        return jsonify(payload)
     except Exception as e:
         print(f'Error in admin_api_emotions: {e}')
         return jsonify({'error': str(e)}), 500
@@ -672,6 +2057,9 @@ def admin_api_emotions():
 @admin_required
 def admin_api_risk_alerts():
     """Return at-risk users — 5+ negative messages in last 7 days."""
+    guarded = _admin_cache_or_budget_block('admin:risk-alerts', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if guarded is not None:
+        return guarded
     try:
         from collections import Counter
         seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
@@ -746,6 +2134,7 @@ def admin_api_risk_alerts():
             })
 
         alerts.sort(key=lambda x: x['negativeCount'], reverse=True)
+        _admin_cache_set('admin:risk-alerts', alerts)
         return jsonify(alerts)
     except Exception as e:
         print(f'Error in admin_api_risk_alerts: {e}')
@@ -756,6 +2145,9 @@ def admin_api_risk_alerts():
 @admin_required
 def admin_api_activity():
     """Return recent activity — latest 100 emotion log entries, newest first."""
+    guarded = _admin_cache_or_budget_block('admin:activity', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if guarded is not None:
+        return guarded
     try:
         logs = _fetch_all_emotion_logs()
         # Sort by timestamp descending in Python
@@ -775,6 +2167,7 @@ def admin_api_activity():
                 'conversationId': log.get('conversationId', ''),
                 'date': log.get('date', '')
             })
+        _admin_cache_set('admin:activity', activity)
         return jsonify(activity)
     except Exception as e:
         print(f'Error in admin_api_activity: {e}')
@@ -790,6 +2183,10 @@ def admin_api_user_details(uid):
     - Interaction frequency and trends
     - Recent activity
     """
+    cache_key = f'admin:user-details:{uid}'
+    guarded = _admin_cache_or_budget_block(cache_key, ttl_seconds=max(20, ADMIN_CACHE_TTL_SECONDS // 2))
+    if guarded is not None:
+        return guarded
     try:
         # ---- Fetch all emotion logs for this user ----
         all_logs = _fetch_all_emotion_logs()
@@ -888,7 +2285,7 @@ def admin_api_user_details(uid):
                 'conversationId': log.get('conversationId', '')
             })
         
-        return jsonify({
+        payload = {
             'userInfo': user_info,
             'emotionalProgress': {
                 'distribution': emotion_counts,
@@ -913,7 +2310,9 @@ def admin_api_user_details(uid):
                 'dailyEmotionTrends': dict(sorted(daily_emotions.items(), reverse=True)[:30])  # Last 30 days
             },
             'recentActivity': recent_activity
-        })
+        }
+        _admin_cache_set(cache_key, payload)
+        return jsonify(payload)
     except Exception as e:
         import traceback; traceback.print_exc()
         print(f'Error in admin_api_user_details: {e}')
@@ -926,6 +2325,9 @@ def admin_api_user_cache():
     """Return uid → {name, email, isAnonymous, initials} for all known users.
     Used client-side for display name resolution in activity, risk, and crisis tables.
     All names and emails are MASKED for privacy."""
+    guarded = _admin_cache_or_budget_block('admin:user-cache', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if guarded is not None:
+        return guarded
     try:
         cache = {}
         auth_users_all = _list_all_auth_users()
@@ -966,6 +2368,7 @@ def admin_api_user_cache():
                     'isAnonymous': True,
                     'initials': '?'
                 }
+        _admin_cache_set('admin:user-cache', cache)
         return jsonify(cache)
     except Exception as e:
         print(f'Error in admin_api_user_cache: {e}')
@@ -1048,6 +2451,9 @@ def admin_api_admins_delete(doc_id):
 @admin_required
 def admin_api_messages_per_day():
     """Return message counts per day for last 14 days — single fetch, Python aggregation."""
+    guarded = _admin_cache_or_budget_block('admin:messages-per-day', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if guarded is not None:
+        return guarded
     try:
         today = datetime.now()
         date_range = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(13, -1, -1)]
@@ -1062,7 +2468,9 @@ def admin_api_messages_per_day():
 
         labels = [(today - timedelta(days=i)).strftime('%b %d') for i in range(13, -1, -1)]
         counts = [counts_map[d] for d in date_range]
-        return jsonify({'labels': labels, 'counts': counts})
+        payload = {'labels': labels, 'counts': counts}
+        _admin_cache_set('admin:messages-per-day', payload)
+        return jsonify(payload)
     except Exception as e:
         print(f'Error in admin_api_messages_per_day: {e}')
         return jsonify({'error': str(e)}), 500
@@ -1132,9 +2540,20 @@ def admin_api_stream():
         except Exception as ex:
             print(f'[SSE] on_crisis error: {ex}')
 
-    logs_watch   = db.collection('emotion_logs').on_snapshot(on_logs)
-    convs_watch  = db.collection('conversations').on_snapshot(on_convs)
-    crisis_watch = db.collection('crisis_alerts').on_snapshot(on_crisis)
+    listen_logs = request.args.get('logs', '1') == '1'
+    listen_convs = request.args.get('convs', '1') == '1'
+    listen_crisis = request.args.get('crisis', '1') == '1'
+
+    logs_watch = db.collection('emotion_logs').on_snapshot(on_logs) if listen_logs else None
+    convs_watch = db.collection('conversations').on_snapshot(on_convs) if listen_convs else None
+    crisis_watch = db.collection('crisis_alerts').on_snapshot(on_crisis) if listen_crisis else None
+
+    if not listen_logs:
+        client_q.put_nowait("event: logs_init\ndata: []\n\n")
+    if not listen_convs:
+        client_q.put_nowait("event: convs_init\ndata: []\n\n")
+    if not listen_crisis:
+        client_q.put_nowait("event: crisis_init\ndata: []\n\n")
 
     def generate():
         try:
@@ -1146,12 +2565,15 @@ def admin_api_stream():
                 except queue.Empty:
                     yield ": heartbeat\n\n"  # keep connection alive
         finally:
-            try: logs_watch.unsubscribe()
-            except Exception: pass
-            try: convs_watch.unsubscribe()
-            except Exception: pass
-            try: crisis_watch.unsubscribe()
-            except Exception: pass
+            if logs_watch:
+                try: logs_watch.unsubscribe()
+                except Exception: pass
+            if convs_watch:
+                try: convs_watch.unsubscribe()
+                except Exception: pass
+            if crisis_watch:
+                try: crisis_watch.unsubscribe()
+                except Exception: pass
 
     return Response(
         generate(),
@@ -1170,6 +2592,18 @@ def admin_api_stream():
 def index():
     """Render landing page"""
     return render_template('index.html')
+
+
+@app.route('/about')
+def about():
+    """Render About Menti page"""
+    return render_template('about.html')
+
+
+@app.route('/contact')
+def contact():
+    """Render Contact Menti page"""
+    return render_template('contact.html')
 
 
 @app.route('/login')
@@ -1196,7 +2630,7 @@ def chat():
     Main chatbot endpoint
     - Receives user message, user ID, and guest mode status
     - Maintains conversation history
-    - Detects emotion using OpenAI
+    - Runs OpenAI structured mood and safety analysis
     - Generates supportive response with context
     - Stores chat in Firestore ONLY for logged-in users (not guest mode)
     - Returns emotion and bot reply
@@ -1209,7 +2643,9 @@ def chat():
         conversation_id = data.get('conversation_id')  # Get conversation ID for logged-in users
         save_only = data.get('save_only', False)  # Flag to only save without generating response
         mode = data.get('mode', 'friendly')  # Conversation style mode: friendly / supportive / professional
-        response_length = data.get('response_length', 'short')  # short / detailed
+        response_length = data.get('response_length', 'short')  # short / detailed (long is accepted as an alias)
+        if response_length == 'long':
+            response_length = 'detailed'
         if response_length not in ('short', 'detailed'):
             response_length = 'short'
         
@@ -1251,6 +2687,7 @@ def chat():
         # Pass conversation_id to ensure only current conversation history is used
         analysis = analyze_message_context(user_id, user_message, conversation_id=conversation_id)
         analysis_ok = bool(analysis.get('analysis_ok', False))
+        is_crisis = False
 
         if analysis_ok:
             emotion = analysis.get('emotion', 'calm')
@@ -1279,13 +2716,16 @@ def chat():
                 analysis=analysis,
             )
         else:
-            print('⚠️ Analysis unavailable after Groq/model fallback; returning offline reply')
+            print('⚠️ Analysis unavailable after OpenAI/fallback analysis; returning offline reply')
             emotion = 'calm'
             bot_reply = OFFLINE_REPLY
 
         # If final generation also fails after API/model fallback, use offline reply.
         if not bot_reply:
             bot_reply = OFFLINE_REPLY
+
+        # Delivery tone follows the selected mode and is separate from user mood.
+        voice_tone = _voice_tone_for(analysis, mode, is_crisis)
         
         # Step 4: Add bot response to history
         conversation_history[user_id].append({
@@ -1314,6 +2754,7 @@ def chat():
         # Step 6: Return response
         return jsonify({
             'emotion': emotion,
+            'voice_tone': voice_tone,
             'reply': bot_reply,
             'timestamp': datetime.now().isoformat()
         })
@@ -1390,7 +2831,7 @@ def clear_history():
 
 # ==================== HELPER FUNCTIONS ====================
 
-def _fetch_conversation_messages_from_firestore(conversation_id, n=4):
+def _fetch_conversation_messages_from_firestore(conversation_id, n=6):
     """
     Fetch the last n user and n bot messages from a specific conversation in Firestore.
     Returns: (user_msgs, assistant_msgs) - lists of message strings
@@ -1438,7 +2879,7 @@ def _fetch_conversation_messages_from_firestore(conversation_id, n=4):
     return user_msgs, assistant_msgs
 
 
-def _last_n_role_messages(user_id, role, n=4):
+def _last_n_role_messages(user_id, role, n=6):
     """Return last n messages for a role from in-memory conversation history.
     Fallback when conversation_id is not available.
     """
@@ -1453,7 +2894,7 @@ def _last_n_role_messages(user_id, role, n=4):
 
 
 def _format_context_for_analysis(conversation_id=None, user_id=None):
-    """Build compact role-separated context (last 4 user + last 4 assistant).
+    """Build compact role-separated context (last 6 user + last 6 assistant).
     Priority: Use Firestore if conversation_id provided, fallback to in-memory history.
     """
     user_msgs = []
@@ -1461,13 +2902,13 @@ def _format_context_for_analysis(conversation_id=None, user_id=None):
     
     # Try to fetch from Firestore first (preferred for conversation-specific history)
     if conversation_id:
-        user_msgs, assistant_msgs = _fetch_conversation_messages_from_firestore(conversation_id, n=4)
+        user_msgs, assistant_msgs = _fetch_conversation_messages_from_firestore(conversation_id, n=6)
     
     # Fallback to in-memory history if no Firestore data or no conversation_id
     if not user_msgs and user_id:
-        user_msgs = _last_n_role_messages(user_id, 'user', n=4)
+        user_msgs = _last_n_role_messages(user_id, 'user', n=6)
     if not assistant_msgs and user_id:
-        assistant_msgs = _last_n_role_messages(user_id, 'assistant', n=4)
+        assistant_msgs = _last_n_role_messages(user_id, 'assistant', n=6)
 
     user_lines = [f"U{i+1}: {m}" for i, m in enumerate(user_msgs)] or ['U: (none)']
     assistant_lines = [f"M{i+1}: {m}" for i, m in enumerate(assistant_msgs)] or ['M: (none)']
@@ -1477,34 +2918,6 @@ def _format_context_for_analysis(conversation_id=None, user_id=None):
         'RECENT_MENTI_MESSAGES:',
         *assistant_lines,
     ])
-
-
-def _extract_first_json_object(text):
-    """Extract first JSON object from model output, tolerating extra text."""
-    raw = (text or '').strip()
-    if not raw:
-        return None
-    start = raw.find('{')
-    end = raw.rfind('}')
-    if start == -1 or end == -1 or end <= start:
-        return None
-    try:
-        return json.loads(raw[start:end + 1])
-    except Exception:
-        return None
-
-
-def _to_bool(value):
-    if isinstance(value, bool):
-        return value
-    text = str(value or '').strip().lower()
-    return text in ('yes', 'true', '1', 'y')
-
-
-def _normalize_risk_type(value):
-    allowed = {'suicide', 'self_harm', 'homicide', 'medical', 'abuse', 'none'}
-    text = str(value or '').strip().lower()
-    return text if text in allowed else 'none'
 
 
 def _normalize_emotion(value):
@@ -1568,241 +2981,56 @@ def _risk_from_regex_only(message):
     return False, 'none', 'LOW'
 
 
-def analyze_message_context(user_id, last_user_message, conversation_id=None):
-    """Part 1: Single Groq prompt to analyze context, follow-up need, risk, emotion, and masking.
-    Uses conversation_id to fetch conversation-specific history from Firestore.
-    """
-    context_block = _format_context_for_analysis(conversation_id=conversation_id, user_id=user_id)
-
-    result = {
-        'analysis_ok': False,
-        'context_summary': 'Recent chat context captured from last 4 user and 4 Menti messages.',
-        'last_message': last_user_message,
-        'follow_up_needed': False,
-        'follow_up_reason': '',
-        'follow_up_question': '',
-        'is_high_risk': False,
-        'risk_type': 'none',
-        'risk_severity': 'LOW',
-        'risk_reason': '',
-        'emotion': 'calm',
-        'emotion_reason': '',
-        'is_masking': False,
-        'masking_reason': '',
-    }
-
-    try:
-        prompt = (
-            "Analyze LAST_USER_MESSAGE using RECENT_USER_MESSAGES and RECENT_MENTI_MESSAGES. "
-            "Return JSON only with keys exactly: "
-            "context_summary, follow_up_needed, follow_up_reason, follow_up_question, "
-            "is_high_risk, risk_type, risk_severity, risk_reason, emotion, emotion_reason, is_masking, masking_reason. "
-            "Rules: follow_up_needed/is_high_risk/is_masking are booleans. "
-            "risk_type one of suicide,self_harm,homicide,medical,abuse,none. "
-            "risk_severity one of HIGH,MEDIUM,LOW. "
-            "emotion one of happy,calm,sad,anxious,stressed,angry,confused,motivated,tired,numb. "
-            "Keep reasons short (<=12 words). follow_up_question empty string if not needed."
-            f"\n\n{context_block}\nLAST_USER_MESSAGE:\n{last_user_message}"
-        )
-
-        response = groq_chat_create(
-            model=groq_model,
-            messages=[
-                {
-                    'role': 'system',
-                    'content': (
-                        'You are a strict JSON analyzer for a mental-health companion. '
-                        'Do not write prose outside JSON. '
-                    ),
-                },
-                {'role': 'user', 'content': prompt},
-            ],
-            max_tokens=4096,  # High ceiling; word count instructions in prompt control output
-            temperature=0.0,
-            _debug_label='part1_analysis',
-        )
-        if response is None:
-            _debug_ai_log('PART1 fail', 'no_response_after_model_and_api_fallback')
-            return result
-
-        raw = getattr(response.choices[0].message, 'content', '') or ''
-        _debug_ai_log('PART1 raw', raw)
-        parsed = _extract_first_json_object(raw)
-        if not isinstance(parsed, dict):
-            _debug_ai_log('PART1 fail', 'invalid_json_from_model')
-            return result
-
-        risk_type = _normalize_risk_type(parsed.get('risk_type'))
-        is_high_risk = _to_bool(parsed.get('is_high_risk')) and risk_type != 'none'
-        severity = str(parsed.get('risk_severity', '') or '').strip().upper()
-        if severity not in ('HIGH', 'MEDIUM', 'LOW'):
-            severity = 'HIGH' if risk_type in ('suicide', 'self_harm', 'homicide') else ('MEDIUM' if risk_type in ('medical', 'abuse') else 'LOW')
-
-        result.update({
-            'analysis_ok': True,
-            'context_summary': str(parsed.get('context_summary', result['context_summary']))[:300],
-            'follow_up_needed': _to_bool(parsed.get('follow_up_needed')),
-            'follow_up_reason': str(parsed.get('follow_up_reason', '') or '')[:120],
-            'follow_up_question': str(parsed.get('follow_up_question', '') or '')[:220],
-            'is_high_risk': is_high_risk,
-            'risk_type': risk_type,
-            'risk_severity': severity,
-            'risk_reason': str(parsed.get('risk_reason', '') or '')[:120],
-            'emotion': _normalize_emotion(parsed.get('emotion')),
-            'emotion_reason': str(parsed.get('emotion_reason', '') or '')[:120],
-            'is_masking': _to_bool(parsed.get('is_masking')),
-            'masking_reason': str(parsed.get('masking_reason', '') or '')[:120],
-        })
-
-        if not result['follow_up_needed']:
-            result['follow_up_question'] = ''
-    except Exception as e:
-        print(f"Analysis pipeline error: {e}")
-        _debug_ai_log('PART1 fail', f'exception={e}')
-
-    return result
-
-def detect_emotion(message):
-    """
-    Detect emotion from user message using Groq.
-    Returns one of 10 emotion categories:
-    happy, calm, sad, anxious, stressed, angry, confused, motivated, tired, numb
-    """
-    try:
-        text = (message or '').lower().strip()
-        heuristic_map = [
-            (r'\b(joy|excited|grateful|happy|thrilled|great)\b', 'happy'),
-            (r'\b(anxious|panic|nervous|worried|fear|scared)\b', 'anxious'),
-            (r'\b(stress|stressed|overwhelmed|pressure|burnout)\b', 'stressed'),
-            (r'\b(angry|mad|furious|rage|pissed|annoyed)\b', 'angry'),
-            (r'\b(sad|cry|depressed|down|hopeless|empty|lonely|grief)\b', 'sad'),
-            (r'\b(confused|lost|unsure|uncertain)\b', 'confused'),
-            (r'\b(motivated|determined|driven|focused)\b', 'motivated'),
-            (r'\b(tired|exhausted|drained|fatigue|sleepy)\b', 'tired'),
-            (r'\b(numb|disconnected|blank|nothing)\b', 'numb'),
-        ]
-        heuristic_hit = next((emo for pat, emo in heuristic_map if _re.search(pat, text)), None)
-
-        response = groq_chat_create(
-            model=groq_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": """You are an emotion classifier for mental-health text.
-Return EXACTLY one label from:
-happy, calm, sad, anxious, stressed, angry, confused, motivated, tired, numb
-Rules:
-- pick strongest current emotion,
-- prefer sad/anxious/stressed/angry when distress is explicit,
-- use calm only when message is neutral/stable,
-- output one label only."""
-                },
-                {
-                    "role": "user",
-                    "content": message
-                }
-            ],
-            max_tokens=20,
-            temperature=0.0,
-        )
-        if response is None:
-            print('Emotion detection skipped: no usable Groq response')
-            return heuristic_hit or 'calm'
-
-        emotion = (getattr(response.choices[0].message, 'content', '') or '').strip().lower()
-        
-        # Validate emotion — must be exactly one of the 10
-        valid_emotions = ['happy', 'calm', 'sad', 'anxious', 'stressed', 'angry', 'confused', 'motivated', 'tired', 'numb']
-        if emotion not in valid_emotions:
-            # Try partial match for minor model variance (e.g. 'calmness' -> 'calm')
-            matched = next((e for e in valid_emotions if e in emotion), None)
-            emotion = matched if matched else (heuristic_hit or 'calm')
-        
-        return emotion
-    
-    except Exception as e:
-        print(f"Error detecting emotion: {e}")
-        return 'calm'
-
-
-# ==================== EMOTIONAL MASKING DETECTION ====================
-
-import re as _re
-
-# Common emotional masking/avoidance patterns (fast pre-screen, no API call)
-_MASKING_PATTERNS = [
-    r"\bi'?m fine\b", r"\bi am fine\b",
-    r"\bit'?s okay\b", r"\bit is okay\b", r"\bit'?s ok\b",
-    r"\bdon'?t worry about me\b", r"\bdon'?t worry\b",
-    r"\bi'?m okay\b", r"\bi am okay\b",
-    r"\bi'?m alright\b", r"\bi am alright\b",
-    r"\bno worries\b", r"\bi'?m good\b", r"\bi am good\b",
-    r"\bdon'?t mind me\b", r"\bforget it\b", r"\bnever mind\b",
-    r"\bwhatever\b", r"\bi'?ll be fine\b", r"\bi'?ll be okay\b",
-    r"\bi'?ll manage\b", r"\bit doesn'?t matter\b",
-    r"\bit'?s nothing\b", r"\bno big deal\b",
-    r"\bnothing'?s wrong\b", r"\bi'?m just tired\b",
-    r"\bjust ignore me\b", r"\bi'?m used to it\b",
-    r"\bi can handle it\b", r"\bi'?ll be alright\b",
-    r"\bdoesn'?t matter\b", r"\bnot a big deal\b",
-    r"\bsame as always\b", r"\bsame old\b",
-]
-
-# Default ON for better safety/intelligence. Can be disabled via env when needed.
-ENABLE_AI_MASKING_CHECK = os.getenv('ENABLE_AI_MASKING_CHECK', 'true').lower() == 'true'
-ENABLE_AI_CRISIS_CHECK = os.getenv('ENABLE_AI_CRISIS_CHECK', 'true').lower() == 'true'
-
 # ==================== CRISIS HOTLINES - PHILIPPINES ====================
-# National & Local Crisis Support Services for Morong, Rizal
+# Verified contacts should be reviewed periodically before production use.
 PHILIPPINES_CRISIS_HOTLINES = {
+    'rizal_local': {
+        'rphs_morong': {
+            'name': 'RPHS Morong Emergency Room',
+            'number': 'Local 3001 via (02) 8539-1734',
+            'type': 'Local hospital emergency support; ask for mental-health assistance',
+            'availability': 'Emergency service',
+        },
+        'rphs_madmh': {
+            'name': 'RPHS MADMH Binangonan Emergency',
+            'number': 'Local 3002 via (02) 8539-1736',
+            'type': 'Rizal provincial hospital emergency support',
+            'availability': 'Emergency service',
+        },
+        'rphs_caysmh': {
+            'name': 'RPHS CAYSMH Emergency Room',
+            'number': 'Local 3003 via (02) 8539-1733',
+            'type': 'Rizal provincial hospital emergency support',
+            'availability': 'Emergency service',
+        },
+    },
     'national': {
-        'hopeline': {
-            'name': 'Hopeline PH',
-            'number': '(02) 8804-4673 or Text HOPE to 2929',
-            'type': 'Mental Health Crisis Support',
+        'ncmh': {
+            'name': 'National Center for Mental Health Crisis Hotline',
+            'number': '1553; 0917-899-8727; 0966-351-4518; 0908-639-2672',
+            'type': 'National mental-health crisis support',
             'availability': '24/7',
         },
-        'ncmh': {
-            'name': 'National Center for Mental Health (NCMH)',
-            'number': '(02) 8928-6666',
-            'type': 'Psychiatric Emergency',
+        'hopeline': {
+            'name': 'Hopeline PH',
+            'number': '(02) 8804-4673; 0917-558-4673; 0918-873-4673',
+            'type': 'National emotional-crisis support',
+            'availability': '24/7',
+        },
+        'in_touch': {
+            'name': 'In Touch Community Services Crisis Line',
+            'number': '(02) 8893-7603; 0919-056-0709; 0917-800-1123',
+            'type': 'National crisis support',
             'availability': '24/7',
         },
         'emergency': {
-            'name': 'National Emergency Response',
+            'name': 'Emergency Response',
             'number': '911',
-            'type': 'Police & Emergency Services',
-            'availability': '24/7',
-        },
-        'red_cross': {
-            'name': 'Philippine Red Cross',
-            'number': '143 or (02) 8527-8001',
-            'type': 'Emergency Medical Services',
-            'availability': '24/7',
-        },
-        'pnp_wcpc': {
-            'name': 'PNP Women & Children Protection Center',
-            'number': '1388 or (02) 8532-8378',
-            'type': 'Abuse & Harassment Support',
-            'availability': '24/7',
-        },
-    },
-    'morong_rizal': {
-        'police': {
-            'name': 'Morong Police Station',
-            'number': 'Local dial 117 or (02) 1234-5678',
-            'type': 'Local Law Enforcement',
-            'availability': '24/7',
-        },
-        'health_center': {
-            'name': 'Morong Municipal Health Center',
-            'number': 'Emergency response available 24/7',
-            'type': 'Local Health Services',
+            'type': 'Immediate danger or medical emergency',
             'availability': '24/7',
         },
     },
 }
-
 def _format_crisis_hotlines(response_length='short', crisis_type='none'):
     """
     Format crisis hotline information based on response length.
@@ -1810,12 +3038,8 @@ def _format_crisis_hotlines(response_length='short', crisis_type='none'):
     Detailed: Comprehensive crisis resources with all hotlines
     """
     if response_length == 'short':
-        # For short responses: 1-2 key hotlines
-        lines = []
-        lines.append('🆘 Immediate Help Available:')
-        lines.append(f"  • Hopeline PH: (02) 8804-4673 or Text HOPE to 2929")
-        lines.append(f"  • Emergency: 911")
-        return '\n'.join(lines)
+        return ('Immediate help: Rizal Provincial Hospital System–Morong Emergency Room, local 3001 via '
+                '(02) 8539-1734; or call NCMH 1553. If there is immediate danger, call 911.')
     else:
         # For detailed responses: comprehensive crisis resources
         lines = []
@@ -1826,171 +3050,12 @@ def _format_crisis_hotlines(response_length='short', crisis_type='none'):
             lines.append(f"  • {hotline['name']}: {hotline['number']}")
             lines.append(f"    ({hotline['type']})")
         lines.append('')
-        lines.append('Local Morong, Rizal Services:')
-        for key, hotline in PHILIPPINES_CRISIS_HOTLINES['morong_rizal'].items():
+        lines.append('Rizal Provincial Hospital System emergency contacts:')
+        for key, hotline in PHILIPPINES_CRISIS_HOTLINES['rizal_local'].items():
             lines.append(f"  • {hotline['name']}: {hotline['number']}")
         lines.append('')
         lines.append('You are not alone. Professional help is available right now.')
         return '\n'.join(lines)
-
-
-def detect_emotional_masking(message):
-    """
-    Detect if a user is emotionally masking or avoiding their true feelings.
-    Phase 1: Fast regex pre-screen for common dismissive/avoidant phrases.
-    Phase 2: AI check for subtle masking in short messages.
-    Returns True if emotional masking/avoidance is detected.
-    """
-    msg_lower = message.lower().strip()
-
-    # Phase 1 — fast regex check (no API cost)
-    for pattern in _MASKING_PATTERNS:
-        if _re.search(pattern, msg_lower):
-            print(f"🎭 Emotional masking detected via pattern: '{pattern}'")
-            return True
-
-    # Phase 2 — AI check for subtle masking cues (primary path)
-    if ENABLE_AI_MASKING_CHECK:
-        try:
-            response = groq_chat_create(
-                model=groq_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You detect emotional masking in mental-health text. "
-                            "Return YES if the user appears to downplay, deflect, or hide distress behind minimizing language, "
-                            "even when not explicit (e.g., forced positivity, avoidance, dismissive phrasing). "
-                            "Return NO otherwise. Output only YES or NO."
-                        )
-                    },
-                    {
-                        "role": "user",
-                        "content": message
-                    }
-                ],
-                max_tokens=16,
-                temperature=0.0,
-            )
-            if response is None:
-                return False
-            raw = getattr(response.choices[0].message, 'content', '') or ''
-            is_masking = raw.strip().upper().startswith('YES')
-            if is_masking:
-                print(f"🎭 Emotional masking detected via AI analysis")
-            return is_masking
-        except Exception as e:
-            print(f"Masking detection error: {e}")
-
-    return False
-
-
-# ==================== CRISIS DETECTION ====================
-
-def detect_crisis(message):
-    """
-    Detect crisis indicators in a user message.
-    Phase 1: Fast regex check.
-    Phase 2: AI confirmation for subtle/ambiguous cases.
-    Returns: (is_crisis: bool, crisis_type: str, severity: str)
-      crisis_type: 'suicide' | 'self_harm' | 'homicide' | 'medical' | 'abuse'
-      severity:    'HIGH' | 'MEDIUM'
-    """
-    text = message.lower().strip()
-
-    # --- Phase 1: Regex safety net patterns ---
-    suicide_patterns = [
-        r'\bkill myself\b', r'\bend my life\b', r'\bwant to die\b', r'\bwanna die\b',
-        r'\bsuicide\b', r'\bsuicidal\b', r'\btake my (own )?life\b', r'\bnot want to (be here|live|exist)\b',
-        r'\bdon\'?t want to live\b', r'\bno reason to live\b', r'\bbetter off dead\b',
-        r'\bthinking of (ending|killing)\b', r'\bplan to kill\b', r"\bi('m| am) going to kill myself\b",
-        r'\bend myself\b', r'\bi want to end myself\b', r'\bi am about to die\b', r'\bi think i am about to die\b',
-    ]
-    self_harm_patterns = [
-        r'\bcut(ting)? (myself|me)\b', r'\bhurt(ing)? (myself|me)\b', r'\bself.?harm\b',
-        r'\bburning? (myself|my skin)\b', r'\bscratch(ing)? (myself|my skin)\b',
-        r'\bblood(ing)?\b.{0,30}\bmyself\b', r'\bpunch(ing)? (myself|a wall|the wall)\b',
-        r'\bbruise(s|d)?\b.{0,20}\b(me|myself)\b', r'\binjur(y|ies)\b.{0,20}\b(me|myself)\b',
-    ]
-    homicide_patterns = [
-        r'\bkill (someone|them|him|her|people)\b', r'\bmurder\b', r'\bwant to hurt (someone|them|him|her)\b',
-        r'\bgoing to (hurt|attack|stab|shoot)\b', r'\bhomicid\b',
-        r'\bmake (them|someone|people) disappear\b', r'\bmake others disappear\b',
-    ]
-    medical_patterns = [
-        r'\bcan\'?t breathe\b', r'\bcan not breathe\b', r'\bpanic attack\b',
-        r'\bheart attack\b', r'\bchest (pain|tightness|hurts?)\b', r'\bpassing out\b',
-        r'\bfainting\b', r'\boverdos(e|ing)\b', r'\bseizure\b',
-    ]
-    abuse_patterns = [
-        r'\b(being|getting) (abused|beaten|hit|assaulted|raped|molested)\b',
-        r'\b(someone|he|she|they) (hurt|hits|beats|abuses) me\b',
-        r'\bdomestic (violence|abuse)\b', r'\bsexual(ly)? (abuse|assault)\b',
-        r'\b(bully|bullying|bullied)\b', r'\b(punch|kick|bruise|injur(y|ies))\b',
-    ]
-
-    # --- Phase 2: AI-first crisis determination ---
-    word_count = len(text.split())
-    if ENABLE_AI_CRISIS_CHECK and groq_client and word_count < 120:
-        try:
-            resp = groq_chat_create(
-                model=groq_model,
-                messages=[
-                    {"role": "system", "content": (
-                        "You are a crisis triage classifier for mental-health conversations. "
-                        "Assess explicit and strong implied risk. "
-                        "Return exactly one label only: SUICIDE|SELF_HARM|HOMICIDE|MEDICAL|ABUSE|NONE. "
-                        "Use SUICIDE for death wish/end-life intent; SELF_HARM for self-injury urges; "
-                        "HOMICIDE for intent to seriously harm others; MEDICAL for urgent physical danger/medical distress; "
-                        "ABUSE for violence/bullying/ongoing assault situations."
-                    )},
-                    {"role": "user", "content": message}
-                ],
-                max_tokens=20,
-                temperature=0.0,
-            )
-            if resp is None:
-                # Groq unavailable or returned non-chat output; skip AI crisis check
-                print('Crisis AI check skipped: no usable Groq response')
-            else:
-                raw = getattr(resp.choices[0].message, 'content', '') or ''
-                tokens = raw.strip().upper().split()
-                if not tokens:
-                    print('Crisis AI returned empty content; skipping')
-                else:
-                    answer = tokens[0]
-                    type_map = {
-                        'SUICIDE':   ('suicide',   'HIGH'),
-                        'SELF_HARM': ('self_harm', 'HIGH'),
-                        'HOMICIDE':  ('homicide',  'HIGH'),
-                        'MEDICAL':   ('medical',   'MEDIUM'),
-                        'ABUSE':     ('abuse',     'MEDIUM'),
-                    }
-                    if answer in type_map:
-                        crisis_type, severity = type_map[answer]
-                        print(f"🚨 Crisis detected via AI: {crisis_type} [{severity}]")
-                        return True, crisis_type, severity
-        except Exception as e:
-            print(f"Crisis AI detection error: {e}")
-
-    # --- Phase 3: Regex safety net fallback ---
-    for pat in suicide_patterns:
-        if _re.search(pat, text):
-            return True, 'suicide', 'HIGH'
-    for pat in self_harm_patterns:
-        if _re.search(pat, text):
-            return True, 'self_harm', 'HIGH'
-    for pat in homicide_patterns:
-        if _re.search(pat, text):
-            return True, 'homicide', 'HIGH'
-    for pat in medical_patterns:
-        if _re.search(pat, text):
-            return True, 'medical', 'MEDIUM'
-    for pat in abuse_patterns:
-        if _re.search(pat, text):
-            return True, 'abuse', 'MEDIUM'
-
-    return False, '', ''
 
 
 def log_crisis_alert(user_id, message, crisis_type, severity, emotion, mode, is_anonymous=False):
@@ -2016,278 +3081,6 @@ def log_crisis_alert(user_id, message, crisis_type, severity, emotion, mode, is_
         print(f"🚨 Crisis alert logged: {crisis_type} [{severity}] for user {user_id}")
     except Exception as e:
         print(f"Error logging crisis alert: {e}")
-
-
-def summarize_conversation_history(user_id, keep_last=6):
-    """Create a compact summary of earlier turns and keep recent turns verbatim."""
-    history = conversation_history.get(user_id, []) or []
-    if len(history) <= keep_last:
-        return '', history
-
-    older = history[:-keep_last]
-    recent = history[-keep_last:]
-
-    user_points = []
-    assistant_points = []
-    for turn in older:
-        role = (turn.get('role') or '').lower()
-        content = ' '.join((turn.get('content') or '').split())
-        if not content:
-            continue
-        # Trim each point aggressively for token efficiency.
-        clipped = (content[:120] + '...') if len(content) > 120 else content
-        if role == 'user':
-            user_points.append(clipped)
-        elif role == 'assistant':
-            assistant_points.append(clipped)
-
-    chunks = []
-    if user_points:
-        chunks.append('User previously shared: ' + ' | '.join(user_points[-4:]))
-    if assistant_points:
-        chunks.append('Menti previously responded: ' + ' | '.join(assistant_points[-3:]))
-
-    return (' '.join(chunks)).strip(), recent
-
-
-def generate_supportive_response(
-    message,
-    emotion,
-    user_id,
-    is_masking=False,
-    mode='friendly',
-    is_crisis=False,
-    crisis_type=None,
-    response_length='short',
-    analysis=None,
-):
-    """Part 2: Generate final user-facing reply from analysis + mode/length rules.
-    For HIGH RISK/CRISIS cases:
-      - Always prioritize emotional support, coping strategies, and encouragement to seek help
-      - Include Philippines crisis hotlines (Morong, Rizal & national)
-      - For SHORT responses: Brief hotline mention
-      - For DETAILED responses: Focus ENTIRELY on crisis resources, no follow-up questions
-    """
-    try:
-        mode = mode if mode in ('friendly', 'supportive', 'professional') else 'friendly'
-        response_length = response_length if response_length in ('short', 'detailed') else 'short'
-        analysis = analysis or {}
-        
-        # Extract analysis - PART 1 data
-        follow_up_needed = bool(analysis.get('follow_up_needed', False))
-        follow_up_question = (analysis.get('follow_up_question') or '').strip()
-        risk_type = analysis.get('risk_type', crisis_type or 'none')
-        risk_reason = analysis.get('risk_reason', '')
-        risk_severity = analysis.get('risk_severity', 'LOW')
-        emotion_reason = analysis.get('emotion_reason', '')
-        masking_reason = analysis.get('masking_reason', '')
-        context_summary = analysis.get('context_summary', '')
-        
-        # Determine if high risk (from Part 1 analysis)
-        is_high_risk = bool(analysis.get('is_high_risk', False)) or is_crisis
-        
-        mode_rules = {
-            'friendly': 'Warm, human, comforting, everyday words, emotionally present.',
-            'supportive': 'Encouraging and grounding, reinforce strengths and realistic action.',
-            'professional': 'Calm, structured, counselor-like, precise and compassionate language.',
-        }
-        length_rules = {
-            'short': 'Output exactly 1 complete sentence (max 25 words).',
-            'detailed': 'Output 2 to 3 complete sentences (max 85 words total).',
-        }
-
-        # Enhanced safety rule for crisis cases
-        if is_high_risk:
-            if response_length == 'short':
-                safety_rule = (
-                    'CRITICAL RESPONSE: Prioritize emotional support and comfort. '
-                    'Validate pain deeply. Suggest one coping strategy. '
-                    'MUST include Hopeline PH: (02) 8804-4673 or Emergency 911. '
-                    'Encourage reaching out to trusted individuals (family, friends, teachers, pastors). '
-                    'Do NOT ask follow-up questions.'
-                )
-            else:  # detailed
-                safety_rule = (
-                    'CRITICAL RESPONSE: Focus ENTIRELY on crisis support and resources. '
-                    'Express deep empathy and validation of pain. '
-                    'MUST include these hotlines: Hopeline PH (02) 8804-4673, NCMH (02) 8928-6666, Emergency 911. '
-                    'Include Morong local resources when relevant. '
-                    'Encourage immediate professional help and reaching trusted individuals. '
-                    'NO follow-up questions - only crisis support and encouragement.'
-                )
-        else:
-            safety_rule = (
-                'Provide empathy first. Suggest one practical coping strategy. Encourage reaching out to trusted people (family, friends, teachers, pastors, trusted mentors). '
-                'ONLY ask a follow-up question if context is genuinely unclear or emotion/reason cannot be determined. '
-                'Prioritize support over clarification questions.'
-            )
-
-        # Determine if follow-up is truly needed based on analysis clarity
-        # Follow-up IS needed if context/situation is unclear for good support
-        
-        # Questions that ask for situation clarification (not coping strategies or safety assessment)
-        question_clarifies_situation = (
-            follow_up_question 
-            and any(phrase in follow_up_question.lower() for phrase in [
-                "what's", "what is", "can you tell", "can you share", "tell me about", "tell me more", "could you share"
-            ])
-        )
-        
-        # emotion_reason is generic if it starts with "User" (wrapper) + generic verb
-        emotion_reason_is_generic = (
-            emotion_reason 
-            and emotion_reason.lower().startswith('user')
-            and any(word in emotion_reason.lower() for word in ['indicate', 'says', 'expresses', 'mentions'])
-        )
-        emotion_is_unclear = emotion == 'calm' or not emotion_reason
-        
-        needs_clarification = (
-            follow_up_needed 
-            and follow_up_question 
-            and (question_clarifies_situation or emotion_reason_is_generic or emotion_is_unclear)
-        )
-        
-        # For crisis cases: NEVER ask follow-up questions
-        if is_high_risk:
-            follow_up_rule = (
-                'DO NOT ask follow-up questions. Focus ONLY on crisis support, empathy, and crisis hotlines/resources. '
-                'Include emergency contact information prominently.'
-            )
-            follow_up_question = ''  # Remove question to prevent temptation
-        # For non-crisis: ONLY ask follow-up if truly needed for clarity
-        elif needs_clarification:
-            follow_up_rule = (
-                f"Context needs clarification to provide best support. Center the reply on this question: {follow_up_question}"
-            )
-        else:
-            # Context is clear enough - provide support WITHOUT follow-up
-            follow_up_rule = (
-                'Context is clear and emotions/reasons are understood. '
-                'Provide empathetic support with ONE practical coping strategy. '
-                'ABSOLUTELY NO QUESTIONS. Not a single question mark. Only supportive statement.'
-            )
-            follow_up_question = ''  # Remove question to prevent temptation
-
-        # Build crisis hotlines block if high risk
-        crisis_hotlines_block = ''
-        if is_high_risk:
-            crisis_hotlines_block = '\n\n' + _format_crisis_hotlines(response_length, risk_type)
-        
-        system_prompt = (
-            'You are Menti, a mental-health companion focused on comfort, safety, and practical support. '
-            f'Mode rule: {mode_rules[mode]} '
-            f'Length rule: {length_rules[response_length]} '
-            f'{safety_rule} '
-            'Short responses: EXACTLY 1 sentence, around 25 words only.'
-            'Detailed responses: 2-3 sentences, around 85 words only.'
-            'Do not use bullet points. Do not output labels or JSON. Output only the final reply to the user.'
-            f'{crisis_hotlines_block}'
-        )
-
-        user_prompt = (
-            f"CONTEXT_SUMMARY: {context_summary}\n"
-            f"LAST_USER_MESSAGE: {message}\n"
-            f"ANALYSIS: high_risk={str(is_high_risk).lower()} risk_type={risk_type} risk_severity={risk_severity} risk_reason={risk_reason}\n"
-            f"ANALYSIS: emotion={emotion} emotion_reason={emotion_reason}\n"
-            f"ANALYSIS: masking={str(is_masking).lower()} masking_reason={masking_reason}\n"
-            f"ANALYSIS: follow_up_needed={str(follow_up_needed).lower()} follow_up_question={follow_up_question}\n"
-            f"CLARITY: context_clear={bool(emotion_reason and risk_reason)} needs_clarification={needs_clarification}\n"
-            f"INSTRUCTION: {follow_up_rule}"
-        )
-
-        response = groq_chat_create(
-            model=groq_model,
-            messages=[
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': user_prompt},
-            ],
-            max_tokens=4096,  # High ceiling; word count constraints in system_prompt control output
-            temperature=0.6,
-            _debug_label='part2_reply',
-        )
-        bot_reply = (getattr(response.choices[0].message, 'content', '') or '').strip() if response is not None else ''
-        if not bot_reply:
-            _debug_ai_log('PART2 warn', 'primary_part2_empty_trying_retry_prompt')
-            retry_system = system_prompt + ' Keep the reply direct, complete, and natural.'
-            retry_user = (
-                f"User message: {message}\n"
-                f"Context summary: {context_summary}\n"
-                f"Flags: high_risk={str(is_high_risk).lower()}, emotion={emotion}, masking={str(is_masking).lower()}, follow_up_needed={str(follow_up_needed).lower()}\n"
-                f"If follow_up_needed=true and follow_up_question exists, ask exactly that question: {follow_up_question}"
-                f'{crisis_hotlines_block}'
-            )
-            retry = groq_chat_create(
-                model=groq_model,
-                messages=[
-                    {'role': 'system', 'content': retry_system},
-                    {'role': 'user', 'content': retry_user},
-                ],
-                max_tokens=4096,  # High ceiling; word count constraints enforce limits
-                temperature=0.45,
-                _debug_label='part2_reply_retry',
-            )
-            bot_reply = (getattr(retry.choices[0].message, 'content', '') or '').strip() if retry is not None else ''
-        if not bot_reply:
-            print('Groq returned no response for final generation')
-            _debug_ai_log('PART2 fail', 'no_reply_after_model_and_api_fallback')
-            return None
-
-        _debug_ai_log('PART2 final_reply', bot_reply)
-
-        print(f"✅ [{mode}/{response_length}] Response generated")
-        return bot_reply
-
-    except Exception as e:
-        print(f"Error generating response: {e}")
-        _debug_ai_log('PART2 fail', f'exception={e}')
-        return None
-
-
-def generate_smart_title(user_message):
-    """
-    Generate a smart, concise title for a conversation based on the user's first message
-    Uses Groq to create an intelligent summary (3-6 words)
-    """
-    try:
-        response = groq_chat_create(
-            model=groq_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Generate ONLY a conversation title. Rules: 3-6 words; capture main concern or emotion; empathetic and clear language; Title Case; no quotes; no trailing punctuation."
-                },
-                {
-                    "role": "user",
-                    "content": user_message
-                }
-            ],
-            max_tokens=40,
-            temperature=0.7
-        )
-        
-        if response is None:
-            print('Groq returned no response for smart title — using fallback title')
-            # Fallback: Use first 50 chars (keeps behavior minimal)
-            fallback_title = user_message[:50] + '...' if len(user_message) > 50 else user_message
-            return fallback_title
-
-        title = response.choices[0].message.content.strip()
-        
-        # Remove quotes if AI added them
-        title = title.strip('"\'')
-        
-        # Ensure title is not too long (fallback)
-        if len(title) > 60:
-            title = title[:57] + '...'
-        
-        print(f"✨ Generated smart title: {title}")
-        return title
-    
-    except Exception as e:
-        print(f"Error generating smart title: {e}")
-        # Fallback: Use first 50 chars of message
-        fallback_title = user_message[:50] + '...' if len(user_message) > 50 else user_message
-        return fallback_title
 
 
 def log_emotion(user_id, emotion, conversation_id, is_anonymous=False):
@@ -2377,6 +3170,7 @@ def manage_conversations():
         user_id = request.args.get('user_id')
         is_archived = request.args.get('is_archived', 'false').lower() == 'true'
         is_guest = request.args.get('is_guest', 'false').lower() == 'true'
+        titles_only = request.args.get('titles_only', 'false').lower() == 'true'
         
         if not user_id or not db:
             return jsonify([])
@@ -2386,16 +3180,24 @@ def manage_conversations():
             
             # Query conversations with proper filters
             # NOTE: Firestore requires composite index for multiple where clauses
-            conversations_ref = db.collection('conversations')\
-                .where('userId', '==', user_id)\
-                .where('isAnonymous', '==', is_guest)\
-                .where('isArchived', '==', is_archived)\
-                .order_by('lastUpdated', direction=firestore.Query.DESCENDING)
+            conversations_ref = _where_eq(db.collection('conversations'), 'userId', user_id)
+            conversations_ref = _where_eq(conversations_ref, 'isAnonymous', is_guest)
+            conversations_ref = _where_eq(conversations_ref, 'isArchived', is_archived)
+            conversations_ref = conversations_ref.order_by('lastUpdated', direction=firestore.Query.DESCENDING)
+            if titles_only:
+                conversations_ref = conversations_ref.select(['title', 'lastUpdated'])
             
             conversations = []
             for doc in conversations_ref.stream():
                 conv_data = doc.to_dict()
-                conv_data['id'] = doc.id
+                if titles_only:
+                    conv_data = {
+                        'id': doc.id,
+                        'title': conv_data.get('title', 'Untitled'),
+                        'lastUpdated': conv_data.get('lastUpdated', '')
+                    }
+                else:
+                    conv_data['id'] = doc.id
                 conversations.append(conv_data)
                 print(f"   📄 Found conversation: {doc.id} - {conv_data.get('title', 'No title')}")
             
@@ -2404,7 +3206,7 @@ def manage_conversations():
             # Debug: If no conversations found, check if any exist for this user at all
             if len(conversations) == 0:
                 print(f"⚠️ No conversations found with filters. Checking all conversations for user...")
-                all_convs_ref = db.collection('conversations').where('userId', '==', user_id)
+                all_convs_ref = _where_eq(db.collection('conversations'), 'userId', user_id)
                 all_count = len(list(all_convs_ref.stream()))
                 print(f"   Total conversations for this user (no filters): {all_count}")
             
@@ -2598,8 +3400,9 @@ def logout():
 
 # ==================== USER PROGRESS ROUTES ====================
 
+@app.route('/progress')
 @app.route('/progress/<user_id>')
-def progress_page(user_id):
+def progress_page(user_id=None):
     """Render the progress page for a specific user."""
     return render_template('progress.html')
 
@@ -3865,8 +4668,9 @@ def user_cache_meta(user_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/personalized-plan')
 @app.route('/personalized-plan/<user_id>')
-def personalized_plan_page(user_id):
+def personalized_plan_page(user_id=None):
     """Render personalized wellness plan page."""
     return render_template('personalized_plan.html')
 
@@ -3877,8 +4681,9 @@ def offline_resources_page():
     return render_template('offline_resources.html')
 
 
+@app.route('/journal')
 @app.route('/journal/<user_id>')
-def journal_page(user_id):
+def journal_page(user_id=None):
     """Render personal journal page."""
     return render_template('journal.html')
 
@@ -4173,6 +4978,11 @@ def update_user_profile(user_id):
     updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:
         return jsonify({'error': 'No valid fields to update'}), 400
+    if 'photoURL' in updates:
+        if not isinstance(updates['photoURL'], str) or not updates['photoURL'].strip():
+            return jsonify({'error': 'Invalid profile photo'}), 400
+        if len(updates['photoURL']) > 900000:
+            return jsonify({'error': 'Profile photo is too large. Please choose a smaller image.'}), 413
     try:
         updates['updatedAt'] = datetime.now().isoformat()
         db.collection('user_profiles').document(user_id).set(updates, merge=True)
@@ -4183,6 +4993,11 @@ def update_user_profile(user_id):
                 firebase_auth.update_user(user_id, display_name=updates['displayName'])
             except Exception as e:
                 print(f'[profile] Auth display name update error: {e}')
+        if 'photoURL' in updates and updates['photoURL'].startswith(('http://', 'https://')):
+            try:
+                firebase_auth.update_user(user_id, photo_url=updates['photoURL'])
+            except Exception as e:
+                print(f'[profile] Auth photo URL update error: {e}')
 
         return jsonify({'success': True})
     except Exception as e:
@@ -4321,9 +5136,53 @@ def _run_scheduled_backup():
                 pass
 
 
+def _run_counseling_reminders():
+    """Create idempotent in-app reminders for approved appointments."""
+    if not db:
+        return
+    lock = getattr(_run_counseling_reminders, '_lock', None)
+    if lock is None:
+        lock = threading.Lock()
+        _run_counseling_reminders._lock = lock
+    if not lock.acquire(blocking=False):
+        return
+
+    now = _now_utc()
+    try:
+        for doc in _where_eq(db.collection('appointments'), 'status', 'approved').stream():
+            item = doc.to_dict() or {}
+            start = _parse_iso(item.get('start'))
+            if not start:
+                continue
+            minutes = (start - now).total_seconds() / 60
+            reminder = '24h' if 0 <= minutes <= 24 * 60 and not item.get('reminder24Sent') else None
+            if 0 <= minutes <= 15 and not item.get('reminder15Sent'):
+                reminder = '15m'
+            if reminder:
+                label = '24 hours' if reminder == '24h' else '15 minutes'
+                db.collection('notifications').document().set({
+                    'userId': item.get('userId'), 'type': 'appointment_reminder', 'appointmentId': doc.id,
+                    'message': f'Your counseling appointment starts in about {label}.',
+                    'read': False, 'createdAt': _iso_now()
+                })
+                doc.reference.set({f'reminder{reminder.replace("h", "") if reminder == "24h" else "15"}Sent': True}, merge=True)
+    except Exception as exc:
+        print(f'[counseling] Reminder job error: {exc}')
+    finally:
+        lock.release()
+
+
 # Start APScheduler — runs nightly backup at 23:59
 _scheduler = BackgroundScheduler(timezone='UTC')
 _scheduler.add_job(_run_scheduled_backup, 'cron', hour=23, minute=59, id='nightly_backup')
+_scheduler.add_job(
+    _run_counseling_reminders,
+    'interval',
+    minutes=1,
+    id='counseling_reminders',
+    max_instances=2,
+    coalesce=True
+)
 _scheduler.start()
 atexit.register(lambda: _scheduler.shutdown(wait=False))
 
@@ -4399,7 +5258,7 @@ def transcribe():
 @app.route('/api/voice/synthesize', methods=['POST'])
 def synthesize():
     """
-    Synthesize text to speech using open-source neural TTS voices.
+    Synthesize text to speech using OpenAI's Speech API.
     Expects: JSON with 'text' and optional 'voice_id' (0=default, 1=alternate if available)
     Returns: synthesized audio file
     """
@@ -4409,11 +5268,13 @@ def synthesize():
         data = request.get_json(silent=True) or {}
         text = data.get('text', '').strip()
         voice_id = data.get('voice_id', 0)
+        voice_mode = data.get('mode', 'friendly')
+        voice_tone = data.get('voice_tone') or _voice_tone_for({}, voice_mode, False)
         
         if not text:
             return jsonify({'error': 'Text is required'}), 400
         
-        result = synthesize_speech(text, voice_id)
+        result = synthesize_speech(text, voice_id, voice_tone)
         
         if result['success']:
             audio_file = result['audio_file']
@@ -4448,11 +5309,238 @@ def get_voices():
         return jsonify({'error': str(e)}), 500
 
 
+# ==================== OPENAI ACTIVE PIPELINE ====================
+
+_OPENAI_EMOTIONS = ('happy', 'calm', 'sad', 'anxious', 'stressed', 'angry', 'confused', 'motivated', 'tired', 'numb')
+_OPENAI_RISK_TYPES = ('suicide', 'self_harm', 'homicide', 'medical', 'abuse', 'none')
+_OPENAI_STRATEGIES = ('validate_and_ground', 'validate_and_ask', 'encourage_support', 'crisis_escalation')
+
+
+def _openai_text(response):
+    return (getattr(response, 'output_text', '') or '').strip()
+
+
+def _openai_fallback_analysis(message, context=''):
+    risky, risk_type, severity = _risk_from_regex_only(message)
+    return {
+        'analysis_ok': True,
+        'context_summary': context,
+        'last_message': message,
+        'follow_up_needed': False,
+        'follow_up_question': '',
+        'is_high_risk': risky,
+        'risk_level': 'high' if risky else 'none',
+        'risk_type': risk_type,
+        'risk_severity': severity,
+        'immediate_danger': risky and risk_type in ('suicide', 'self_harm', 'homicide'),
+        'emotion': _heuristic_emotion_only(message),
+        'emotion_intensity': 0.7 if risky else 0.45,
+        'emotions': [_heuristic_emotion_only(message)],
+        'is_masking': False,
+        'needs_clarification': False,
+        'response_strategy': 'crisis_escalation' if risky else 'validate_and_ground',
+    }
+
+
+def analyze_message_context(user_id, last_user_message, conversation_id=None):
+    """OpenAI endpoint 1: compact structured safety, mood, and response-strategy analysis."""
+    context_block = _format_context_for_analysis(conversation_id=conversation_id, user_id=user_id)
+    schema = {
+        'type': 'object',
+        'additionalProperties': False,
+        'properties': {
+            'emotion': {'type': 'string', 'enum': list(_OPENAI_EMOTIONS)},
+            'emotion_intensity': {'type': 'number', 'minimum': 0, 'maximum': 1},
+            'emotions': {'type': 'array', 'items': {'type': 'string', 'enum': list(_OPENAI_EMOTIONS)}, 'maxItems': 2},
+            'risk_level': {'type': 'string', 'enum': ['none', 'high']},
+            'risk_type': {'type': 'string', 'enum': list(_OPENAI_RISK_TYPES)},
+            'risk_severity': {'type': 'string', 'enum': ['HIGH', 'MEDIUM', 'LOW']},
+            'immediate_danger': {'type': 'boolean'},
+            'masking_detected': {'type': 'boolean'},
+            'needs_clarification': {'type': 'boolean'},
+            'response_strategy': {'type': 'string', 'enum': list(_OPENAI_STRATEGIES)},
+        },
+        'required': ['emotion', 'emotion_intensity', 'emotions', 'risk_level', 'risk_type', 'risk_severity', 'immediate_danger', 'masking_detected', 'needs_clarification', 'response_strategy'],
+    }
+    if not openai_client:
+        return _openai_fallback_analysis(last_user_message, context_block)
+    instructions = (
+        'You are Menti safety and emotional-state triage. Analyze the latest message using the context. '
+        'Do not diagnose. Detect explicit or strongly implied danger conservatively. '
+        'Choose the strongest current emotion and up to one secondary emotion. '
+        'Mark high risk for suicide, self-harm, homicide, urgent medical danger, or abuse. '
+        'Set crisis_escalation for high risk; validate_and_ask only when missing context truly matters. '
+        'Use the structured output schema. Do not provide explanations.'
+    )
+    user_input = f'{context_block}\n\nLATEST USER MESSAGE:\n{last_user_message}'
+    try:
+        response = openai_client.responses.create(
+            model=OPENAI_ANALYSIS_MODEL,
+            instructions=instructions,
+            input=user_input,
+            text={'format': {'type': 'json_schema', 'name': 'menti_analysis', 'strict': True, 'schema': schema}},
+            max_output_tokens=180,
+            temperature=0,
+            store=False,
+        )
+        parsed = json.loads(_openai_text(response))
+        risk = parsed['risk_level'] == 'high' and parsed['risk_type'] != 'none'
+        return {
+            'analysis_ok': True, 'context_summary': context_block, 'last_message': last_user_message,
+            'follow_up_needed': parsed['needs_clarification'], 'follow_up_question': '',
+            'is_high_risk': risk, 'risk_level': parsed['risk_level'], 'risk_type': parsed['risk_type'],
+            'risk_severity': parsed['risk_severity'], 'immediate_danger': parsed['immediate_danger'],
+            'emotion': parsed['emotion'], 'emotion_intensity': parsed['emotion_intensity'],
+            'emotions': parsed['emotions'], 'is_masking': parsed['masking_detected'],
+            'needs_clarification': parsed['needs_clarification'], 'response_strategy': parsed['response_strategy'],
+        }
+    except Exception as exc:
+        print(f'OpenAI analysis error: {exc}')
+        return _openai_fallback_analysis(last_user_message, context_block)
+
+
+def generate_supportive_response(message, emotion, user_id, is_masking=False, mode='friendly', is_crisis=False, crisis_type=None, response_length='short', analysis=None):
+    """OpenAI endpoint 2: generate a natural, safety-constrained Menti reply."""
+    analysis = analysis or {}
+    high_risk = bool(analysis.get('is_high_risk')) or bool(is_crisis)
+    strategy = analysis.get('response_strategy', 'crisis_escalation' if high_risk else 'validate_and_ground')
+    if high_risk:
+        strategy = 'crisis_escalation'
+    mode = mode if mode in ('friendly', 'supportive', 'professional') else 'friendly'
+    detailed = response_length in ('detailed', 'long')
+    if not openai_client:
+        return (_format_crisis_hotlines(response_length, analysis.get('risk_type', crisis_type or 'none')) if high_risk else OFFLINE_REPLY)
+    crisis_rules = (
+        'This is high risk: express care, encourage immediate contact with a trusted person and emergency help, include 911 and Hopeline PH, and ask no questions.'
+        if high_risk else
+        'This is not marked high risk: respond to the specific details, validate without exaggerating, offer one relevant next step only when useful, and ask a question only if clarification is genuinely needed.'
+    )
+    if detailed:
+        length = '2-4 concise sentences, maximum 110 words'
+        crisis_length_exception = ' If crisis resources are necessary, you may use up to 140 words and 5 sentences.'
+    else:
+        length = 'exactly 1 brief, supportive sentence, maximum 28 words'
+        crisis_length_exception = ' If crisis resources are necessary, you may use up to 70 words and 3 sentences.'
+    hotline_block = _format_crisis_hotlines('detailed' if detailed else 'short') if high_risk else ''
+    instructions = f'''You are Menti, a warm mental-health companion, not a therapist or emergency service.
+Tone: {mode}. Response strategy: {strategy}. Output: {length}.{crisis_length_exception} Do not exceed the applicable limit; no bullets, labels, JSON, diagnostic claims, or generic disclaimer.
+{crisis_rules}
+{hotline_block}
+For high risk, recommend Profile → Counseling Sessions in Menti to request a psychologist or psychiatrist appointment when the user can safely navigate the app; this supplements, never replaces, emergency help.
+Make the reply sound human: mention a concrete detail from the message, vary your openings, and avoid canned phrases such as "That sounds difficult" unless genuinely fitting. Do not force a coping exercise into every reply. Never pretend certainty about the user's feelings. Keep language simple, gentle, and present.
+Examples of natural style (adapt, do not copy): "That sounds like a lot to carry after a day like that. For the next few minutes, you only need to focus on one small, manageable thing." / "I’m glad you told me; you don’t have to make this sound okay for me."'''
+    user_input = (
+        f'LATEST USER MESSAGE:\n{message}\n\n'
+        f'RECENT CONTEXT:\n{analysis.get("context_summary", "")}\n\n'
+        f'ANALYSIS: emotion={emotion}; intensity={analysis.get("emotion_intensity", 0.5)}; '
+        f'risks={analysis.get("risk_type", "none")}/{analysis.get("risk_severity", "LOW")}; '
+        f'masking={bool(is_masking)}; high_risk={high_risk}'
+    )
+    try:
+        response = openai_client.responses.create(
+            model=OPENAI_RESPONSE_MODEL,
+            instructions=instructions,
+            input=user_input,
+            max_output_tokens=100 if not detailed else 300,
+            temperature=0.7,
+            store=False,
+        )
+        reply = _openai_text(response)
+        if reply:
+            return reply
+    except Exception as exc:
+        print(f'OpenAI response error: {exc}')
+    return _format_crisis_hotlines(response_length, analysis.get('risk_type', crisis_type or 'none')) if high_risk else OFFLINE_REPLY
+
+
+def generate_smart_title(user_message):
+    """Generate a short title through OpenAI, with a local fallback."""
+    if not openai_client:
+        return user_message[:50] + ('...' if len(user_message) > 50 else '')
+    try:
+        response = openai_client.responses.create(
+            model=OPENAI_ANALYSIS_MODEL,
+            instructions='Create only a clear, empathetic conversation title of 3-6 words. Title Case. No quotes or punctuation.',
+            input=user_message,
+            max_output_tokens=24,
+            temperature=0.4,
+            store=False,
+        )
+        title = _openai_text(response).strip('"\'')
+        return title[:60] or user_message[:50]
+    except Exception:
+        return user_message[:50] + ('...' if len(user_message) > 50 else '')
+
+
+def _voice_tone_for(analysis, mode='friendly', is_crisis=False):
+    """Select delivery emotion for speech; this is not the user's detected mood."""
+    if is_crisis:
+        return 'calm, serious, warm, and gently urgent; never panicked or dramatic'
+    mode_tones = {
+        'friendly': 'warm, conversational, natural, and lightly encouraging; sound like a caring friend',
+        'supportive': 'reassuring, grounding, patient, and emotionally present; sound steady and comforting',
+        'professional': 'calm, clear, measured, and compassionate; sound composed and counselor-like',
+    }
+    tone = mode_tones.get(mode, mode_tones['friendly'])
+    strategy = (analysis or {}).get('response_strategy')
+    if strategy == 'validate_and_ask':
+        tone += '; use a gentle, curious inflection for the question'
+    elif strategy == 'encourage_support':
+        tone += '; add quiet confidence and hope'
+    return tone
+
+
+@app.route('/api/chat/analyze', methods=['POST'])
+def api_chat_analyze():
+    """OpenAI stage 1: classify the message and choose a response strategy."""
+    data = request.get_json(silent=True) or {}
+    message = (data.get('message') or '').strip()
+    if not message:
+        return jsonify({'error': 'Message is required'}), 400
+    user_id = data.get('user_id', 'anonymous')
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
+    conversation_history[user_id].append({'role': 'user', 'content': message})
+    analysis = analyze_message_context(user_id, message, data.get('conversation_id'))
+    return jsonify(analysis)
+
+
+@app.route('/api/chat/respond', methods=['POST'])
+def api_chat_respond():
+    """OpenAI stage 2: write the final reply from validated stage-1 analysis."""
+    data = request.get_json(silent=True) or {}
+    message = (data.get('message') or '').strip()
+    if not message:
+        return jsonify({'error': 'Message is required'}), 400
+    analysis = data.get('analysis') or {}
+    is_crisis = bool(analysis.get('is_high_risk'))
+    emotion = _normalize_emotion(analysis.get('emotion'))
+    reply = generate_supportive_response(
+        message, emotion, data.get('user_id', 'anonymous'),
+        is_masking=bool(analysis.get('is_masking', False)),
+        mode=data.get('mode', 'friendly'), is_crisis=is_crisis,
+        crisis_type=analysis.get('risk_type'),
+        response_length=data.get('response_length', 'short'), analysis=analysis,
+    )
+    if not reply:
+        reply = OFFLINE_REPLY
+    if data.get('user_id') in conversation_history:
+        conversation_history[data['user_id']].append({'role': 'assistant', 'content': reply})
+        conversation_history[data['user_id']] = conversation_history[data['user_id']][-12:]
+    if db and data.get('conversation_id'):
+        try:
+            store_chat_message(data.get('user_id', 'anonymous'), message, reply, emotion, data.get('conversation_id'), is_anonymous=bool(data.get('is_guest', False)))
+        except Exception as exc:
+            print(f'Error storing split chat response: {exc}')
+    if is_crisis:
+        log_crisis_alert(data.get('user_id', 'anonymous'), message, analysis.get('risk_type', 'none'), analysis.get('risk_severity', 'HIGH'), emotion, data.get('mode', 'friendly'), is_anonymous=bool(data.get('is_guest', False)))
+    return jsonify({'reply': reply, 'emotion': emotion, 'voice_tone': _voice_tone_for(analysis, data.get('mode', 'friendly'), is_crisis)})
+
+
 # ==================== RUN APPLICATION ====================
 
 if __name__ == '__main__':
     print("🚀 Starting Menti Chatbot Server...")
-    print(f"🤖 Groq: {'✅ Configured' if os.getenv('GROQ_API_KEY') else '❌ Missing'}")
+    print(f"🤖 OpenAI: {'✅ Configured' if os.getenv('OPENAI_API_KEY') else '❌ Missing'}")
     print(f"🔥 Firebase: {'✅ Connected' if db else '⚠️  Not connected'}")
     app.run(debug=True, host='0.0.0.0', port=5000)
-
