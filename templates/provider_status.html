@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Menti — Provider Application Status</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --green: #2c5e31;
+            --deep: #183b21;
+            --soft: #eef6ef;
+            --line: #dce8de;
+            --muted: #6d7b70
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'DM Sans', Arial, sans-serif;
+            color: #17221a;
+            background: linear-gradient(135deg, #f8fbf8, #edf5ef 55%, #e4f0e7)
+        }
+
+        .topbar {
+            height: 76px;
+            padding: 0 6vw;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #fffffff0;
+            border-bottom: 1px solid #dce8dee0
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            color: var(--deep);
+            font-size: 20px;
+            font-weight: 700
+        }
+
+        .brand img {
+            width: 35px;
+            height: 35px;
+            object-fit: contain
+        }
+
+        .brand span {
+            color: var(--green);
+            font-size: 12px;
+            letter-spacing: .7px;
+            text-transform: uppercase;
+            padding-left: 8px;
+            border-left: 1px solid var(--line)
+        }
+
+        .top-link {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600
+        }
+
+        .top-link:hover {
+            color: var(--green)
+        }
+
+        .shell {
+            width: min(920px, calc(100% - 36px));
+            margin: 54px auto 70px
+        }
+
+        .intro {
+            text-align: center;
+            margin-bottom: 30px
+        }
+
+        .eyebrow {
+            color: var(--green);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            margin-bottom: 12px
+        }
+
+        h1 {
+            margin: 0;
+            color: var(--deep);
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: clamp(31px, 4vw, 46px);
+            line-height: 1.15
+        }
+
+        .intro p {
+            max-width: 570px;
+            margin: 14px auto 0;
+            color: var(--muted);
+            font-size: 15px;
+            line-height: 1.7
+        }
+
+        .panel {
+            background: #fff;
+            border: 1px solid #dce8def2;
+            border-radius: 22px;
+            box-shadow: 0 18px 50px #1f4c281a;
+            overflow: hidden
+        }
+
+        .status-head {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            padding: 28px 32px;
+            background: linear-gradient(135deg, #f4faf4, #edf7ef);
+            border-bottom: 1px solid var(--line)
+        }
+
+        .status-icon {
+            width: 54px;
+            height: 54px;
+            flex: 0 0 54px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            color: var(--green);
+            background: #dceede
+        }
+
+        .status-icon svg {
+            width: 27px;
+            height: 27px
+        }
+
+        .status-head h2 {
+            margin: 0 0 4px;
+            color: var(--deep);
+            font-size: 19px
+        }
+
+        .status-head p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5
+        }
+
+        .content {
+            padding: 31px 32px 34px
+        }
+
+        .section-title {
+            margin: 0 0 21px;
+            font-size: 14px;
+            color: var(--deep)
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 31px
+        }
+
+        .step {
+            position: relative;
+            padding-top: 15px;
+            border-top: 3px solid var(--line)
+        }
+
+        .step.active {
+            border-color: var(--green)
+        }
+
+        .step-number {
+            display: grid;
+            place-items: center;
+            width: 25px;
+            height: 25px;
+            margin-bottom: 11px;
+            border-radius: 50%;
+            background: var(--soft);
+            color: var(--green);
+            font-size: 12px;
+            font-weight: 700
+        }
+
+        .step.active .step-number {
+            color: #fff;
+            background: var(--green)
+        }
+
+        .step strong {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--deep);
+            font-size: 13px
+        }
+
+        .step span {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.5
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 28px
+        }
+
+        .info-card {
+            padding: 17px 18px;
+            border: 1px solid var(--line);
+            border-radius: 13px;
+            background: #fbfdfb
+        }
+
+        .info-card label {
+            display: block;
+            margin-bottom: 6px;
+            color: #89958b;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase
+        }
+
+        .info-card strong {
+            color: var(--deep);
+            font-size: 14px
+        }
+
+        .rejection {
+            margin: 0 0 25px;
+            padding: 18px 20px;
+            border: 1px solid #f0caca;
+            border-radius: 13px;
+            background: #fff7f7;
+            color: #8d2525;
+            line-height: 1.6;
+            font-size: 13px
+        }
+
+        .rejection b {
+            display: block;
+            margin-bottom: 5px
+        }
+
+        .form-card {
+            margin-top: 25px;
+            padding: 23px;
+            border: 1px solid var(--line);
+            border-radius: 15px;
+            background: #fbfdfb
+        }
+
+        .form-card h3 {
+            margin: 0 0 17px;
+            color: var(--deep);
+            font-size: 16px
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px
+        }
+
+        .field {
+            margin-bottom: 13px
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #506055;
+            font-size: 12px;
+            font-weight: 600
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            padding: 11px 12px;
+            border: 1px solid #d4e0d5;
+            border-radius: 9px;
+            background: #fff;
+            color: #17221a;
+            font: inherit;
+            font-size: 13px;
+            outline: none
+        }
+
+        .field input:focus,
+        .field select:focus {
+            border-color: #6eaa76;
+            box-shadow: 0 0 0 3px #dceede
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 5px
+        }
+
+        button {
+            padding: 11px 17px;
+            border: 0;
+            border-radius: 9px;
+            color: #fff;
+            background: var(--green);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer
+        }
+
+        button:hover {
+            background: #234d29
+        }
+
+        .logout {
+            color: #647168;
+            background: #fff;
+            border: 1px solid #d5e1d6
+        }
+
+        .logout:hover {
+            color: var(--green);
+            background: #f7fbf7
+        }
+
+        .msg {
+            margin-top: 12px;
+            color: #b42318;
+            font-size: 12px
+        }
+
+        .footer-note {
+            margin: 23px 0 0;
+            text-align: center;
+            color: #8a978c;
+            font-size: 12px
+        }
+
+        @media(max-width:650px) {
+            .topbar {
+                padding: 0 20px
+            }
+
+            .brand span,
+            .top-link {
+                display: none
+            }
+
+            .shell {
+                margin: 34px auto 45px
+            }
+
+            .status-head,
+            .content {
+                padding: 24px 20px
+            }
+
+            .steps {
+                grid-template-columns: 1fr;
+                gap: 13px
+            }
+
+            .step {
+                padding: 13px 0 0 42px;
+                border-top: 0;
+                border-left: 3px solid var(--line)
+            }
+
+            .step.active {
+                border-color: var(--green)
+            }
+
+            .step-number {
+                position: absolute;
+                left: 10px;
+                top: 12px
+            }
+
+            .info-grid,
+            .grid {
+                grid-template-columns: 1fr
+            }
+
+            .actions {
+                flex-direction: column;
+                align-items: stretch
+            }
+
+            button {
+                width: 100%
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="topbar">
+        <div class="brand"><img src="/static/menti logo.png" alt="Menti logo">Menti <span>Provider portal</span></div>
+    </header>
+    <main class="shell">
+        <div class="intro">
+            <div class="eyebrow">Application review</div>
+            <h1>Thank you for applying</h1>
+            <p>Your provider application has been received. Our team is carefully reviewing your information before
+                granting portal access.</p>
+        </div>
+        <section class="panel">
+            <div class="status-head">
+                <div class="status-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 7v5l3 2" />
+                    </svg></div>
+                <div>
+                    <h2>Application under review</h2>
+                    <p>This usually means your application is pending an administrator’s review.</p>
+                </div>
+            </div>
+            <div class="content">
+                <h3 class="section-title">What happens next</h3>
+                <div class="steps">
+                    <div class="step active">
+                        <div class="step-number">1</div><strong>Application submitted</strong><span>Your details have
+                            been securely received.</span>
+                    </div>
+                    <div class="step active">
+                        <div class="step-number">2</div><strong>Professional review</strong><span>An administrator is
+                            reviewing your application.</span>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div><strong>Portal access</strong><span>Once approved, you can sign
+                            in to your provider dashboard.</span>
+                    </div>
+                </div>
+                <div id="content">
+                    <div class="info-grid">
+                        <div class="info-card"><label>Current status</label><strong>Pending review</strong></div>
+                        <div class="info-card"><label>Access level</label><strong>Awaiting approval</strong></div>
+                    </div>
+                </div>
+                <div class="actions"><button class="logout" id="logout">Log out securely</button></div>
+                <p class="footer-note">You can return to this page by signing in again through the provider portal.</p>
+            </div>
+        </section>
+    </main>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'; import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'; const app = initializeApp({ apiKey: 'AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0', authDomain: 'menti-7b8a1.firebaseapp.com', projectId: 'menti-7b8a1', storageBucket: 'menti-7b8a1.firebasestorage.app', messagingSenderId: '164612023817', appId: '1:164612023817:web:c0437146e86951377f3ad8' }), auth = getAuth(app), content = document.getElementById('content'); const labels = { pending: 'Your application is being reviewed.', rejected: 'Your application needs attention.', disabled: 'Your provider account is currently disabled.' }; const esc = v => String(v || '').replace(/[&<>\'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])); let provider; async function load() { const r = await fetch('/providers/api/me'); provider = await r.json(); if (provider.status === 'approved') { location.href = '/providers/dashboard'; return } const state = provider.status || 'pending'; content.innerHTML = `<div class="info-grid"><div class="info-card"><label>Current status</label><strong>${esc(labels[state] || state)}</strong></div><div class="info-card"><label>Application role</label><strong>${esc((provider.role || 'Provider').replace(/^./, c => c.toUpperCase()))}</strong></div></div>`; if (state === 'rejected') renderResubmission() } function renderResubmission() { content.insertAdjacentHTML('beforeend', `<div class="rejection"><b>Reason for rejection</b>${esc(provider.rejectionReason || 'Please review your application details and resubmit.')}</div><div class="form-card"><h3>Update and resubmit your application</h3><form id="resubmit"><div class="grid"><div class="field"><label>First name</label><input id="firstName" value="${esc(provider.firstName)}" required></div><div class="field"><label>Middle name</label><input id="middleName" value="${esc(provider.middleName)}"></div><div class="field"><label>Last name</label><input id="lastName" value="${esc(provider.lastName)}" required></div><div class="field"><label>Role</label><select id="role"><option value="psychiatrist">Psychiatrist</option><option value="psychologist">Psychologist</option></select></div></div><div class="field"><label>Professional license number</label><input id="licenseNumber" placeholder="Enter your license number" required></div><div class="actions"><button type="submit">Resubmit application</button></div><div class="msg" id="msg"></div></form></div>`); document.getElementById('role').value = provider.role || 'psychiatrist'; document.getElementById('resubmit').addEventListener('submit', async e => { e.preventDefault(); const msg = document.getElementById('msg'); try { const token = await auth.currentUser.getIdToken(), r = await fetch('/providers/api/resubmit', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ firstName: firstName.value, middleName: middleName.value, lastName: lastName.value, role: role.value, licenseNumber: licenseNumber.value }) }); if (!r.ok) throw Error((await r.json()).error || 'Unable to resubmit application'); await load() } catch (e) { msg.textContent = e.message } }) } load(); document.getElementById('logout').onclick = async () => { await fetch('/providers/logout', { method: 'POST' }); await auth.signOut(); location.href = '/providers/login' };
+    </script>
+</body>
+
+</html>
