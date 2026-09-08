@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Menti — Counseling Appointments</title>
+    <link rel="stylesheet" href="/static/css/call-ui.css">
+    <style>
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            font-family: Inter, Arial, sans-serif;
+            background: #f4f7f4;
+            color: #17221a
+        }
+
+        .header {
+            height: 70px;
+            background: #fff;
+            border-bottom: 1px solid #dfe8e0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 6%;
+            border-bottom: 1px solid #dfe8e0
+        }
+
+        .brand {
+            font-size: 24px;
+            font-weight: 800;
+            color: #2c5e31
+        }
+
+        .main {
+            flex: 1 1 auto;
+            width: 100%;
+            max-width: none;
+            min-width: 0;
+            margin: 0;
+            padding: 38px clamp(24px, 4vw, 64px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        .main-container { display: flex; height: calc(100vh - 70px); min-height: 0; overflow: hidden; }
+        .sidebar { width: 280px; height: 100%; background: #FFFFFF; border-right: 1px solid #E0E0E0; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+        .sidebar-header { padding: 16px; border-bottom: 1px solid #E0E0E0; display: flex; flex-direction: column; gap: 8px; }
+        .new-chat-btn, .toggle-archived-btn { width: 100%; border-radius: 9px; padding: 11px 14px; font: 600 13px Inter, Arial, sans-serif; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .new-chat-btn { background: #2C5E31; color: #FFF; border: 0; }
+        .new-chat-btn:hover { background: #234A27; }
+        .toggle-archived-btn { background: #F0F0F0; color: #28282B; border: 1px solid #E0E0E0; }
+        .toggle-archived-btn.active { background: #E8F5E9; color: #2C5E31; border-color: #4FA858; }
+        .new-chat-btn svg, .toggle-archived-btn svg { width: 16px; height: 16px; }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
+        .sidebar-section-title { font-size: 12px; font-weight: 600; color: #28282B; opacity: .5; text-transform: uppercase; letter-spacing: .5px; margin: 0 4px 6px; }
+        .conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: #28282B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .conv-item:hover { background: #F0F0F0; }
+        .empty-state { font-size: 12px; color: #28282B; opacity: .4; padding: 8px 4px; }
+        @media(max-width:800px) { .main-container { display: block; height:auto; min-height:calc(100vh - 70px); overflow:visible; } .sidebar { width: 100%; height:auto; max-height:220px; border-right: 0; border-bottom: 1px solid #E0E0E0; } .main { overflow:visible; padding: 24px 16px; } #appointments { max-height:none; } }
+
+        .title {
+            font-size: 32px;
+            margin: 0 0 8px
+        }
+
+        .muted {
+            color: #718076
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: minmax(360px, .9fr) minmax(500px, 1.35fr);
+            gap: 20px;
+            margin-top: 24px
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e1eae2;
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 2px 10px #2c5e310d
+        }
+
+        .appointment-tip { display:flex; align-items:center; gap:14px; background:linear-gradient(120deg,#eaf6ec,#f8fbf8); border:1px solid #d5e8d7; border-radius:14px; padding:16px 20px; margin-top:22px; color:#315b38; }
+        .appointment-tip-icon { width:38px; height:38px; display:grid; place-items:center; flex:0 0 38px; border-radius:50%; background:#2c5e31; color:#fff; font-size:19px; }
+        .appointment-tip strong { display:block; margin-bottom:3px; font-size:14px; }
+        .appointment-tip span { font-size:13px; color:#66806b; }
+        .card-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:18px; }
+        .card-heading h2 { margin:0; }
+        .card-subtitle { margin:5px 0 0; font-size:13px; color:#718076; }
+        #providers { max-height:430px; overflow:auto; padding-right:3px; }
+        #providers { height:320px; border:1px solid #edf2ed; border-radius:10px; padding:4px 8px 4px 4px; scrollbar-width:thin; scrollbar-color:#9dbba1 transparent; }
+        #providers::-webkit-scrollbar, #appointments::-webkit-scrollbar, #noticeList::-webkit-scrollbar { width:7px; }
+        #providers::-webkit-scrollbar-thumb, #appointments::-webkit-scrollbar-thumb, #noticeList::-webkit-scrollbar-thumb { background:#b8cfbb; border-radius:10px; }
+        #appointments { max-height:520px; overflow-y:auto; padding-right:4px; }
+        #appointments:has(.empty-state) { max-height:none; }
+        .notifications-card { margin-top:20px; }
+        .notifications-card .card-heading { margin-bottom:12px; }
+        .notifications-card #noticeList { max-height:245px; overflow-y:auto; padding:2px 4px 2px 0; }
+        .notice-list, .notifications-card #noticeList { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px; }
+        .notice-list .appt, .notifications-card #noticeList .appt { margin:0; min-height:92px; }
+
+        .field {
+            margin: 13px 0
+        }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #506055;
+            margin-bottom: 6px
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            padding: 11px;
+            border: 1px solid #d4e0d5;
+            border-radius: 9px;
+            font: inherit
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 9px;
+            padding: 11px 15px;
+            background: #2c5e31;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer
+        }
+
+        .provider {
+            padding: 12px;
+            border: 1px solid #e1eae2;
+            border-radius: 9px;
+            margin: 8px 0;
+            cursor: pointer
+        }
+
+        .provider.selected {
+            border-color: #2c5e31;
+            background: #f0f8f1
+        }
+
+        .slots {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+            gap: 8px;
+            margin-top: 12px
+        }
+
+        .slot {
+            padding: 9px;
+            border: 1px solid #cfe0d0;
+            border-radius: 8px;
+            background: #fff;
+            color: #2c5e31;
+            cursor: pointer
+        }
+
+        .slot:hover,
+        .slot.selected {
+            background: #2c5e31;
+            color: #fff
+        }
+
+        .appt {
+            padding: 14px;
+            border: 1px solid #e1eae2;
+            border-radius: 10px;
+            margin: 10px 0
+        }
+
+        .page-tabs { display:flex; gap:8px; margin:22px 0 4px; border-bottom:1px solid #dfe8e0; }
+        .page-tab { border:0; background:transparent; color:#607064; padding:12px 16px; font:700 14px Inter,Arial,sans-serif; cursor:pointer; border-bottom:3px solid transparent; }
+        .page-tab.active { color:#2c5e31; border-color:#2c5e31; }
+        .appointment-filters { display:flex; flex-wrap:wrap; gap:7px; margin:16px 0 12px; }
+        .appointment-filter { border:1px solid #d5e2d6; border-radius:999px; background:#fff; color:#607064; padding:7px 12px; font:700 12px Inter,Arial,sans-serif; cursor:pointer; }
+        .appointment-filter.active { background:#2c5e31; border-color:#2c5e31; color:#fff; }
+        .assessment-panel { display:none; max-width:900px; margin-top:24px; }
+        .assessment-panel.active { display:block; }
+        .assessment-intro { background:#eef6ef; border-left:3px solid #3a9b67; padding:13px 15px; border-radius:5px; font-size:13px; margin-bottom:18px; }
+        .question-section h3 { color:#2c5e31; font-size:15px; margin:25px 0 10px; border-bottom:1px solid #d9e9dc; padding-bottom:8px; }
+        .question { border:1px solid #e1eae2; border-radius:10px; padding:14px; margin:10px 0; }
+        .question p { margin:0 0 11px; font-weight:600; font-size:14px; }
+        .scale { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
+        .scale label { border:1px solid #d4e0d5; border-radius:7px; padding:9px 4px; text-align:center; cursor:pointer; font-size:11px; color:#607064; }
+        .scale input { position:absolute; opacity:0; pointer-events:none; }
+        .scale label:focus-within { outline:2px solid #4fa858; outline-offset:2px; }
+        .scale label:has(input:checked) { background:#2c5e31; color:#fff; border-color:#2c5e31; }
+        .safety-box { background:#fff8ed; border:1px solid #f0d7a6; border-radius:10px; padding:15px; margin-top:24px; }
+        .safety-box h3 { margin-top:0; color:#8a5a00; }
+        .safety-question { margin:13px 0; font-size:13px; }
+        .safety-question label { margin-right:16px; font-weight:500; }
+        .assessment-result { display:none; }
+        .profile-badge { display:inline-block; padding:10px 18px; border-radius:22px; font-weight:800; margin:12px 0; }
+        .profile-Flourishing { background:#dff3df; color:#21733b; }.profile-Managing { background:#e2efff; color:#2462a0; }.profile-Strained { background:#fff2c7; color:#896400; }.profile-Overwhelmed { background:#ffe2c2; color:#9b4f00; }.profile-High { background:#ffd9d9; color:#a51e1e; }
+        .crisis-result { display:none; background:#fff0f0; border:1px solid #e4a4a4; border-left:4px solid #b71c1c; padding:15px; border-radius:8px; margin:16px 0; }
+        .score-row { display:flex; justify-content:space-between; border-bottom:1px solid #e1eae2; padding:9px 0; font-size:13px; }
+        @media(max-width:600px) { .scale label { font-size:10px; padding:8px 1px; } .scale { gap:3px; } }
+
+        .status {
+            font-size: 11px;
+            font-weight: 800;
+            color: #2c5e31;
+            text-transform: uppercase
+        }
+
+        .appointment-status { display: inline-flex; align-items: center; border: 0; border-radius: 999px; padding: 6px 11px; margin-top: 8px; background: #eaf5eb; color: #2c5e31; font: 800 11px Inter, Arial, sans-serif; letter-spacing: .03em; text-transform: uppercase; }
+        .appointment-status.pending { background: #fff4d6; color: #806000; }
+        .appointment-status.declined, .appointment-status.cancelled { background: #fbe9e7; color: #8a3d35; }
+        .appointment-status.completed, .appointment-status.no_show { background: #edf0ef; color: #59655c; }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px
+        }
+
+        .call {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #142018e8;
+            color: #fff;
+            z-index: 4;
+            align-items: center;
+            justify-content: center
+        }
+
+        .call.open {
+            display: flex
+        }
+
+        .callbox {
+            width: min(850px, 94vw);
+            padding: 22px;
+            background: #142018;
+            border-radius: 16px
+        }
+
+        .videos {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px
+        }
+
+        .videos video {
+            width: 100%;
+            min-height: 220px;
+            background: #000;
+            border-radius: 10px
+        }
+
+        .ring {
+            background: #ecb94b;
+            color: #2b2100;
+            border-radius: 9px;
+            padding: 12px;
+            margin-bottom: 14px;
+            display: none
+        }
+
+        .ring.show {
+            display: block
+        }
+
+        .toast {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            background: #244f29;
+            color: #fff;
+            padding: 12px;
+            border-radius: 9px;
+            display: none
+        }
+
+        .toast.show {
+            display: block
+        }
+
+        @media(max-width:800px) {
+            .grid {
+                grid-template-columns: 1fr
+            }
+            #providers { height:260px; }
+            .notifications-card #noticeList { max-height:300px; }
+        }
+        @media(max-width:1050px) and (min-width:801px) { .grid { grid-template-columns:1fr; } }
+    </style>
+</head>
+
+<body>
+    <header class="header"><span class="brand">Menti</span><a href="/profile" style="color:#2c5e31;font-weight:700">Back
+            to profile</a></header>
+    <div class="main-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" onclick="window.location.href='/chat-page'">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                    New Chat
+                </button>
+                <button class="toggle-archived-btn" id="toggleArchivedBtn" type="button">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23 19.15 3.55C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5 6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                    <span id="toggleArchivedText">Show Archived</span>
+                </button>
+            </div>
+            <div class="sidebar-content"><div class="sidebar-section"><div class="sidebar-section-title" id="chatsTitle">Active Chats</div><div id="convList"><div class="empty-state">Loading...</div></div></div></div>
+        </aside>
+    <main class="main">
+        <h1 class="title">Counseling Appointment Scheduling</h1>
+        <p class="muted">Request a private video counseling session based on your provider’s Manila-time availability.
+        </p>
+
+        <div class="page-tabs" role="tablist"><button class="page-tab active" id="appointmentsTab" onclick="showCounselingTab('appointments')">Appointments</button><button class="page-tab" id="assessmentTab" onclick="showCounselingTab('assessment')">Assessment</button></div>
+
+        <div id="appointmentsPanel">
+        <div class="appointment-tip"><div class="appointment-tip-icon">✓</div><div><strong>Find a time that works for you</strong><span>Choose a professional, select an available Manila-time slot, and send your private session request.</span></div></div>
+        <div class="grid">
+            <section class="card">
+                <div class="card-heading"><div><h2>Request a session</h2><p class="card-subtitle">Select a professional to view their availability.</p></div></div>
+                <div id="providers">Loading providers…</div>
+                <div id="booking" style="display:none">
+                    <div class="field"><label>Date</label><input type="date" id="date"></div>
+                    <div class="field"><label>Session duration</label><select id="duration"></select></div>
+                    <div class="field"><label>Available time slots</label>
+                        <div class="slots" id="slots"></div>
+                    </div>
+                    <div class="field"><label>What would you like to discuss? (optional)</label><textarea id="reason"
+                            rows="3"></textarea></div><button class="btn" id="request">Request appointment</button>
+                </div>
+            </section>
+            <section class="card">
+                <div class="card-heading"><div><h2>My counseling appointments</h2><p class="card-subtitle">Your upcoming and previous private sessions.</p></div><span id="appointmentCount" class="muted" style="font-size:12px;font-weight:700;white-space:nowrap"></span></div>
+                <div class="appointment-filters" role="tablist" aria-label="Filter appointments"><button class="appointment-filter active" data-status-filter="approved" type="button">Approved</button><button class="appointment-filter" data-status-filter="pending" type="button">Pending</button><button class="appointment-filter" data-status-filter="declined" type="button">Declined</button><button class="appointment-filter" data-status-filter="cancelled" type="button">Cancelled</button><button class="appointment-filter" data-status-filter="completed" type="button">Completed</button><button class="appointment-filter" data-status-filter="no_show" type="button">No-show</button></div>
+                <div id="appointments">Loading…</div>
+            </section>
+        </div>
+        </div>
+
+        <section class="card assessment-panel" id="assessmentPanel">
+            <div id="assessmentFormView">
+                <h2>Psychological Well-Being Assessment</h2>
+                <div class="assessment-intro">This self-assessment is for reflection and well-being screening only. It is not a medical or psychological diagnosis. Please answer based on how you have felt during the past two weeks.</div>
+                <form id="assessmentForm"></form>
+                <div class="safety-box"><h3>Safety check</h3><p class="muted">These questions help us identify when immediate support may be needed. Your answers are private and are not a diagnosis.</p><div class="safety-question">Have you had thoughts of hurting yourself or ending your life? <label><input type="radio" name="s1" value="yes" required> Yes</label><label><input type="radio" name="s1" value="no"> No</label></div><div class="safety-question">Do you feel in immediate danger right now? <label><input type="radio" name="s2" value="yes" required> Yes</label><label><input type="radio" name="s2" value="no"> No</label></div><div class="safety-question">Are you unable to keep yourself safe today? <label><input type="radio" name="s3" value="yes" required> Yes</label><label><input type="radio" name="s3" value="no"> No</label></div></div>
+                <button class="btn" id="submitAssessment" type="submit" form="assessmentForm" style="margin-top:18px" disabled>Complete assessment</button>
+            </div>
+            <div class="assessment-result" id="assessmentResult"><h2>Overall Assessment Results</h2><p class="muted">Psychological Well-Being Summary</p><div id="profileBadge" class="profile-badge"></div><p id="profileDescription"></p><div class="crisis-result" id="crisisResult"><strong>Immediate support is recommended.</strong><p>If you may be in immediate danger or cannot keep yourself safe, call 911 now or go to the nearest emergency department. You can also contact Hopeline PH at (02) 8804-4673 or text HOPE to 2929, or NCMH at (02) 8928-6666. If possible, stay with someone you trust.</p></div><h3>Category score breakdown</h3><div id="scoreBreakdown"></div><h3>Suggested next steps</h3><ul id="recommendations"></ul><p class="muted" style="font-size:12px;margin-top:20px">Results reflect only your responses and may change over time. They do not provide a diagnosis.</p><button class="btn" onclick="resetAssessment()">Retake assessment</button></div>
+        </section>
+    </main>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: 'AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0',
+            authDomain: 'menti-7b8a1.firebaseapp.com',
+            projectId: 'menti-7b8a1',
+            storageBucket: 'menti-7b8a1.firebasestorage.app',
+            messagingSenderId: '164612023817',
+            appId: '1:164612023817:web:c0437146e86951377f3ad8'
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        let user = null;
+        let providers = [];
+        let selected = null;
+        let schedule = null;
+        let appointments = [], appointmentStatusFilter = 'approved';
+        window.mentiCounselingAppointments = appointments;
+        window.mentiCounselingStatusFilter = appointmentStatusFilter;
+        const $ = (id) => document.getElementById(id);
+
+        const assessmentQuestions = [
+          ['Mood & Emotional Well-being', ['I have felt happy or satisfied with my daily life.','I have felt sad or emotionally low.','I have experienced sudden changes in my mood.','I have felt emotionally numb or disconnected.','I have found it difficult to enjoy things I normally like.']],
+          ['Stress & Anxiety', ['I have felt overwhelmed by my responsibilities or problems.','I have worried excessively about things in my life.','I have found it difficult to relax.','I have felt nervous or uneasy without knowing exactly why.','I have felt that my problems were difficult to manage.']],
+          ['Sleep & Energy', ['I have had difficulty getting restful sleep.','I have felt tired even after resting.','I have experienced changes in my usual sleep routine.','I have had enough energy to complete my daily activities.']],
+          ['Daily Functioning', ['I have had difficulty concentrating on school, work, or daily tasks.','I have struggled to stay motivated.','My emotional state has affected my daily responsibilities.','I have been able to manage my responsibilities effectively.']],
+          ['Social & Emotional Support', ['I have felt lonely or disconnected from others.','I have felt comfortable talking to someone about my feelings.','I have felt supported by people I trust.','I have avoided interacting with others because of how I feel.']],
+          ['Coping & Self-Management', ['I have been able to cope with difficult emotions in a healthy way.','I have felt in control of my emotions.','I have found healthy activities that help me feel better.','I have felt hopeful that difficult situations can improve.']]
+        ];
+        const positiveItems = new Set([1,14,18,20,21,23,24,25,26]);
+        const scaleLabels = ['Never','Rarely','Sometimes','Often','Almost Always'];
+        function buildAssessment() { let n=0; $('assessmentForm').innerHTML=assessmentQuestions.map(([title, qs]) => `<div class="question-section"><h3>${title}</h3>${qs.map(q=>{n++; return `<div class="question"><p>${n}. ${q}</p><div class="scale">${scaleLabels.map((label,v)=>`<label><input type="radio" name="q${n}" value="${v}" required>${v}<br>${label}</label>`).join('')}</div></div>`}).join('')}</div>`).join(''); updateAssessmentSubmitState(); }
+        function updateAssessmentSubmitState() { const questionsAnswered = Array.from({length:26}, (_,i) => document.querySelector(`input[name=q${i+1}]:checked`)).every(Boolean); const safetyAnswered = ['s1','s2','s3'].every(name => document.querySelector(`input[name=${name}]:checked`)); $('submitAssessment').disabled = !(questionsAnswered && safetyAnswered); }
+        document.getElementById('assessmentForm').addEventListener('change', updateAssessmentSubmitState);
+        document.querySelector('.safety-box').addEventListener('change', updateAssessmentSubmitState);
+        window.showCounselingTab = (tab) => { $('appointmentsPanel').style.display=tab==='appointments'?'block':'none'; $('assessmentPanel').classList.toggle('active',tab==='assessment'); $('appointmentsTab').classList.toggle('active',tab==='appointments'); $('assessmentTab').classList.toggle('active',tab==='assessment'); };
+        window.resetAssessment = () => { $('assessmentResult').style.display='none'; $('assessmentFormView').style.display='block'; $('assessmentForm').reset(); document.querySelectorAll('.safety-box input').forEach(input => input.checked = false); updateAssessmentSubmitState(); };
+        async function loadAssessmentHistory() { const r=await api('/api/assessment'); const items=await r.json(); if(items.length) renderAssessment(items[0]); }
+        function renderAssessment(x) { $('assessmentFormView').style.display='none'; $('assessmentResult').style.display='block'; const safe=x.profile==='High Emotional Distress'?'High':x.profile.replace(/[^A-Za-z]/g,''); $('profileBadge').textContent=(x.crisisDetected?'🔴 ':'')+'Overall Profile: '+x.profile; $('profileBadge').className='profile-badge profile-'+safe; $('profileDescription').textContent=x.profileDescription; $('crisisResult').style.display=x.crisisDetected?'block':'none'; $('scoreBreakdown').innerHTML=Object.entries(x.categoryScores).map(([k,v])=>`<div class="score-row"><span>${k}</span><strong>${v} / ${k.includes('Mood')||k.includes('Stress')?20:16}</strong></div>`).join(''); $('recommendations').innerHTML=(x.recommendations||[]).map(v=>`<li>${v}</li>`).join('') || '<li>Continue the healthy practices that support your well-being.</li>'; }
+        $('assessmentForm').onsubmit = async (e) => { e.preventDefault(); const answers={}; for(let i=1;i<=26;i++) answers[i]=Number(document.querySelector(`input[name=q${i}]:checked`).value); const crisisAnswers={s1:document.querySelector('input[name=s1]:checked').value,s2:document.querySelector('input[name=s2]:checked').value,s3:document.querySelector('input[name=s3]:checked').value}; const btn=$('submitAssessment'); btn.disabled=true; const r=await api('/api/assessment',{method:'POST',body:JSON.stringify({answers,crisisAnswers})}); const data=await r.json(); btn.disabled=false; if(!r.ok){toast(data.error||'Unable to save assessment');return;} renderAssessment(data); };
+        buildAssessment();
+
+        function toast(message) {
+            $('toast').textContent = message;
+            $('toast').classList.add('show');
+            setTimeout(() => $('toast').classList.remove('show'), 2500);
+        }
+
+        function fmt(iso) {
+            return new Date(iso).toLocaleString('en-PH', {
+                timeZone: 'Asia/Manila',
+                dateStyle: 'medium',
+                timeStyle: 'short'
+            });
+        }
+
+        async function api(url, opt = {}) {
+            if (!user) throw new Error('User not authenticated');
+            const token = await user.getIdToken();
+            opt.headers = {
+                ...(opt.headers || {}),
+                Authorization: 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            };
+            return fetch(url, opt);
+        }
+
+        async function loadProviders() {
+            const res = await fetch('/api/counseling/providers');
+            providers = await res.json();
+            $('providers').innerHTML = providers.map((p) =>
+                `<div class="provider" data-id="${p.id}"><strong>${p.displayName}</strong><br><span class="muted">${p.role}</span></div>`
+            ).join('') || 'No approved providers available.';
+            document.querySelectorAll('.provider').forEach((card) => {
+                card.onclick = () => chooseProvider(card.dataset.id);
+            });
+        }
+
+        async function chooseProvider(id) {
+            selected = providers.find((p) => p.id === id);
+            document.querySelectorAll('.provider').forEach((card) => {
+                card.classList.toggle('selected', card.dataset.id === id);
+            });
+            const res = await fetch('/api/counseling/providers/' + id + '/schedule');
+            schedule = await res.json();
+            $('booking').style.display = 'block';
+            $('duration').innerHTML = (schedule.availability.durations || [30]).map((d) => `<option>${d}</option>`).join('');
+            $('date').min = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+            $('date').onchange = renderSlots;
+            $('duration').onchange = renderSlots;
+            renderSlots();
+        }
+
+        function renderSlots() {
+            const date = $('date').value;
+            if (!date || !schedule) return;
+
+            const dow = new Date(date + 'T12:00:00+08:00').getDay();
+            const rules = (schedule.availability.weekly || {})[dow] || [];
+            const step = Number($('duration').value || 30);
+            const slots = [];
+
+            for (const rule of rules) {
+                const [h, m] = rule.start.split(':').map(Number);
+                const [eh, em] = rule.end.split(':').map(Number);
+                let t = h * 60 + m;
+                const end = eh * 60 + em;
+
+                while (t + step <= end) {
+                    const hh = String(Math.floor(t / 60)).padStart(2, '0');
+                    const mm = String(t % 60).padStart(2, '0');
+                    const start = `${date}T${hh}:${mm}:00+08:00`;
+                    const finish = new Date(new Date(start).getTime() + step * 60000).toISOString();
+
+                    const overlapsAppt = (schedule.appointments || []).some((a) => a.start && new Date(a.start) < new Date(finish) && new Date(a.end) > new Date(start));
+                    const overlapsEvent = (schedule.events || []).some((e) => e.start && new Date(e.start) < new Date(finish) && new Date(e.end) > new Date(start));
+
+                    if (!overlapsAppt && !overlapsEvent) {
+                        slots.push({ start, end: finish, label: `${hh}:${mm}` });
+                    }
+                    t += step;
+                }
+            }
+
+            $('slots').innerHTML = slots.map((s) =>
+                `<button class="slot" data-start="${s.start}" data-end="${s.end}">${s.label}</button>`
+            ).join('') || '<p class="muted">No available slots for this date.</p>';
+
+            document.querySelectorAll('.slot').forEach((btn) => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.slot').forEach((b) => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                };
+            });
+        }
+
+        function renderAppointmentList() {
+            const filtered = appointments.filter((a) => (a.status || 'approved') === appointmentStatusFilter);
+            $('appointmentCount').textContent = filtered.length ? `${filtered.length} session${filtered.length === 1 ? '' : 's'}` : 'No sessions';
+            $('appointments').innerHTML = filtered.length
+                ? filtered.map((a) =>
+                    `<div class="appt"><strong>${a.providerName || 'Menti provider'}</strong><button type="button" class="appointment-status ${(a.status || 'approved').toLowerCase()}">${(a.status || 'approved').replace('_', ' ')}</button><p>${a.userName ? `${a.userName} · ` : ''}${fmt(a.start)} · ${a.duration} minutes</p>${a.status === 'declined' && a.declineReason ? `<p style="color:#8a3d35"><strong>Provider's reason:</strong> ${a.declineReason}</p>` : ''}${a.status === 'approved' ? '<p class="muted">Wait for your provider to call you at the scheduled time.</p>' : ''}${['pending', 'approved'].includes(a.status) ? `<div class="actions"><button class="btn" onclick="cancelAppt('${a.id}')">Cancel</button></div>` : ''}</div>`
+                ).join('')
+                : `<p class="muted">No ${appointmentStatusFilter.replace('_', ' ')} appointments.</p>`;
+        }
+
+        document.querySelectorAll('[data-status-filter]').forEach((button) => {
+            button.onclick = () => {
+                document.querySelectorAll('[data-status-filter]').forEach((item) => item.classList.remove('active'));
+                button.classList.add('active');
+                appointmentStatusFilter = button.dataset.statusFilter;
+                window.mentiCounselingStatusFilter = appointmentStatusFilter;
+                renderAppointmentList();
+            };
+        });
+
+        async function loadAppointments() {
+            const res = await api('/api/counseling/appointments');
+            appointments = await res.json();
+            window.mentiCounselingAppointments = appointments;
+            renderAppointmentList();
+            return;
+            $('appointmentCount').textContent = appointments.length ? `${appointments.length} session${appointments.length === 1 ? '' : 's'}` : 'No sessions yet';
+            $('appointments').innerHTML = appointments.length
+                ? appointments.map((a) =>
+                    `<div class="appt"><strong>${a.providerName || 'Menti provider'}</strong><button type="button" class="appointment-status ${(a.status || 'approved').toLowerCase()}">${(a.status || 'approved').replace('_', ' ')}</button><p>${fmt(a.start)} · ${a.duration} minutes</p>${a.status === 'declined' && a.declineReason ? `<p style="color:#8a3d35"><strong>Provider's reason:</strong> ${a.declineReason}</p>` : ''}${a.status === 'approved' ? '<p class="muted">Wait for your provider to call you at the scheduled time.</p>' : ''}${['pending', 'approved'].includes(a.status) ? `<div class="actions"><button class="btn" onclick="cancelAppt('${a.id}')">Cancel</button></div>` : ''}</div>`
+                ).join('')
+                : '<p class="muted">You have no counseling appointments yet.</p>';
+        }
+
+        window.cancelAppt = async (id) => {
+            const res = await api('/api/counseling/appointments/' + id, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'cancel' })
+            });
+            toast(res.ok ? 'Appointment cancelled' : (await res.json()).error || 'Unable to cancel');
+            if (res.ok) loadAppointments();
+        };
+
+        $('request').onclick = async () => {
+            const selectedSlot = document.querySelector('.slot.selected');
+            if (!selected || !selectedSlot) {
+                toast('Choose an available time slot');
+                return;
+            }
+            const res = await api('/api/counseling/appointments', {
+                method: 'POST',
+                body: JSON.stringify({
+                    providerId: selected.id,
+                    start: selectedSlot.dataset.start,
+                    end: selectedSlot.dataset.end,
+                    duration: Number($('duration').value),
+                    reason: $('reason').value
+                })
+            });
+            toast(res.ok ? 'Appointment request sent' : (await res.json()).error || 'Unable to request appointment');
+            if (res.ok) {
+                if (window.closeCounselingBookingModal) window.closeCounselingBookingModal();
+                document.querySelectorAll('.slot.selected').forEach((b) => b.classList.remove('selected'));
+                loadAppointments();
+            }
+        };
+
+        // Opens video call room in separate tab when call is accepted in the global call manager.
+        window.onMentiCallAccepted = (appointment) => {
+            if (window.__mentiUserToken) {
+                try { localStorage.setItem('menti_user_token', window.__mentiUserToken); } catch (_) {}
+            }
+            window.open(`/video/${appointment.id}?role=user`, `menti-call-${appointment.id}`, 'width=1280,height=720');
+        };
+
+        onAuthStateChanged(auth, async (authUser) => {
+            if (!authUser) return;
+            user = authUser;
+            const idToken = await authUser.getIdToken();
+            window.__mentiUserToken = idToken;
+            try { localStorage.setItem('menti_user_token', idToken); } catch (_) {}
+            if (window.mentiCallManager) {
+                window.mentiCallManager.setUserToken(idToken);
+            }
+            await loadProviders();
+            await loadAppointments();
+            await loadAssessmentHistory();
+        });
+    </script>
+    <script src="/static/js/call-manager.js"></script>
+<script
+    type="module">const box = document.getElementById('providers'); const filter = document.createElement('select'); filter.className = 'field'; filter.innerHTML = '<option value="all">All professionals</option><option value="psychiatrist">Psychiatrists</option><option value="psychologist">Psychologists</option>'; box.parentElement.insertBefore(filter, box); let providerProfiles = []; async function decorateProviders() { providerProfiles = await (await fetch('/api/counseling/providers')).json(); box.querySelectorAll('.provider').forEach(card => { let p = providerProfiles.find(x => x.id === card.dataset.id); if (p) card.innerHTML = `<div style="display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#e8f5e9;color:#2c5e31;font-weight:800;font-size:18px">${(p.displayName || 'P').slice(0, 1).toUpperCase()}</div><div><strong>${p.displayName || 'Provider'}</strong><br><span class="muted">${p.role === 'psychiatrist' ? 'Psychiatrist' : 'Psychologist'} · ${p.email || 'Email unavailable'}</span></div></div>` }) } filter.onchange = () => box.querySelectorAll('.provider').forEach(card => { let p = providerProfiles.find(x => x.id === card.dataset.id); card.style.display = filter.value === 'all' || (p && p.role === filter.value) ? 'block' : 'none' }); new MutationObserver(() => decorateProviders()).observe(box, { childList: true }); setTimeout(decorateProviders, 700);</script>
+<script id="rtc-ice-servers" type="application/json">{{ rtc_ice_servers | tojson }}</script>
+<script>
+const MentiNativePeer = window.RTCPeerConnection;
+window.RTCPeerConnection = function (c) {
+    c = c || {};
+    try {
+        c.iceServers = JSON.parse(document.getElementById('rtc-ice-servers').textContent || '[]');
+    } catch (_) {
+        c.iceServers = c.iceServers || [{ urls: 'stun:stun.l.google.com:19302' }];
+    }
+    return new MentiNativePeer(c);
+};
+window.RTCPeerConnection.prototype = MentiNativePeer.prototype;
+</script>
+<script type="module">
+    /* Notifications are intentionally removed from this page. */
+    /*
+    import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+    const firebaseConfig = {
+        apiKey: 'AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0',
+        authDomain: 'menti-7b8a1.firebaseapp.com',
+        projectId: 'menti-7b8a1',
+        storageBucket: 'menti-7b8a1.firebasestorage.app',
+        messagingSenderId: '164612023817',
+        appId: '1:164612023817:web:c0437146e86951377f3ad8'
+    };
+
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const section = document.createElement('section');
+    section.className = 'card notifications-card';
+    section.style.marginTop = '20px';
+    section.innerHTML = '<div class="card-heading"><div><h2>Notifications</h2><p class="card-subtitle">Updates about your counseling requests.</p></div><span id="notificationCount" class="muted" style="font-size:12px;font-weight:700;white-space:nowrap"></span></div><div id="noticeList" class="muted">Loading notifications…</div>';
+    document.querySelector('.main').appendChild(section);
+
+    onAuthStateChanged(auth, async (u) => {
+        if (!u) return;
+        const token = await u.getIdToken();
+        const response = await fetch('/api/counseling/notifications', {
+            headers: { Authorization: 'Bearer ' + token }
+        });
+        const items = await response.json();
+        document.getElementById('notificationCount').textContent = items.length ? `${items.length} update${items.length === 1 ? '' : 's'}` : 'All caught up';
+        const box = document.getElementById('noticeList');
+        box.innerHTML = items.length
+            ? items.map((x) => `<div class="appt" style="background:${x.read ? '#fff' : '#f0f8f1'}"><strong>${x.message || 'Appointment update'}</strong><p class="muted">${new Date(x.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}</p></div>`).join('')
+            : 'No new notifications.';
+    });
+    */
+</script>
+<script src="/static/js/counseling-header.js"></script>
+<script src="/static/js/counseling-page.js"></script>
+<script src="/static/js/sidebar-persistence.js"></script>
+
+<script>
+    // Keep provider cancellation explanations visible in the user's appointment history.
+    const appointmentReasonObserver = new MutationObserver(() => {
+        const allAppointments = window.mentiCounselingAppointments || [];
+        const activeFilter = window.mentiCounselingStatusFilter || 'approved';
+        const filteredAppointments = allAppointments.filter((a) => (a.status || 'approved') === activeFilter);
+        document.querySelectorAll('#appointments .appt').forEach((card, index) => {
+            const appointment = filteredAppointments[index];
+            if (!appointment) return;
+            const cancelButton = [...card.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Cancel');
+            if (cancelButton) cancelButton.textContent = 'Cancel appointment';
+            if (appointment.status === 'cancelled' && appointment.cancellationReason && !card.querySelector('.provider-cancellation-reason')) {
+                const reason = document.createElement('p');
+                reason.className = 'provider-cancellation-reason';
+                reason.style.color = '#8a3d35';
+                reason.innerHTML = '<strong>Provider\'s cancellation reason:</strong> ' + appointment.cancellationReason;
+                card.appendChild(reason);
+            }
+        });
+    });
+    appointmentReasonObserver.observe(document.getElementById('appointments'), { childList: true, subtree: true });
+</script>
+<script src="/static/js/background-music.js"></script>
+</body>
+</html>
