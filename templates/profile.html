@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/dark-mode.css">
+    <link rel="stylesheet" href="/static/css/call-ui.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -482,8 +483,10 @@
                     <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
                 </svg>
             </button>
-            <img src="/static/menti logo.png" alt="Menti" class="header-logo">
-            <h1>Menti</h1>
+            <a href="/chat-page" class="header-brand-link" aria-label="Menti chat home">
+                <img src="/static/menti logo.png" alt="Menti" class="header-logo">
+                <h1>Menti</h1>
+            </a>
         </div>
         <!-- Header right: incognito + profile dropdown -->
         <div class="header-right">
@@ -521,6 +524,10 @@
                     <a class="profile-dropdown-item active-page" href="/profile">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                         Profile Settings
+                    </a>
+                    <a class="profile-dropdown-item" href="/counseling-appointments">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h5v5H7v-5z"/></svg>
+                        Counseling Sessions
                     </a>
                     <div class="profile-dropdown-divider"></div>
                     <button class="profile-dropdown-item profile-dropdown-logout" id="logoutBtn">
@@ -720,6 +727,7 @@
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
         let currentUser = null;
+        let currentPhotoURL = '';
         let personalData = null;
         let cacheMeta = null;
         let showingArchived = sessionStorage.getItem('menti_sidebar_show_archived') === '1';
@@ -772,7 +780,6 @@
             updateHeaderProfile(user);
             cacheMeta = await getCacheMeta(user.uid);
             applySidebarViewState();
-            await loadSidebarConversations(user.uid);
             await loadProfile();
             await loadDataStats();
         });
@@ -796,14 +803,14 @@
         window.toggleArchivedView = function() {
             showingArchived = !showingArchived;
             sessionStorage.setItem('menti_sidebar_show_archived', showingArchived ? '1' : '0');
+            if (window.restoreMentiSidebarCache) window.restoreMentiSidebarCache();
             applySidebarViewState();
-            if (currentUser) loadSidebarConversations(currentUser.uid);
         };
 
         // ===== LOAD PROFILE =====
 
                 // ===== HEADER PROFILE =====
-                function updateHeaderProfile(user) {
+                function updateHeaderProfile(user, photoURL = currentPhotoURL || user.photoURL || '') {
                     const wrap = document.getElementById('profileMenuWrap');
                     const incogBtn = document.getElementById('incognitoTopBtn');
                     if (wrap) wrap.style.display = 'flex';
@@ -813,8 +820,8 @@
                     if (nameEl) nameEl.textContent = name;
                     const avatarEl = document.getElementById('headerAvatar');
                     if (avatarEl) {
-                        if (user.photoURL) {
-                            avatarEl.innerHTML = `<img src="${escHtml(user.photoURL)}" alt="Avatar" onerror="this.parentNode.innerHTML='<span>${name.slice(0,1).toUpperCase()}</span>'">`;
+                        if (photoURL) {
+                            avatarEl.innerHTML = `<img src="${escHtml(photoURL)}" alt="Avatar" onerror="this.parentNode.innerHTML='<span>${name.slice(0,1).toUpperCase()}</span>'">`;
                         } else {
                             const initials = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0,2) || '?';
                             avatarEl.innerHTML = `<span>${initials}</span>`;
@@ -884,7 +891,7 @@
 
                     if (sessionCached?.data && Array.isArray(sessionCached.data)) {
                         renderSidebarConversations(sessionCached.data);
-                        if ((Date.now() - (sessionCached.ts || 0)) < 60000) return;
+                        return;
                     }
 
                     if (cached?.data && Array.isArray(cached.data)) {
@@ -893,7 +900,7 @@
                     }
 
                     try {
-                        const res = await fetch(`/conversations?user_id=${encodeURIComponent(uid)}&is_guest=false&is_archived=${showingArchived}`);
+                        const res = await fetch(`/conversations?user_id=${encodeURIComponent(uid)}&is_guest=false&is_archived=${showingArchived}&titles_only=true`);
                         if (!res.ok) throw new Error('Failed to fetch conversations');
                         const conversations = await res.json();
                         renderSidebarConversations(conversations || []);
@@ -913,7 +920,11 @@
             }
             listEl.innerHTML = conversations.map((d) => {
                 const title = d.title || 'Untitled';
-                return `<div class="conv-item" onclick="window.location.href='/chat-page'" title="${escHtml(title)}">${escHtml(title)}</div>`;
+                const convId = d.id ? encodeURIComponent(d.id) : '';
+                const href = convId
+                    ? `/chat-page?conversation_id=${convId}${showingArchived ? '&is_archived=1' : ''}`
+                    : '/chat-page';
+                return `<div class="conv-item" onclick="window.location.href='${href}'" title="${escHtml(title)}">${escHtml(title)}</div>`;
             }).join('');
         }
 
@@ -940,7 +951,9 @@
             document.getElementById('heroEmail').textContent = data.email       || currentUser.email       || '';
 
             const photoURL = data.photoURL || currentUser.photoURL || '';
+            currentPhotoURL = photoURL;
             setAvatar(data.displayName || currentUser.displayName || '', photoURL);
+            updateHeaderProfile(currentUser, photoURL);
 
             if (currentUser.emailVerified) {
                 document.getElementById('emailVerifiedBadge').style.display = 'inline-flex';
@@ -1050,6 +1063,23 @@
             }
         });
 
+        function compressImage(dataURL) {
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => {
+                    const maxSize = 512;
+                    const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(image.width * scale));
+                    canvas.height = Math.max(1, Math.round(image.height * scale));
+                    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.82));
+                };
+                image.onerror = () => reject(new Error('Unable to read image'));
+                image.src = dataURL;
+            });
+        }
+
         document.getElementById('savePfpBtn').addEventListener('click', async () => {
             let photoURL = pfpUrlInput.value.trim();
             // If file was selected instead, use the data URL
@@ -1057,6 +1087,10 @@
                 photoURL = pfpPreviewImg.src;
             }
             if (!photoURL) { showToast('No photo selected.', true); return; }
+            if (photoURL.startsWith('data:image/')) {
+                try { photoURL = await compressImage(photoURL); }
+                catch (_) { showToast('Unable to process this image.', true); return; }
+            }
             // Basic URL validation for external URLs
             if (photoURL.startsWith('http') && !/^https?:\/\/[\w\-.]+(\/[\w\-./?%&=]*)?$/.test(photoURL)) {
                 showToast('Invalid URL format.', true); return;
@@ -1069,11 +1103,13 @@
                 });
                 const result = await res.json();
                 if (result.success) {
+                    currentPhotoURL = photoURL;
+                    updateHeaderProfile(currentUser, photoURL);
                     setAvatar(document.getElementById('fieldName').value || '', photoURL);
                     pfpModal.classList.remove('show');
                     clearUserCache(currentUser.uid);
                     showToast('Profile photo updated!');
-                }
+                } else { throw new Error(result.error || 'Error saving photo.'); }
             } catch (e) { showToast('Error saving photo.', true); }
         });
 
@@ -1252,5 +1288,25 @@
         // Initialize dark mode on page load
         initializeDarkMode();
     </script>
+    <script src="/static/js/call-manager.js"></script>
+    <script>
+      window.setUserTokenForCallManager = (token) => {
+        if (window.mentiCallManager) window.mentiCallManager.setUserToken(token);
+      };
+    </script>
+    <script type="module">
+      import { getApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+      import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+      try {
+        const auth = getAuth(getApp());
+        onAuthStateChanged(auth, async (user) => {
+          if (user && window.setUserTokenForCallManager) {
+            window.setUserTokenForCallManager(await user.getIdToken());
+          }
+        });
+      } catch (e) {}
+    </script>
+<script src="/static/js/background-music.js"></script>
 </body>
+<script src="/static/js/sidebar-persistence.js"></script>
 </html>
