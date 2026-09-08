@@ -44,7 +44,7 @@ Print this or keep it open while setting up on your new laptop!
 
 **Groq API Key:**
 - Get from: https://console.groq.com/keys
-- Paste into `.env` file as `GROQ_API_KEY`
+- Paste your OpenAI key into `.env` as `OPENAI_API_KEY`
 
 **SECRET_KEY:**
 - Generate random string (20+ characters)
@@ -64,7 +64,7 @@ Print this or keep it open while setting up on your new laptop!
 → Check `firebase-credentials.json` is in folder
 
 ### Error: "Invalid Groq API key"
-→ Check your `.env` file has correct `GROQ_API_KEY`
+→ Check your `.env` file has the correct `OPENAI_API_KEY`
 
 ---
 
