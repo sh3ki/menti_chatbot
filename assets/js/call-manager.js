@@ -572,7 +572,9 @@ class MentiCallManager {
       } catch (_) {}
       window.__mentiUserToken = this.userToken;
     }
-    const videoCallUrl = `/video/${appointment.id}?role=user`;
+    const token = this.userToken || '';
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+    const videoCallUrl = `/video/${appointment.id}?role=user${tokenParam}`;
     window.open(videoCallUrl, `menti-call-${appointment.id}`, 'width=1280,height=720');
   }
 
