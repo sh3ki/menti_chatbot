@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/call-ui.css">
     <style>
         * {
             margin: 0;
@@ -370,6 +371,105 @@
             opacity: 0.8;
         }
 
+        /* Expert Validation Section */
+        .validation-section {
+            max-width: 1200px;
+            margin: 100px auto 80px;
+            padding: 0 5%;
+        }
+
+        .validation-card {
+            background: white;
+            border: 1px solid rgba(44, 94, 49, 0.14);
+            border-radius: 28px;
+            padding: 48px;
+            display: grid;
+            grid-template-columns: minmax(220px, 0.8fr) 1.6fr;
+            gap: 48px;
+            align-items: center;
+            box-shadow: 0 12px 40px rgba(44, 94, 49, 0.1);
+            position: relative;
+            overflow: hidden;
+            animation: fadeInUp 0.7s ease;
+        }
+
+        .validation-card::before {
+            content: '';
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 7px;
+            background: linear-gradient(180deg, #2C5E31, #71B87A);
+        }
+
+        .validation-eyebrow {
+            color: #2C5E31;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+
+        .validation-provider {
+            font-size: 26px;
+            line-height: 1.25;
+            font-weight: 800;
+            color: #0F0F0F;
+            margin-bottom: 10px;
+        }
+
+        .validation-credentials {
+            color: #28282B;
+            font-size: 15px;
+            line-height: 1.6;
+            opacity: 0.78;
+        }
+
+        .validation-rating {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 24px;
+            color: #B77900;
+            font-size: 20px;
+            letter-spacing: 2px;
+        }
+
+        .validation-rating-label {
+            color: #28282B;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+
+        .validation-quote {
+            color: #28282B;
+            font-size: 18px;
+            line-height: 1.75;
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+
+        .validation-quote::before {
+            content: '\201C';
+            color: #71B87A;
+            font-size: 56px;
+            font-style: normal;
+            font-weight: 800;
+            line-height: 0;
+            vertical-align: -22px;
+            margin-right: 6px;
+        }
+
+        .validation-note {
+            background: #F1F8F4;
+            border-radius: 14px;
+            color: #2C5E31;
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 14px 18px;
+        }
+
         /* Stats Section */
         .stats {
             background: white;
@@ -485,6 +585,56 @@
             opacity: 0.7;
         }
 
+        /* Privacy Policy Modal */
+        .privacy-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 400;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 15, 15, 0.58);
+        }
+
+        .privacy-modal.is-open { display: flex; }
+
+        .privacy-modal-content {
+            width: min(100%, 900px);
+            max-height: 90vh;
+            overflow-y: auto;
+            background: #F1F8F4;
+            border-radius: 24px;
+            padding: 44px;
+            position: relative;
+            box-shadow: 0 24px 80px rgba(15, 15, 15, 0.25);
+        }
+
+        .privacy-modal-close {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            border: 0;
+            background: transparent;
+            color: #2C5E31;
+            font-size: 30px;
+            cursor: pointer;
+        }
+
+        .privacy-modal h2 { color: #2C5E31; font-size: 36px; margin-bottom: 8px; }
+        .privacy-modal h3 { color: #2C5E31; font-size: 21px; margin: 28px 0 10px; }
+        .privacy-modal h4 { color: #0F0F0F; font-size: 16px; margin: 16px 0 6px; }
+        .privacy-modal p, .privacy-modal li { color: #28282B; font-size: 15px; line-height: 1.65; }
+        .privacy-modal ul { padding-left: 22px; margin: 8px 0; }
+        .privacy-modal .policy-subtitle { color: #2C5E31; font-size: 19px; font-weight: 700; margin-bottom: 18px; }
+        .privacy-modal .policy-notice { background: white; border-left: 5px solid #2C5E31; border-radius: 12px; padding: 18px 20px; margin-top: 24px; }
+        .privacy-modal .policy-meta { display: inline-block; color: #2C5E31; background: #E8F5E9; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
+
+        @media (max-width: 640px) {
+            .privacy-modal-content { padding: 36px 24px 28px; }
+            .privacy-modal h2 { font-size: 30px; }
+        }
+
         /* Animations */
         @keyframes slideDown {
             from {
@@ -594,6 +744,12 @@
             .section-header h3 {
                 font-size: 36px;
             }
+
+            .validation-card {
+                grid-template-columns: 1fr;
+                gap: 28px;
+                padding: 36px;
+            }
         }
 
         @media (max-width: 640px) {
@@ -621,6 +777,22 @@
 
             .feature-card {
                 padding: 28px;
+            }
+
+            .validation-section {
+                margin-top: 72px;
+            }
+
+            .validation-card {
+                padding: 30px 24px;
+            }
+
+            .validation-provider {
+                font-size: 23px;
+            }
+
+            .validation-quote {
+                font-size: 16px;
             }
 
             .stats-container {
@@ -687,6 +859,11 @@
         </div>
         <div class="features-grid">
             <div class="feature-card">
+                <span class="feature-icon">&#127908;</span>
+                <h4>Voice Conversations</h4>
+                <p>Talk with Menti using voice for a more natural, hands-free conversation whenever you prefer speaking over typing.</p>
+            </div>
+            <div class="feature-card">
                 <span class="feature-icon">🤗</span>
                 <h4>Always Available</h4>
                 <p>24/7 support whenever you need someone to talk to. No appointments, no waiting. Just open and start chatting.</p>
@@ -701,7 +878,40 @@
                 <h4>Empathetic Support</h4>
                 <p>Get meaningful advice and emotional comfort from an AI trained to understand and validate your feelings.</p>
             </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#127897;&#65039;</span>
+                <h4>Your Preferred Conversation</h4>
+                <p>Choose a friendly, supportive, or professional mode and tailor responses to be short and focused or more detailed.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#127912;</span>
+                <h4>Personalized Chat Themes</h4>
+                <p>Make your conversations feel more comfortable by switching between chat themes to match your preference.</p>
+            </div>
         </div>
+    </section>
+
+    <!-- Expert Validation Section -->
+    <section class="validation-section" aria-labelledby="validation-title">
+        <div class="section-header">
+            <h3 id="validation-title">Expert Validation</h3>
+            <p>Designed with guidance from mental health professionals</p>
+        </div>
+        <article class="validation-card">
+            <div class="validation-provider-info">
+                <div class="validation-eyebrow">5-star expert testimonial</div>
+                <h4 class="validation-provider">Janette M. Hapita</h4>
+                <p class="validation-credentials"><strong>Registered Psychologist (RPsy)</strong><br>Army Station Hospital, 2nd Infantry Division, Philippine Army</p>
+                <div class="validation-rating" aria-label="5 out of 5 stars">
+                    <span aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+                    <span class="validation-rating-label">Highly Recommended</span>
+                </div>
+            </div>
+            <div class="validation-testimonial">
+                <p class="validation-quote">I have reviewed the proposed capstone project entitled <strong>“MENTI: An Emotion-Aware Chatbot System for Mental Health Support.”</strong> Based on my professional assessment, the concept, objectives, and proposed features are appropriate as an AI-assisted emotional support tool.</p>
+                <p class="validation-note"><strong>Professional guidance:</strong> Menti is intended to provide emotional support and should clearly state its limitations. It does not replace professional mental health services.</p>
+            </div>
+        </article>
     </section>
 
     <!-- Stats Section -->
@@ -733,14 +943,94 @@
         <button onclick="tryAnonymously()" class="cta-btn">Try Anonymously - It's Free</button>
     </section>
 
+    <!-- About content moved to about.html -->
+    <!--
+            <p><strong>We believe that technology can be more than just functional—it can also be designed with empathy.</strong></p>
+
+            <h3>Technology with Empathy</h3>
+            <p>MENTI is built around the belief that technology should not only provide answers—it should also listen.</p>
+            <p>Our approach focuses on creating an experience that is supportive, respectful, emotionally aware, and non-judgmental. MENTI is designed to recognize emotional context and respond with empathy while encouraging healthy self-reflection.</p>
+            <p>Artificial intelligence can provide support, but it cannot replace the expertise, understanding, and care provided by qualified mental health professionals.</p>
+
+            <h3>Our Mission</h3>
+            <p><strong>“To make emotional support more accessible through thoughtful technology while encouraging self-awareness, emotional reflection, and connection to appropriate human support.”</strong></p>
+            <p>Our goal is to explore how artificial intelligence can contribute to a more accessible and supportive digital environment while maintaining responsibility, empathy, and respect for the user's well-being.</p>
+
+            <h3>Important Notice</h3>
+            <p class="about-notice">MENTI does not diagnose mental health conditions and is not a replacement for psychologists, psychiatrists, counselors, doctors, emergency services, or other qualified healthcare professionals. If you are experiencing a mental health emergency, please contact appropriate emergency services, a qualified healthcare professional, or a trusted person who can provide immediate support.</p>
+        </div>
+        </div>
+    </section>
+
+    -->
+
+    <!-- Privacy Policy Modal -->
+    <div class="privacy-modal" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="privacyModalTitle" aria-hidden="true">
+        <div class="privacy-modal-content">
+            <button class="privacy-modal-close" type="button" aria-label="Close Privacy Policy" onclick="closePrivacyPolicy()">&times;</button>
+            <h2 id="privacyModalTitle">Privacy Policy</h2>
+            <p class="policy-subtitle">Your privacy matters to us.</p>
+            <p>MENTI is an academic project designed to explore how artificial intelligence and emotion-aware technology can support mental health and emotional well-being. This Privacy Policy explains how information may be collected, used, stored, and protected when users interact with the MENTI system.</p>
+
+            <h3>1. Information We Collect</h3>
+            <p>Depending on the features used, MENTI may process information provided by users or generated through interaction with the system.</p>
+            <h4>Personal Information</h4><p>Name, email address, account credentials, or identifying details may be collected when registering or authenticating.</p>
+            <h4>Conversation, Emotion, and Assessment Data</h4><p>Messages, conversational inputs, emotion-related information, and questionnaire responses may be processed to provide chatbot interactions, emotion-aware features, and well-being views.</p>
+            <h4>Technical Information</h4><p>Essential technical metadata, including sessions, authentication tokens, and browser compatibility information, may be processed for normal operations.</p>
+
+            <h3>2. How We Use Information</h3>
+            <p>Information is used to provide and maintain MENTI, generate responses, support emotion-aware functionality, provide assessment and progress features, improve usability, maintain security, address technical issues, and support the academic evaluation of the thesis project where applicable and permitted.</p>
+
+            <h3>3. AI and Conversational Data</h3>
+            <p>Information in chatbot interactions may be processed by the underlying AI service used to generate responses. Users should avoid entering highly sensitive information, such as financial records, government ID numbers, or unnecessary personal identification.</p>
+
+            <h3>4. Emotion-Aware Processing</h3>
+            <p>Emotion-related information supports contextually appropriate responses, emotional pattern awareness, progress tracking, and other emotion-aware features. Emotion detection is not a medical diagnosis.</p>
+
+            <h3>5. Psychological Assessments</h3>
+            <p>Questionnaire-based assessments are intended for self-reflection and informational well-being views. Results are not medical or psychiatric diagnoses and do not replace professional evaluation.</p>
+
+            <h3>6. Data Storage and Retention</h3>
+            <p>Information is stored only as long as necessary to provide functionality, maintain system records, or fulfill legitimate academic and technical requirements.</p>
+            <p class="policy-meta">Storage Policy: Standard Active Project Lifecycle</p>
+
+            <h3>7. Data Security</h3>
+            <p>MENTI applies reasonable technical and organizational measures intended to protect information against unauthorized access, alteration, disclosure, or loss, including secure authentication, access controls, protected API communication, and role-based permissions.</p>
+
+            <h3>8. Data Sharing and Third Parties</h3>
+            <p>MENTI does not sell users' personal information. Information may be shared with service infrastructure only when necessary for functionality, such as cloud databases or AI endpoint services required for text processing.</p>
+
+            <h3>9. Your Privacy Rights</h3>
+            <p>Depending on applicable regulations and system scope, users may request access, correction, or deletion of account records; inquire about processing; and withdraw from optional features where technically supported.</p>
+
+            <h3>10. Children's Privacy</h3>
+            <p>MENTI is not intentionally designed to collect personal information from children without appropriate authorization or adult guidance. Users who cannot legally use the service independently should access it only with proper consent and supervision.</p>
+
+            <h3>11. Cookies and Tracking</h3>
+            <p>MENTI limits tracking to essential cookies and local storage required for logins, session safety, and core navigation. It does not employ third-party advertising trackers, cross-site profiling cookies, or marketing analytics pixels.</p>
+
+            <h3 class="policy-notice">12. Mental Health Disclaimer</h3>
+            <p>MENTI is an AI-based support system intended to encourage emotional awareness, self-reflection, and supportive conversation. It does not diagnose mental health conditions or replace psychologists, psychiatrists, counselors, doctors, emergency services, or other qualified professionals. AI-generated responses may not always be accurate or appropriate.</p>
+
+            <h3>13. Changes to This Privacy Policy</h3>
+            <p>This Privacy Policy may be updated as MENTI's features, implementation, or academic requirements evolve.</p>
+            <p class="policy-meta">Last Updated: September 2026</p>
+
+            <h3>14. Questions About Privacy?</h3>
+            <p>For questions, concerns, or requests regarding privacy and data handling, contact the development team at <strong>mentichatbot59@gmail.com</strong>.</p>
+        </div>
+    </div>
+
+    {% include '_terms_modal.html' %}
+
     <!-- Footer -->
     <footer class="footer">
         <p>© 2025 Menti. Your mental health companion.</p>
         <div class="footer-links">
-            <a href="#">About</a>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">Contact</a>
+            <a href="/about">About</a>
+            <a href="#privacyModal" onclick="openPrivacyPolicy(event)">Privacy Policy</a>
+            <a href="#termsModal" onclick="openTermsOfService(event)">Terms of Service</a>
+            <a href="/contact">Contact</a>
         </div>
     </footer>
 
@@ -791,6 +1081,41 @@
                 btn.disabled = false;
             }
         };
+    </script>
+    <script src="/static/js/call-manager.js"></script>
+    <script>
+      window.setUserTokenForCallManager = (token) => {
+        if (window.mentiCallManager) window.mentiCallManager.setUserToken(token);
+      };
+    </script>
+<script src="/static/js/background-music.js"></script>
+    <script>
+        function openPrivacyPolicy(event) {
+            if (event) event.preventDefault();
+            const modal = document.getElementById('privacyModal');
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closePrivacyPolicy() {
+            const modal = document.getElementById('privacyModal');
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('privacyModal').addEventListener('click', function (event) {
+            if (event.target === this) closePrivacyPolicy();
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closePrivacyPolicy();
+        });
+
+        if (window.location.hash === '#privacyModal' || new URLSearchParams(window.location.search).get('privacy') === '1') {
+            openPrivacyPolicy();
+        }
     </script>
 </body>
 </html>
