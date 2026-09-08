@@ -1250,7 +1250,7 @@ def provider_video_status_stream():
     signal_watches = {}
 
     def _send(event_name, payload):
-        client_q.put_nowait(f"event: {event_name}\\ndata: {json.dumps(payload)}\\n\\n")
+        client_q.put_nowait(f"event: {event_name}\ndata: {json.dumps(payload)}\n\n")
 
     def _attach_signal_listener(appointment_id):
         if appointment_id in signal_watches:
@@ -1334,7 +1334,7 @@ def user_video_incoming_stream():
     approved_appointments = {}
 
     def _send(event_name, payload):
-        client_q.put_nowait(f"event: {event_name}\\ndata: {json.dumps(payload)}\\n\\n")
+        client_q.put_nowait(f"event: {event_name}\ndata: {json.dumps(payload)}\n\n")
 
     def _appointment_payload(appointment_id, data):
         return {'id': appointment_id, **(data or {})}
@@ -1463,7 +1463,11 @@ def video_call_room(room_token):
     """Open video call room in separate tab (like Google Meet)"""
     # Determine user role
     provider_uid = session.get('provider_uid') if session.get('is_provider') else None
-    user_uid = _current_user_uid()
+    # A newly opened call tab cannot send an Authorization header on its
+    # initial document request. Accept the Firebase token passed by the
+    # authenticated caller so the room can be rendered directly.
+    token_claims = _verify_firebase_id_token(request.args.get('token'))
+    user_uid = _current_user_uid() or (token_claims.get('uid') if token_claims else None)
     
     if not (provider_uid or user_uid):
         return redirect(url_for('login'))
