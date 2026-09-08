@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menti — Video Call</title>
+    <link rel="stylesheet" href="/static/css/call-ui.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0f0f0f;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        .video-room {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0;
+            background: #000;
+        }
+
+        .video-stream {
+            position: relative;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .video-stream video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .remote-video {
+            grid-column: 1;
+            grid-row: 1;
+        }
+
+        .local-video {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 320px;
+            height: 180px;
+            background: #1a1a1a;
+            border: 2px solid #2c5e31;
+            border-radius: 12px;
+            z-index: 100;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+
+        .local-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+        }
+
+        .call-controls {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 16px 24px;
+            border-radius: 60px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .control-btn svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .control-btn.active {
+            background: #2c5e31;
+        }
+
+        .control-btn.inactive {
+            background: #c41e3a;
+        }
+
+        .control-btn.hang-up {
+            background: #c41e3a;
+        }
+
+        .control-btn.hang-up:hover {
+            background: #a01830;
+        }
+
+        .call-info {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 24px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+        }
+
+        .call-timer {
+            font-size: 14px;
+            color: #aaa;
+            font-weight: 500;
+        }
+
+        .connection-state {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            font-size: 12px;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .connection-state.connected {
+            background: rgba(44, 94, 49, 0.3);
+            border-color: #2c5e31;
+            color: #4caf50;
+        }
+
+        .connection-state.connecting {
+            background: rgba(255, 193, 7, 0.2);
+            border-color: #ffc107;
+            color: #ffc107;
+        }
+
+        .device-selector {
+            position: fixed;
+            top: 24px;
+            left: 24px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 16px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            max-width: 300px;
+            display: none;
+            top: 68px;
+            left: auto;
+            right: 24px;
+        }
+
+        .device-selector.open {
+            display: block;
+        }
+
+        .device-menu-toggle {
+            position: fixed;
+            top: 24px;
+            right: 145px;
+            z-index: 210;
+            width: 38px;
+            height: 38px;
+            border: 1px solid rgba(255,255,255,.18);
+            border-radius: 50%;
+            background: rgba(0,0,0,.8);
+            color: #fff;
+            cursor: pointer;
+            font-size: 24px;
+            line-height: 28px;
+        }
+
+        .device-menu-toggle:hover {
+            background: rgba(255,255,255,.18);
+        }
+
+        .device-selector select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .device-selector label {
+            font-size: 12px;
+            display: block;
+            margin-top: 12px;
+            color: #aaa;
+        }
+
+        /* Phase overlays: connecting / calling(ringing) / ended - matches yunafied's outgoing call flow */
+        .phase-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            background: #0f0f0f;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            gap: 16px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .phase-overlay.show {
+            display: flex;
+        }
+
+        .phase-spinner {
+            width: 56px;
+            height: 56px;
+            border: 4px solid rgba(255, 255, 255, 0.15);
+            border-top-color: #2c5e31;
+            border-radius: 50%;
+            animation: phase-spin 1s linear infinite;
+        }
+
+        @keyframes phase-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .phase-avatar {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background: #2c5e31;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 42px;
+            font-weight: 700;
+            animation: phase-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes phase-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(44, 94, 49, 0.5); }
+            50% { box-shadow: 0 0 0 20px rgba(44, 94, 49, 0); }
+        }
+
+        .phase-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .phase-subtitle {
+            color: #aaa;
+            margin: 0;
+        }
+
+        .phase-cancel-btn {
+            margin-top: 8px;
+            background: #c41e3a;
+            color: #fff;
+            border: 0;
+            border-radius: 30px;
+            padding: 12px 28px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .phase-cancel-btn:hover {
+            background: #a01830;
+        }
+
+        .phase-avatar svg {
+            width: 46px;
+            height: 46px;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .video-room-content {
+            visibility: hidden;
+        }
+
+        .video-room-content.show {
+            visibility: visible;
+        }
+
+        .call-notes-toggle { position: fixed; top: 24px; right: 195px; z-index: 210; border: 1px solid rgba(255,255,255,.18); border-radius: 20px; padding: 9px 14px; background: rgba(0,0,0,.8); color: #fff; cursor: pointer; font-weight: 600; }
+        .call-notes-panel, .end-call-modal { position: fixed; inset: 0; z-index: 600; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.64); padding: 20px; }
+        .call-notes-panel.open, .end-call-modal.open { display: flex; }
+        .call-notes-card, .end-call-card { width: min(420px, 100%); padding: 24px; border: 1px solid #3b4d3e; border-radius: 14px; background: #171b18; box-shadow: 0 18px 50px rgba(0,0,0,.5); }
+        .call-notes-card h2, .end-call-card h2 { margin: 0 0 8px; font-size: 20px; }
+        .call-notes-card p, .end-call-card p { margin: 0 0 16px; color: #aeb9b0; font-size: 13px; }
+        #call-notes-text { width: 100%; min-height: 180px; resize: vertical; padding: 12px; border: 1px solid #465548; border-radius: 8px; background: #0f120f; color: #fff; font: inherit; }
+        .notes-modal-actions, .end-call-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+        .notes-modal-actions button, .end-call-actions button { border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 700; }
+        .notes-save { background: #2c5e31; color: #fff; } .notes-cancel, .end-cancel { background: #303630; color: #fff; } .end-confirm { background: #c41e3a; color: #fff; }
+
+        @media (max-width: 768px) {
+            .video-container { grid-template-columns: 1fr; }
+
+            .local-video {
+                width: 120px;
+                height: 160px;
+                bottom: 100px;
+                right: 12px;
+            }
+
+            .call-controls {
+                gap: 12px;
+                padding: 12px 16px;
+            }
+
+            .control-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="video-room">
+        <!-- Connecting phase: brief spinner while acquiring media / waiting for offer -->
+        <div class="phase-overlay show" id="phase-connecting">
+            <div class="phase-spinner"></div>
+            <p class="phase-subtitle">Connecting…</p>
+        </div>
+
+        <!-- Calling phase: provider sees this (ringing) until the user answers -->
+        <div class="phase-overlay" id="phase-calling">
+            <div class="phase-avatar" id="phase-calling-avatar">?</div>
+            <h2 class="phase-title" id="phase-calling-name">Calling…</h2>
+            <p class="phase-subtitle">Ringing…</p>
+            <button class="phase-cancel-btn" id="phase-cancel-btn">Cancel</button>
+        </div>
+
+        <!-- Ended phase: shown briefly before the tab auto-closes -->
+        <div class="phase-overlay" id="phase-ended">
+            <p class="phase-title" id="phase-ended-text">Call ended</p>
+        </div>
+
+        <div class="video-room-content" id="video-room-content">
+            <div class="video-container">
+                <div class="video-stream remote-video">
+                    <video id="remote-video" autoplay playsinline></video>
+                </div>
+            </div>
+
+            <div class="local-video">
+                <video id="local-video" autoplay muted playsinline></video>
+            </div>
+
+            <div class="call-info">
+                <div class="call-timer" id="call-timer">00:00</div>
+            </div>
+
+            <div class="connection-state" id="connection-state">Connecting...</div>
+
+            <button class="device-menu-toggle" id="device-menu-toggle" type="button" aria-label="Open camera and microphone settings" aria-expanded="false">⋮</button>
+            <div class="device-selector" id="device-selector">
+                <label>Camera</label>
+                <select id="video-device-select"></select>
+                <label>Microphone</label>
+                <select id="audio-device-select"></select>
+            </div>
+
+            <div class="call-controls">
+                <button class="control-btn active" id="mic-btn" title="Mute/Unmute" aria-label="Mute or unmute microphone">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>
+                </button>
+                <button class="control-btn active" id="camera-btn" title="Turn Camera Off/On" aria-label="Turn camera off or on">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="m15 10 6-3v10l-6-3z"/></svg>
+                </button>
+                <button class="control-btn hang-up" id="hang-up-btn" title="End Call" aria-label="End call">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7.5C3.9 9.1 3.7 11 4.4 12.8l1.3 3.1a2 2 0 0 0 2.5 1.1l2.1-.8a2 2 0 0 0 1.2-2.2l-.3-1.7a2 2 0 0 1 1.6 0l-.3 1.7a2 2 0 0 0 1.2 2.2l2.1.8a2 2 0 0 0 2.5-1.1l1.3-3.1c.7-1.8.5-3.7-.6-5.3C16.2 5.8 7.8 5.8 5 7.5Z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <button class="call-notes-toggle" id="call-notes-toggle" type="button">Notes</button>
+    <div class="call-notes-panel" id="call-notes-panel" role="dialog" aria-modal="true">
+        <section class="call-notes-card"><h2>Private notes</h2><p>Only authorized providers can access these notes.</p><textarea id="call-notes-text" placeholder="Type private notes about this session..."></textarea><div class="notes-modal-actions"><button class="notes-cancel" id="call-notes-cancel" type="button">Cancel</button><button class="notes-save" id="call-notes-save" type="button">Save notes</button></div></section>
+    </div>
+    <div class="end-call-modal" id="end-call-modal" role="dialog" aria-modal="true">
+        <section class="end-call-card"><h2>End this call?</h2><p>Your video session will be disconnected for both participants.</p><div class="end-call-actions"><button class="end-cancel" id="end-call-cancel" type="button">Keep calling</button><button class="end-confirm" id="end-call-confirm" type="button">End call</button></div></section>
+    </div>
+
+    <script>
+        const SERVER_ROLE = {{ server_role | tojson }};
+        const REQUESTED_ROLE = {{ requested_role | tojson }};
+        const PROVIDER_NAME = {{ provider_name | tojson }};
+        const USER_NAME = {{ user_name | tojson }};
+        const SERVER_ROOM_TOKEN = {{ room_token | tojson }};
+
+        const ICE_SERVERS = [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+            },
+        ];
+
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const params = new URLSearchParams(window.location.search);
+        // Use requested role first so user-accepted tabs render as receiver (not caller).
+        const roomToken = SERVER_ROOM_TOKEN || pathParts[pathParts.length - 1];
+        const role = REQUESTED_ROLE || params.get('role') || SERVER_ROLE;
+        const otherPartyName = role === 'provider' ? USER_NAME : PROVIDER_NAME;
+        document.getElementById('call-notes-toggle').hidden = !(SERVER_ROLE === 'provider' && role === 'provider');
+
+        let pc = null;
+        let localStream = null;
+        let callStartTime = null;
+        let timerInterval = null;
+        let pollingInterval = null;
+        let signalUnsubscribe = null;
+        let signalRealtimeReady = false;
+        let latestSignal = {};
+        let pendingOfferResolver = null;
+        let isEnding = false;
+        let isMicOn = true;
+        let isCameraOn = true;
+        let selectedVideoDeviceId = '';
+        let selectedAudioDeviceId = '';
+        const remoteCandidateCache = new Set();
+        let lastRemoteOfferSdp = '';
+        let lastRemoteAnswerSdp = '';
+        let iceReconnectAttempts = 0;
+        let iceRestartInFlight = false;
+        let stalledSince = null;
+
+        const remoteVideo = document.getElementById('remote-video');
+        const localVideo = document.getElementById('local-video');
+        const micBtn = document.getElementById('mic-btn');
+        const cameraBtn = document.getElementById('camera-btn');
+        const hangUpBtn = document.getElementById('hang-up-btn');
+        const callTimer = document.getElementById('call-timer');
+        const connectionState = document.getElementById('connection-state');
+        const videoDeviceSelect = document.getElementById('video-device-select');
+        const audioDeviceSelect = document.getElementById('audio-device-select');
+        const phaseConnecting = document.getElementById('phase-connecting');
+        const phaseCalling = document.getElementById('phase-calling');
+        const phaseEnded = document.getElementById('phase-ended');
+        const phaseEndedText = document.getElementById('phase-ended-text');
+        const videoRoomContent = document.getElementById('video-room-content');
+        const phaseCancelBtn = document.getElementById('phase-cancel-btn');
+        const notesPanel = document.getElementById('call-notes-panel');
+        const notesText = document.getElementById('call-notes-text');
+        const endCallModal = document.getElementById('end-call-modal');
+        const deviceMenuToggle = document.getElementById('device-menu-toggle');
+        const deviceSelector = document.getElementById('device-selector');
+
+        const FIREBASE_CONFIG = {
+            apiKey: 'AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0',
+            authDomain: 'menti-7b8a1.firebaseapp.com',
+            projectId: 'menti-7b8a1',
+            storageBucket: 'menti-7b8a1.firebasestorage.app',
+            messagingSenderId: '164612023817',
+            appId: '1:164612023817:web:c0437146e86951377f3ad8'
+        };
+
+        // Phase state machine mirrors yunafied's CallPhase: connecting -> calling (provider only) -> active -> ended
+        function setPhase(phase) {
+            phaseConnecting.classList.toggle('show', phase === 'connecting');
+            phaseCalling.classList.toggle('show', phase === 'calling');
+            phaseEnded.classList.toggle('show', phase === 'ended');
+            videoRoomContent.classList.toggle('show', phase === 'active');
+        }
+
+        document.getElementById('phase-calling-name').textContent = `Calling ${otherPartyName}...`;
+        document.getElementById('phase-calling-avatar').textContent = (otherPartyName || 'U').trim().charAt(0).toUpperCase();
+        phaseCancelBtn.addEventListener('click', () => requestEndCall());
+
+        async function loadPrivateNotes() {
+            if (SERVER_ROLE !== 'provider' || role !== 'provider') return;
+            try {
+                const response = await fetch(`/providers/api/appointments/${roomToken}/notes`);
+                if (response.ok) notesText.value = (await response.json()).providerNotes || '';
+            } catch (_) {}
+        }
+        document.getElementById('call-notes-toggle').addEventListener('click', () => { notesPanel.classList.add('open'); notesText.focus(); });
+        document.getElementById('call-notes-cancel').addEventListener('click', () => notesPanel.classList.remove('open'));
+        document.getElementById('call-notes-save').addEventListener('click', async () => {
+            const button = document.getElementById('call-notes-save');
+            button.disabled = true;
+            try {
+                const response = await fetch(`/providers/api/appointments/${roomToken}/notes`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({notes: notesText.value}) });
+                if (!response.ok) throw new Error();
+                notesPanel.classList.remove('open');
+            } catch (_) { alert('Unable to save private notes.'); }
+            button.disabled = false;
+        });
+        loadPrivateNotes();
+        deviceMenuToggle.addEventListener('click', () => {
+            const open = deviceSelector.classList.toggle('open');
+            deviceMenuToggle.setAttribute('aria-expanded', String(open));
+        });
+
+        function getUserToken() {
+            let openerToken = '';
+            try {
+                openerToken = window.opener && window.opener.__mentiUserToken ? window.opener.__mentiUserToken : '';
+            } catch (_) {
+                openerToken = '';
+            }
+            return window.__mentiUserToken || openerToken || localStorage.getItem('menti_user_token') || '';
+        }
+
+        function buildHeaders(withJson = false) {
+            const headers = {};
+            const token = getUserToken();
+            if (token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+            if (withJson) {
+                headers['Content-Type'] = 'application/json';
+            }
+            return headers;
+        }
+
+        function formatDuration(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function setConnectionStateLabel(state) {
+            connectionState.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+            connectionState.className = `connection-state ${state}`;
+        }
+
+        function startTimer() {
+            if (timerInterval) return;
+            if (!callStartTime) callStartTime = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+                callTimer.textContent = formatDuration(elapsed);
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function stopPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+        }
+
+        function stopSignalRealtime() {
+            if (signalUnsubscribe) {
+                try {
+                    signalUnsubscribe();
+                } catch (_) {}
+                signalUnsubscribe = null;
+            }
+            signalRealtimeReady = false;
+        }
+
+        async function maybeRestartIce(reason) {
+            if (role !== 'provider' || !pc || isEnding) return;
+            if (iceRestartInFlight || iceReconnectAttempts >= 3) return;
+            if (pc.signalingState !== 'stable') return;
+
+            iceRestartInFlight = true;
+            iceReconnectAttempts += 1;
+            console.warn(`[video-call] ICE restart #${iceReconnectAttempts} (${reason})`);
+
+            try {
+                const offer = await pc.createOffer({ iceRestart: true });
+                await pc.setLocalDescription(offer);
+                await sendSignal({ offer });
+                lastRemoteAnswerSdp = '';
+            } catch (err) {
+                console.error('[video-call] ICE restart failed:', err);
+            } finally {
+                iceRestartInFlight = false;
+            }
+        }
+
+        async function loadDevices() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+                const audioDevices = devices.filter((d) => d.kind === 'audioinput');
+
+                videoDeviceSelect.innerHTML = videoDevices.map((d, i) => `<option value="${d.deviceId}">${d.label || `Camera ${i + 1}`}</option>`).join('');
+                audioDeviceSelect.innerHTML = audioDevices.map((d, i) => `<option value="${d.deviceId}">${d.label || `Microphone ${i + 1}`}</option>`).join('');
+
+                if (videoDevices.length > 0) {
+                    selectedVideoDeviceId = videoDevices[0].deviceId;
+                    videoDeviceSelect.value = selectedVideoDeviceId;
+                }
+                if (audioDevices.length > 0) {
+                    selectedAudioDeviceId = audioDevices[0].deviceId;
+                    audioDeviceSelect.value = selectedAudioDeviceId;
+                }
+            } catch (err) {
+                console.error('Error loading devices:', err);
+            }
+        }
+
+        async function getLocalStream(videoDeviceId, audioDeviceId) {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 30 },
+                    facingMode: 'user',
+                },
+                audio: {
+                    deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 48000,
+                },
+            });
+
+            localStream = stream;
+            localVideo.srcObject = stream;
+            return stream;
+        }
+
+        async function sendSignal(payload) {
+            const response = await fetch(`/api/video/${roomToken}/signal`, {
+                method: 'POST',
+                headers: buildHeaders(true),
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+                const text = await response.text().catch(() => '');
+                throw new Error(`Signal POST failed (${response.status}): ${text || 'no response body'}`);
+            }
+        }
+
+        async function getSignal() {
+            const response = await fetch(`/api/video/${roomToken}/signal`, {
+                headers: buildHeaders(false),
+            });
+            if (!response.ok) {
+                const text = await response.text().catch(() => '');
+                throw new Error(`Signal GET failed (${response.status}): ${text || 'no response body'}`);
+            }
+            return response.json();
+        }
+
+        async function addRemoteCandidates(candidates) {
+            if (!pc || !Array.isArray(candidates)) return;
+            for (const candidate of candidates) {
+                const key = `${candidate?.candidate || ''}|${candidate?.sdpMid || ''}|${candidate?.sdpMLineIndex || ''}`;
+                if (!candidate?.candidate || remoteCandidateCache.has(key)) continue;
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                    remoteCandidateCache.add(key);
+                } catch (_) {
+                    // Non-fatal candidate errors are expected on some networks.
+                }
+            }
+        }
+
+        async function handleSignalUpdate(signal) {
+            latestSignal = signal || {};
+            if (!latestSignal || Object.keys(latestSignal).length === 0) return;
+
+            if (latestSignal.offer && role === 'user' && pendingOfferResolver) {
+                const resolver = pendingOfferResolver;
+                pendingOfferResolver = null;
+                resolver(latestSignal);
+            }
+
+            if (latestSignal.callEnded || latestSignal.userDeclined || latestSignal.active === false) {
+                if (!isEnding) {
+                    phaseEndedText.textContent = latestSignal.userDeclined ? 'Call declined' : 'Call ended';
+                    setPhase('ended');
+                    await cleanup(false);
+                    setTimeout(() => window.close(), 1200);
+                }
+                return;
+            }
+
+            if (role === 'provider') {
+                if (latestSignal.answer && pc) {
+                    const nextAnswerSdp = latestSignal.answer.sdp || '';
+                    const currentAnswerSdp = pc.currentRemoteDescription?.sdp || '';
+                    if (
+                        nextAnswerSdp &&
+                        nextAnswerSdp !== currentAnswerSdp &&
+                        nextAnswerSdp !== lastRemoteAnswerSdp &&
+                        (pc.signalingState === 'have-local-offer' || !pc.currentRemoteDescription)
+                    ) {
+                        await pc.setRemoteDescription(new RTCSessionDescription(latestSignal.answer));
+                        lastRemoteAnswerSdp = nextAnswerSdp;
+                    }
+                }
+                await addRemoteCandidates(latestSignal.userCandidates || []);
+            } else {
+                if (latestSignal.offer && pc) {
+                    const nextOfferSdp = latestSignal.offer.sdp || '';
+                    const currentOfferSdp = pc.currentRemoteDescription?.sdp || '';
+                    const canApplyOffer = pc.signalingState === 'stable' || pc.signalingState === 'have-remote-offer';
+                    if (
+                        nextOfferSdp &&
+                        nextOfferSdp !== currentOfferSdp &&
+                        nextOfferSdp !== lastRemoteOfferSdp &&
+                        canApplyOffer
+                    ) {
+                        await pc.setRemoteDescription(new RTCSessionDescription(latestSignal.offer));
+                        await addRemoteCandidates(latestSignal.providerCandidates || []);
+                        const answer = await pc.createAnswer();
+                        await pc.setLocalDescription(answer);
+                        await sendSignal({ answer });
+                        lastRemoteOfferSdp = nextOfferSdp;
+                    }
+                }
+                await addRemoteCandidates(latestSignal.providerCandidates || []);
+            }
+        }
+
+        async function startSignalRealtime() {
+            stopSignalRealtime();
+            try {
+                const [{ initializeApp, getApps, getApp }, { getFirestore, doc, onSnapshot }] = await Promise.all([
+                    import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'),
+                    import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js')
+                ]);
+
+                const fbApp = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
+                const fs = getFirestore(fbApp);
+                const signalRef = doc(fs, 'video_signals', roomToken);
+                signalUnsubscribe = onSnapshot(signalRef, (snap) => {
+                    const signal = snap.exists() ? (snap.data() || {}) : {};
+                    handleSignalUpdate(signal).catch((err) => {
+                        console.error('[video-call] realtime signal handling error:', err);
+                    });
+                }, (err) => {
+                    console.warn('[video-call] realtime listener failed, falling back to polling:', err);
+                    stopSignalRealtime();
+                    startSignalPolling();
+                });
+                signalRealtimeReady = true;
+                return true;
+            } catch (err) {
+                console.warn('[video-call] realtime init failed, using polling fallback:', err);
+                signalRealtimeReady = false;
+                return false;
+            }
+        }
+
+        function createPeerConnection() {
+            pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+            pc.ontrack = (event) => {
+                if (event.streams && event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                }
+            };
+
+            pc.onicecandidate = async (event) => {
+                if (!event.candidate) return;
+                const key = role === 'provider' ? 'providerCandidates' : 'userCandidates';
+                try {
+                    await sendSignal({ [key]: [event.candidate.toJSON()] });
+                } catch (_) {}
+            };
+
+            pc.onconnectionstatechange = () => {
+                const state = pc.connectionState;
+                setConnectionStateLabel(state);
+
+                if (state === 'connected') {
+                    stalledSince = null;
+                    iceReconnectAttempts = 0;
+                    setPhase('active');
+                    startTimer();
+                    pc.getSenders().forEach(async (sender) => {
+                        if (sender.track?.kind !== 'video') return;
+                        try {
+                            const params = sender.getParameters();
+                            if (!params.encodings || params.encodings.length === 0) {
+                                params.encodings = [{}];
+                            }
+                            params.encodings[0].maxBitrate = 2500000;
+                            params.encodings[0].maxFramerate = 30;
+                            await sender.setParameters(params);
+                        } catch (_) {}
+                    });
+                }
+
+                if ((state === 'failed' || state === 'disconnected' || state === 'closed') && !isEnding) {
+                    endCall();
+                }
+            };
+
+            pc.oniceconnectionstatechange = async () => {
+                if (!pc) return;
+                const iceState = pc.iceConnectionState;
+                if (iceState === 'connected' || iceState === 'completed') {
+                    stalledSince = null;
+                    return;
+                }
+
+                if (iceState === 'checking') {
+                    if (!stalledSince) stalledSince = Date.now();
+                    const stalledMs = Date.now() - stalledSince;
+                    if (stalledMs > 8000) {
+                        await maybeRestartIce('checking-timeout');
+                    }
+                    return;
+                }
+
+                if (iceState === 'failed') {
+                    await maybeRestartIce('ice-failed');
+                }
+            };
+
+            return pc;
+        }
+
+        async function startSignalPolling() {
+            stopPolling();
+            pollingInterval = setInterval(async () => {
+                try {
+                    const signal = await getSignal();
+                    await handleSignalUpdate(signal);
+                } catch (err) {
+                    console.error('[video-call] polling error:', err);
+                }
+            }, 1200);
+        }
+
+        async function waitForOffer(maxAttempts = 90) {
+            if (latestSignal.offer) {
+                return latestSignal;
+            }
+            if (signalRealtimeReady) {
+                return new Promise((resolve, reject) => {
+                    pendingOfferResolver = resolve;
+                    setTimeout(() => {
+                        if (pendingOfferResolver === resolve) {
+                            pendingOfferResolver = null;
+                            reject(new Error('Timeout waiting for offer'));
+                        }
+                    }, maxAttempts * 500);
+                });
+            }
+            for (let i = 0; i < maxAttempts; i++) {
+                const signal = await getSignal();
+                if (signal.callEnded || signal.userDeclined || signal.active === false) {
+                    phaseEndedText.textContent = signal.userDeclined ? 'Call declined' : 'Call ended';
+                    setPhase('ended');
+                    throw new Error('Call ended before connection');
+                }
+                if (signal.offer) return signal;
+                await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+            throw new Error('Timeout waiting for offer');
+        }
+
+        async function startAsProvider() {
+            setPhase('connecting');
+            const stream = await getLocalStream(selectedVideoDeviceId, selectedAudioDeviceId);
+            createPeerConnection();
+            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+            const realtimeOk = await startSignalRealtime();
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await sendSignal({ offer });
+            setConnectionStateLabel('connecting');
+            setPhase('calling');
+            if (!realtimeOk) {
+                await startSignalPolling();
+            }
+        }
+
+        async function startAsUser() {
+            setPhase('connecting');
+            await startSignalRealtime();
+            const signal = await waitForOffer();
+            const stream = await getLocalStream(selectedVideoDeviceId, selectedAudioDeviceId);
+            createPeerConnection();
+            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.offer));
+            lastRemoteOfferSdp = signal.offer?.sdp || '';
+            await addRemoteCandidates(signal.providerCandidates || []);
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await sendSignal({ answer });
+            lastRemoteAnswerSdp = answer?.sdp || '';
+            setConnectionStateLabel('connecting');
+            setPhase('connecting');
+            if (!signalRealtimeReady) {
+                await startSignalPolling();
+            }
+        }
+
+        async function cleanup(sendEndSignal) {
+            if (isEnding) return;
+            isEnding = true;
+            stopPolling();
+            stopSignalRealtime();
+            stopTimer();
+
+            if (sendEndSignal) {
+                const duration = callStartTime ? Math.max(0, Math.floor((Date.now() - callStartTime) / 1000)) : 0;
+                try {
+                    await sendSignal({ callEnded: true, endedBy: role, duration });
+                } catch (_) {}
+                try {
+                    await fetch(`/api/video/${roomToken}/status`, {
+                        method: 'POST',
+                        headers: buildHeaders(true),
+                        body: JSON.stringify({ status: 'ended', duration }),
+                    });
+                } catch (_) {}
+            }
+
+            if (localStream) {
+                localStream.getTracks().forEach((track) => track.stop());
+                localStream = null;
+            }
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+            localVideo.srcObject = null;
+            remoteVideo.srcObject = null;
+        }
+
+        async function endCall() {
+            phaseEndedText.textContent = 'Call ended';
+            setPhase('ended');
+            await cleanup(true);
+            setTimeout(() => window.close(), 800);
+        }
+
+        function requestEndCall() {
+            if (isEnding) return;
+            endCallModal.classList.add('open');
+        }
+        document.getElementById('end-call-cancel').addEventListener('click', () => endCallModal.classList.remove('open'));
+        document.getElementById('end-call-confirm').addEventListener('click', async () => {
+            endCallModal.classList.remove('open');
+            await endCall();
+        });
+
+        micBtn.addEventListener('click', () => {
+            if (!localStream) return;
+            isMicOn = !isMicOn;
+            localStream.getAudioTracks().forEach((track) => {
+                track.enabled = isMicOn;
+            });
+            micBtn.classList.toggle('active', isMicOn);
+            micBtn.classList.toggle('inactive', !isMicOn);
+        });
+
+        cameraBtn.addEventListener('click', () => {
+            if (!localStream) return;
+            isCameraOn = !isCameraOn;
+            localStream.getVideoTracks().forEach((track) => {
+                track.enabled = isCameraOn;
+            });
+            cameraBtn.classList.toggle('active', isCameraOn);
+            cameraBtn.classList.toggle('inactive', !isCameraOn);
+        });
+
+        hangUpBtn.addEventListener('click', requestEndCall);
+
+        videoDeviceSelect.addEventListener('change', async (e) => {
+            selectedVideoDeviceId = e.target.value;
+            if (!pc) return;
+            try {
+                const replacement = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: { exact: selectedVideoDeviceId } },
+                    audio: false,
+                });
+                const videoTrack = replacement.getVideoTracks()[0];
+                const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+                if (sender && videoTrack) {
+                    await sender.replaceTrack(videoTrack);
+                    localStream.getVideoTracks().forEach((t) => t.stop());
+                    localStream.removeTrack(localStream.getVideoTracks()[0]);
+                    localStream.addTrack(videoTrack);
+                    localVideo.srcObject = localStream;
+                }
+            } catch (_) {}
+        });
+
+        audioDeviceSelect.addEventListener('change', async (e) => {
+            selectedAudioDeviceId = e.target.value;
+            if (!pc) return;
+            try {
+                const replacement = await navigator.mediaDevices.getUserMedia({
+                    video: false,
+                    audio: { deviceId: { exact: selectedAudioDeviceId } },
+                });
+                const audioTrack = replacement.getAudioTracks()[0];
+                const sender = pc.getSenders().find((s) => s.track?.kind === 'audio');
+                if (sender && audioTrack) {
+                    await sender.replaceTrack(audioTrack);
+                    localStream.getAudioTracks().forEach((t) => t.stop());
+                    localStream.removeTrack(localStream.getAudioTracks()[0]);
+                    localStream.addTrack(audioTrack);
+                }
+            } catch (_) {}
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (!isEnding) {
+                const token = getUserToken();
+                const payload = JSON.stringify({ callEnded: true, endedBy: role });
+                const blob = new Blob([payload], { type: 'application/json' });
+                const url = `/api/video/${roomToken}/signal`;
+                if (navigator.sendBeacon && token) {
+                    navigator.sendBeacon(url, blob);
+                }
+            }
+        });
+
+        async function init() {
+            if (!roomToken) {
+                alert('Invalid call URL');
+                return;
+            }
+            if (role !== 'provider' && role !== 'user') {
+                alert('Invalid role');
+                return;
+            }
+
+            await loadDevices();
+
+            if (role === 'provider') {
+                await startAsProvider();
+            } else {
+                await startAsUser();
+            }
+        }
+
+        init().catch((err) => {
+            console.error('Initialization error:', err);
+            alert('Failed to initialize call. Please retry.');
+            window.close();
+        });
+    </script>
+</body>
+</html>
