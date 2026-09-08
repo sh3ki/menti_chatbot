@@ -1,0 +1,33 @@
+<style>
+.terms-modal{position:fixed;inset:0;z-index:410;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,15,15,.58)}
+.terms-modal.is-open{display:flex}.terms-modal-content{width:min(100%,900px);max-height:90vh;overflow-y:auto;background:#F1F8F4;border-radius:24px;padding:44px;position:relative;box-shadow:0 24px 80px rgba(15,15,15,.25)}
+.terms-modal-close{position:absolute;top:16px;right:20px;border:0;background:transparent;color:#2C5E31;font-size:30px;cursor:pointer}.terms-modal h2{color:#2C5E31;font-size:36px;margin-bottom:8px}.terms-modal h3{color:#2C5E31;font-size:21px;margin:28px 0 10px}.terms-modal p,.terms-modal li{color:#28282B;font-size:15px;line-height:1.65}.terms-modal ul{padding-left:22px;margin:8px 0}.terms-subtitle{color:#2C5E31;font-size:19px;font-weight:700}.terms-notice{background:#fff;border-left:5px solid #2C5E31;border-radius:12px;padding:18px 20px}.terms-meta{display:inline-block;color:#2C5E31;background:#E8F5E9;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600}@media(max-width:640px){.terms-modal-content{padding:36px 24px 28px}.terms-modal h2{font-size:30px}}
+</style>
+<div class="terms-modal" id="termsModal" role="dialog" aria-modal="true" aria-labelledby="termsModalTitle" aria-hidden="true"><div class="terms-modal-content">
+<button class="terms-modal-close" type="button" aria-label="Close Terms of Service" onclick="closeTermsOfService()">&times;</button>
+<h2 id="termsModalTitle">Terms of Service</h2><p class="terms-subtitle">Please review these terms before using MENTI.</p>
+<p>Welcome to MENTI. These Terms describe the general conditions for using MENTI, an Emotion-Aware Chatbot System for Mental Health Support developed as an academic thesis project. By using MENTI, users agree to use the system responsibly and appropriately.</p>
+<h3>1. Acceptance of Terms</h3><p>By accessing MENTI, you agree to follow these Terms and use all features responsibly. If you do not agree, discontinue use of the system.</p>
+<h3>2. About MENTI</h3><p>MENTI is an AI-powered academic project exploring emotion-aware technology and conversational artificial intelligence for mental health support. It is a technological support tool, not a healthcare provider.</p>
+<h3>3. Eligibility and Responsible Use</h3><p>Users should provide accurate information when required, use MENTI respectfully, avoid unlawful use, unauthorized access, system interference, malicious or abusive content, and respect other users' privacy and rights.</p>
+<h3>4. Mental Health and AI Disclaimer</h3><p class="terms-notice">MENTI does not diagnose conditions, provide medical or psychiatric treatment, replace qualified professionals, guarantee AI accuracy, or replace emergency and crisis services. Seek qualified professional help when care is needed.</p>
+<h3>5. AI-Generated Responses</h3><p>AI responses may be inaccurate, incomplete, or unsuitable. Do not rely solely on MENTI for important medical, psychological, legal, financial, or safety decisions.</p>
+<h3>6. Emotion Detection and Assessments</h3><p>Emotion detection and questionnaire-based assessments support self-reflection only. They do not constitute clinical diagnoses or professional evaluations.</p>
+<h3>7. User Accounts</h3><p>Users are responsible for protecting their login credentials and account activity. Contact the project team if an account may have been compromised.</p>
+<h3>8. Prohibited Activities</h3><p>Users must not compromise security, access another user's information, bypass controls, introduce malicious code, abuse resources, reverse engineer restricted components, misuse AI services, or harass others.</p>
+<h3>9. User-Generated Content</h3><p>Users are responsible for content they submit. Avoid unnecessarily providing highly sensitive personal information. Submitted content may be processed according to the Privacy Policy and system functionality.</p>
+<h3>10. Third-Party Services</h3><p>Some features rely on AI APIs, hosting, authentication providers, or other third-party services. Their availability and functionality cannot be guaranteed by MENTI.</p>
+<h3>11. System Availability</h3><p>As an academic project, MENTI may undergo development, testing, maintenance, changes, interruptions, or feature removal. Continuous availability is not guaranteed.</p>
+<h3>12. Intellectual Property</h3><p>The MENTI name, interface, original software, documentation, graphics, and project materials may not be reproduced, distributed, modified, or commercially exploited without authorization.</p>
+<h3>13. Privacy</h3><p>Use of MENTI is also subject to the MENTI Privacy Policy, which explains how information may be collected, processed, stored, and protected.</p>
+<h3>14. Limitation of Liability</h3><p>MENTI is an academic technology project for supportive and informational purposes. AI responses may contain errors, and the system may experience technical limitations or interruptions.</p>
+<h3>15. Changes to the Service</h3><p>MENTI may be modified, updated, improved, or expanded as development, testing, and academic evaluation continue.</p>
+<h3>16. Changes to These Terms</h3><p>These Terms may be updated when MENTI's features, implementation, policies, or academic requirements change.</p><p class="terms-meta">Last Updated: September 2026</p>
+<h3>17. Questions About These Terms?</h3><p>Contact the project team at <strong>mentichatbot59@gmail.com</strong>.</p>
+<p class="terms-notice"><strong>Academic Project Disclaimer:</strong> MENTI's AI-generated responses are intended for general supportive interaction and should not be considered professional medical or psychological advice.</p>
+</div></div>
+<script>
+function openTermsOfService(event){if(event)event.preventDefault();const m=document.getElementById('termsModal');m.classList.add('is-open');m.setAttribute('aria-hidden','false');document.body.style.overflow='hidden'}
+function closeTermsOfService(){const m=document.getElementById('termsModal');m.classList.remove('is-open');m.setAttribute('aria-hidden','true');document.body.style.overflow=''}
+document.getElementById('termsModal').addEventListener('click',function(e){if(e.target===this)closeTermsOfService()});document.addEventListener('keydown',function(e){if(e.key==='Escape')closeTermsOfService()});
+</script>
