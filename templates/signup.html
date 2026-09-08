@@ -31,7 +31,7 @@
             box-shadow: 0 8px 32px rgba(15, 15, 15, 0.1);
             width: 100%;
             max-width: 500px;
-            padding: 40px;
+            padding: 28px 36px;
             animation: fadeIn 0.4s ease;
         }
 
@@ -48,13 +48,13 @@
 
         .logo-section {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         .logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 16px;
+            width: 62px;
+            height: 62px;
+            margin: 0 auto 10px;
             object-fit: contain;
         }
 
@@ -62,7 +62,7 @@
             color: #2C5E31;
             font-size: 28px;
             font-weight: 700;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
             letter-spacing: -0.5px;
         }
 
@@ -73,7 +73,7 @@
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .form-row {
@@ -84,7 +84,7 @@
 
         label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
             color: #28282B;
             font-weight: 500;
             font-size: 14px;
@@ -98,7 +98,7 @@
         input[type="email"],
         input[type="password"] {
             width: 100%;
-            padding: 14px 16px;
+            padding: 11px 14px;
             border: 2px solid #E0E0E0;
             border-radius: 12px;
             font-size: 15px;
@@ -157,21 +157,21 @@
             background: #FAFAFA;
             border: 1px solid #E0E0E0;
             border-radius: 10px;
-            padding: 12px 14px;
-            margin-top: 8px;
+            padding: 9px 12px;
+            margin-top: 6px;
             font-size: 13px;
         }
 
         .password-requirements p {
             color: #28282B;
             font-weight: 500;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
         }
 
         .requirement {
             color: #28282B;
             opacity: 0.6;
-            margin: 4px 0;
+            margin: 2px 0;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -194,7 +194,7 @@
 
         .signup-btn {
             width: 100%;
-            padding: 16px;
+            padding: 12px;
             background: #2C5E31;
             color: #FFFFFF;
             border: none;
@@ -203,7 +203,7 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
-            margin-top: 24px;
+            margin-top: 14px;
             font-family: inherit;
         }
 
@@ -227,7 +227,7 @@
 
         .login-link {
             text-align: center;
-            margin-top: 24px;
+            margin-top: 16px;
             color: #28282B;
             font-size: 14px;
         }
@@ -283,7 +283,7 @@
         /* Responsive */
         @media (max-width: 768px) {
             .signup-container {
-                padding: 30px 24px;
+                padding: 24px 22px;
             }
 
             .form-row {
@@ -380,12 +380,6 @@
             createUserWithEmailAndPassword,
             updateProfile
         } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-        import {
-            getFirestore,
-            doc,
-            setDoc,
-            serverTimestamp
-        } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
         // Firebase configuration
         const firebaseConfig = {
@@ -400,7 +394,6 @@
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
-        const db = getFirestore(app);
 
         // DOM Elements
         const signupForm = document.getElementById('signupForm');
@@ -553,24 +546,15 @@
                     displayName: fullName
                 });
                 
-                // Save additional user data to Firestore
-                await setDoc(doc(db, 'users', user.uid), {
-                    firstName: firstNameInput.value.trim(),
-                    middleName: middleNameInput.value.trim(),
-                    lastName: lastNameInput.value.trim(),
-                    email: emailInput.value.trim(),
-                    displayName: fullName,
-                    isActive: true,
-                    createdAt: serverTimestamp(),
-                    lastLogin: serverTimestamp()
-                });
-                
                 // Show success message
                 showAlert('Account created successfully! Redirecting...', 'success');
                 
-                // Redirect to chat page after 2 seconds
+                // The user should explicitly log in after signup. Sign out first
+                // so login.html does not immediately redirect back to the chat.
                 setTimeout(() => {
-                    window.location.href = '/chat-page';
+                    auth.signOut().finally(() => {
+                        window.location.href = '/login';
+                    });
                 }, 2000);
                 
             } catch (error) {
