@@ -1,7 +1,7 @@
 """Voice handling module.
 
 STT: Vosk (offline, open-source)
-TTS: Piper (offline neural voices, open-source ONNX)
+TTS: OpenAI Speech API
 """
 
 import io
@@ -9,13 +9,17 @@ import json
 import os
 import tempfile
 import threading
-import wave
 import zipfile
 from pathlib import Path
 
 import numpy as np
 import requests
 import soundfile as sf
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
 _BASE_DIR = Path(__file__).resolve().parent
 
@@ -24,39 +28,6 @@ _vosk_model = None
 _vosk_lock = threading.Lock()
 _DEFAULT_VOSK_MODEL = "vosk-model-small-en-us-0.15"
 _VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-
-# -------------------- Piper TTS --------------------
-_piper_lock = threading.Lock()
-_piper_cache = {}
-
-_PIPER_VOICE_OPTIONS = [
-    {
-        "id": 0,
-        "name": "Female (Neural)",
-        "description": "Piper en_US lessac medium",
-        "key": "female",
-    },
-    {
-        "id": 1,
-        "name": "Male (Neural)",
-        "description": "Piper en_US ryan medium",
-        "key": "male",
-    },
-]
-
-_PIPER_MODELS = {
-    "female": {
-        "onnx": "en_US-lessac-medium.onnx",
-        "json": "en_US-lessac-medium.onnx.json",
-        "base_url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium",
-    },
-    "male": {
-        "onnx": "en_US-ryan-medium.onnx",
-        "json": "en_US-ryan-medium.onnx.json",
-        "base_url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium",
-    },
-}
-
 
 def _ensure_vosk_model_dir():
     """Ensure the small English Vosk model is present; download once if missing."""
@@ -89,43 +60,6 @@ def _ensure_vosk_model_dir():
         raise RuntimeError("Vosk model download completed but model directory was not found.")
 
     return model_dir
-
-
-def _download_file(url, target_path):
-    """Download a file to target_path atomically."""
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = target_path.with_suffix(target_path.suffix + ".part")
-
-    with requests.get(url, stream=True, timeout=180) as response:
-        response.raise_for_status()
-        with open(tmp_path, "wb") as out_file:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    out_file.write(chunk)
-
-    tmp_path.replace(target_path)
-
-
-def _ensure_piper_voice_files(voice_key):
-    """Ensure Piper ONNX and config files exist locally for selected voice."""
-    model_info = _PIPER_MODELS[voice_key]
-    model_root = Path(os.getenv("PIPER_MODELS_DIR", _BASE_DIR / "models" / "piper"))
-    voice_dir = model_root / voice_key
-
-    onnx_path = voice_dir / model_info["onnx"]
-    json_path = voice_dir / model_info["json"]
-
-    if not onnx_path.exists():
-        onnx_url = f"{model_info['base_url']}/{model_info['onnx']}"
-        print(f"[Voice] Downloading Piper model: {onnx_url}")
-        _download_file(onnx_url, onnx_path)
-
-    if not json_path.exists():
-        json_url = f"{model_info['base_url']}/{model_info['json']}"
-        print(f"[Voice] Downloading Piper config: {json_url}")
-        _download_file(json_url, json_path)
-
-    return onnx_path
 
 
 def _get_vosk_model():
@@ -168,25 +102,6 @@ def _to_pcm16_mono_16k(audio_bytes):
     pcm16 = (mono * 32767.0).astype(np.int16).tobytes()
     return pcm16
 
-
-def _get_piper_voice(voice_key):
-    """Load and cache Piper voice model."""
-    if voice_key in _piper_cache:
-        return _piper_cache[voice_key]
-
-    with _piper_lock:
-        if voice_key in _piper_cache:
-            return _piper_cache[voice_key]
-
-        try:
-            from piper import PiperVoice
-        except ImportError as exc:
-            raise RuntimeError("Piper TTS is not installed. Run: pip install piper-tts") from exc
-
-        model_path = _ensure_piper_voice_files(voice_key)
-        voice = PiperVoice.load(str(model_path))
-        _piper_cache[voice_key] = voice
-        return voice
 
 def transcribe_audio(audio_bytes):
     """
@@ -233,36 +148,45 @@ def transcribe_audio(audio_bytes):
             'error': str(e)
         }
 
-def synthesize_speech(text, voice_id=0):
+def synthesize_speech(text, voice_id=0, voice_tone='soft, natural, warm, and supportive'):
     """
-    Synthesize speech using Piper TTS (free, open-source neural voices)
+    Synthesize speech using OpenAI's expressive speech model.
     
     Args:
         text: Text to speak
-        voice_id: Voice index (0=default male, 1=female if available)
+        voice_id: Voice index (0=female, 1=male)
+        voice_tone: How the reply should be delivered, independent of user mood.
     
     Returns:
         dict with 'audio_file' path and 'success' keys
     """
     try:
-        selected = _PIPER_VOICE_OPTIONS[0]
-        for voice in _PIPER_VOICE_OPTIONS:
-            if voice["id"] == int(voice_id):
-                selected = voice
-                break
+        if not OpenAI or not os.getenv('OPENAI_API_KEY'):
+            raise RuntimeError('OPENAI_API_KEY is not configured for speech synthesis')
 
-        piper_voice = _get_piper_voice(selected["key"])
+        # Keep the existing two-option UI, but map it to OpenAI voices.
+        openai_voice = 'marin' if int(voice_id) == 0 else 'echo'
+        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        audio = client.audio.speech.create(
+            model=os.getenv('OPENAI_TTS_MODEL', 'gpt-4o-mini-tts'),
+            voice=openai_voice,
+            input=text[:4096],
+            instructions=(
+                f'Read this mental-health support message with {voice_tone}. '
+                'Use natural pauses, gentle emphasis, and a human conversational delivery. '
+                'Do not sound like an advertisement, announcer, or robot.'
+            ),
+            response_format='mp3',
+        )
 
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
             tmp_path = tmp.name
-
-        with wave.open(tmp_path, "wb") as wav_out:
-            piper_voice.synthesize_wav(text=text, wav_file=wav_out)
+        audio.stream_to_file(tmp_path)
 
         return {
             'success': True,
             'audio_file': tmp_path,
-            'mimetype': 'audio/wav'
+            'mimetype': 'audio/mpeg'
         }
 
     except Exception as e:
@@ -272,28 +196,11 @@ def synthesize_speech(text, voice_id=0):
         }
 
 def get_available_voices():
-    """Get list of available voices"""
-    try:
-        # Warm-up both voices so UI can trust availability.
-        _get_piper_voice("female")
-        _get_piper_voice("male")
-
-        return {
-            'voices': [
-                {
-                    'id': voice['id'],
-                    'name': voice['name'],
-                    'description': voice['description']
-                }
-                for voice in _PIPER_VOICE_OPTIONS
-            ],
-            'languages': ['en']
-        }
-    except Exception as e:
-        print(f"Error getting voices: {e}")
-        return {
-            'voices': [],
-            'languages': [],
-            'error': str(e)
-        }
-
+    """Return the OpenAI voices exposed by the existing two-choice UI."""
+    return {
+        "voices": [
+            {"id": 0, "name": "Female", "description": "OpenAI Marin voice"},
+            {"id": 1, "name": "Male", "description": "OpenAI Echo voice"},
+        ],
+        "languages": ["en"],
+    }
