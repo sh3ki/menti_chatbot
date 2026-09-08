@@ -574,7 +574,9 @@
             if (window.__mentiUserToken) {
                 try { localStorage.setItem('menti_user_token', window.__mentiUserToken); } catch (_) {}
             }
-            window.open(`/video/${appointment.id}?role=user`, `menti-call-${appointment.id}`, 'width=1280,height=720');
+            const token = window.__mentiUserToken || localStorage.getItem('menti_user_token') || '';
+            const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+            window.open(`/video/${appointment.id}?role=user${tokenParam}`, `menti-call-${appointment.id}`, 'width=1280,height=720');
         };
 
         onAuthStateChanged(auth, async (authUser) => {
