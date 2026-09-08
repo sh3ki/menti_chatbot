@@ -857,7 +857,24 @@
             Users
         </button>
 
+        <button class="nav-item" data-section="assessments" onclick="switchSection('assessments', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+            User Assessment
+        </button>
+
+        <button class="nav-item" data-section="providers" onclick="switchSection('providers', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0"/><path d="M19 8v6M16 11h6"/></svg>
+            Providers
+        </button>
+
         <div class="sidebar-section-label">Analytics</div>
+
+        <button class="nav-item" data-section="assessment-analytics" onclick="switchSection('assessment-analytics', this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 19V5M4 19h16"/><path d="m7 15 3-4 3 2 5-7"/>
+            </svg>
+            Psychological Assessment
+        </button>
 
         <button class="nav-item" data-section="emotions" onclick="switchSection('emotions', this)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1104,7 +1121,92 @@
             </div>
         </div>
 
+        <!-- ========================= USER ASSESSMENT SECTION -->
+        <div class="section" id="section-assessments">
+            <div class="page-header"><h2>User Assessment</h2><p>Psychological well-being assessment results and safety indicators</p></div>
+            <div class="table-card">
+                <div class="table-card-header"><h3>Assessment History</h3><button onclick="loadAssessments()" style="font-size:12px;padding:8px 13px;border:1px solid #D0DAD2;border-radius:8px;background:#fff;color:#2C5E31;cursor:pointer;font-family:inherit;font-weight:600;">Refresh</button></div>
+                <div class="table-wrapper"><table><thead><tr><th>User</th><th>Completed</th><th>Overall Profile</th><th>Score</th><th>Safety</th><th>Details</th></tr></thead><tbody id="assessmentTableBody"><tr><td colspan="6" style="padding:24px;color:#68746b;">Select User Assessment to load results.</td></tr></tbody></table></div>
+            </div>
+            <div class="table-card" id="assessmentDetailCard" style="display:none;margin-top:18px;"><div class="table-card-header"><h3 id="assessmentDetailTitle">Assessment details</h3></div><div style="padding:18px"><p id="assessmentDetailDescription"></p><div id="assessmentDetailScores"></div><p style="font-size:12px;color:#68746b;margin-top:18px">Assessment results are screening information, not a diagnosis. Safety indicators should be reviewed according to your organization’s safeguarding procedures.</p></div></div>
+        </div>
+
+        <!-- ========================= PSYCHOLOGICAL ASSESSMENT ANALYTICS SECTION -->
+        <div class="section" id="section-assessment-analytics">
+            <div class="page-header"><h2>Psychological Assessment Analytics</h2><p>Aggregated and anonymized well-being trends across completed assessments</p></div>
+            <div class="table-card" style="margin-bottom:24px;padding:18px 20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+                    <div><h3 style="font-size:14px;font-weight:700;color:#0F0F0F;margin:0 0 4px;">Assessment trends</h3><p style="font-size:12px;color:#68746B;margin:0;">Choose a time grouping and optional date range.</p></div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <select id="assessmentTrendGranularity" onchange="loadAssessmentAnalytics()" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font:inherit;font-size:13px;color:#0F0F0F;background:#fff;"><option value="daily">Daily</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option></select>
+                        <input type="date" id="assessmentTrendFrom" onchange="loadAssessmentAnalytics()" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font:inherit;font-size:13px;color:#0F0F0F;background:#fff;">
+                        <span style="font-size:12px;color:#68746B;">to</span>
+                        <input type="date" id="assessmentTrendTo" onchange="loadAssessmentAnalytics()" style="padding:9px 12px;border:1.5px solid #D0DAD2;border-radius:10px;font:inherit;font-size:13px;color:#0F0F0F;background:#fff;">
+                    </div>
+                </div>
+            </div>
+            <div class="stat-grid">
+                <div class="stat-card"><div class="stat-card-top"><div class="stat-icon">📝</div></div><div class="stat-value" id="assessmentAnalyticsTotal">—</div><div class="stat-label">Total Assessments Completed</div></div>
+                <div class="stat-card blue"><div class="stat-card-top"><div class="stat-icon">🌱</div></div><div class="stat-value" id="assessmentAnalyticsProfile">—</div><div class="stat-label">Most Common Profile</div></div>
+                <div class="stat-card"><div class="stat-card-top"><div class="stat-icon">📊</div></div><div class="stat-value" id="assessmentAnalyticsScore">—</div><div class="stat-label">Average Well-Being Score</div></div>
+                <div class="stat-card red"><div class="stat-card-top"><div class="stat-icon">🤝</div></div><div class="stat-value" id="assessmentAnalyticsSupport">—</div><div class="stat-label">Users Requiring Additional Support</div></div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card"><div class="chart-header"><div><div class="chart-title">Psychological Well-Being Profile Distribution</div><div class="chart-subtitle">Share of completed assessments</div></div></div><div class="chart-container"><canvas id="assessmentProfileChart"></canvas></div></div>
+                <div class="chart-card"><div class="chart-header"><div><div class="chart-title">Category Score Overview</div><div class="chart-subtitle">Average concern score by category</div></div></div><div class="chart-container"><canvas id="assessmentCategoryChart"></canvas></div></div>
+                <div class="chart-card full-width"><div class="chart-header"><div><div class="chart-title">Assessment Trends</div><div class="chart-subtitle">Average well-being score over time</div></div></div><div class="chart-container tall"><canvas id="assessmentTrendChart"></canvas></div></div>
+            </div>
+            <div style="padding:12px 16px;margin-bottom:20px;border:1px solid #DDE8DE;border-radius:10px;background:#F7FBF7;color:#506055;font-size:12px;">🔒 Privacy: This view uses aggregate statistics only. Individual responses and user identifiers are intentionally excluded.</div>
+        </div>
+
         <!-- ========================= EMOTIONS SECTION -->
+        <div class="section" id="section-providers">
+            <style>
+                .provider-row { cursor:pointer; transition:background .15s; }
+                .provider-row:hover { background:#F6FAF6; }
+                .provider-modal { position:fixed; inset:0; z-index:1200; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(15,25,17,.48); }
+                .provider-modal.open { display:flex; }
+                .provider-modal-card { width:min(620px,100%); max-height:90vh; overflow:auto; background:#fff; border-radius:18px; box-shadow:0 24px 70px rgba(0,0,0,.25); }
+                .provider-modal-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:24px 26px 20px; border-bottom:1px solid #E2EAE3; }
+                .provider-modal-head h3 { margin:0 0 5px; color:#173D20; font-size:20px; }
+                .provider-modal-head p { margin:0; color:#718076; font-size:13px; }
+                .provider-modal-close { width:32px; height:32px; border:1px solid #D7E1D8; border-radius:50%; background:#fff; color:#56705B; font-size:20px; line-height:1; cursor:pointer; }
+                .provider-modal-body { padding:24px 26px; }
+                .provider-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+                .provider-detail { padding:14px 15px; border:1px solid #E1EAE2; border-radius:11px; background:#FBFDFB; }
+                .provider-detail.wide { grid-column:1 / -1; }
+                .provider-detail label { display:block; margin-bottom:6px; color:#839087; font-size:10px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; }
+                .provider-detail strong { color:#193C21; font-size:14px; font-weight:600; word-break:break-word; }
+                .rejection-modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+                .rejection-textarea { width:100%; min-height:115px; resize:vertical; padding:12px; border:1.5px solid #D5E0D6; border-radius:10px; font:inherit; font-size:13px; line-height:1.5; outline:none; }
+                .rejection-textarea:focus { border-color:#2C5E31; box-shadow:0 0 0 3px rgba(44,94,49,.1); }
+                .rejection-help { margin:0 0 10px; color:#68746B; font-size:13px; line-height:1.5; }
+                .rejection-error { display:none; margin-top:8px; color:#B42318; font-size:12px; }
+                @media(max-width:600px) { .provider-detail-grid { grid-template-columns:1fr; } .provider-detail.wide { grid-column:auto; } }
+            </style>
+            <div class="page-header"><h2>Providers</h2><p>Review and manage psychiatrist and psychologist applications</p></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+                <button class="user-tab active" data-provider-filter="" onclick="loadProviders('')">All</button>
+                <button class="user-tab" data-provider-filter="pending" onclick="loadProviders('pending')">Pending</button>
+                <button class="user-tab" data-provider-filter="approved" onclick="loadProviders('approved')">Approved</button>
+                <button class="user-tab" data-provider-filter="rejected" onclick="loadProviders('rejected')">Rejected</button>
+                <button class="user-tab" data-provider-filter="disabled" onclick="loadProviders('disabled')">Disabled</button>
+            </div>
+            <div class="table-card"><div style="padding:16px;font-size:13px;font-weight:700;color:#2C5E31;" id="providerCountLabel">Loading providers...</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="text-align:left;border-bottom:1px solid #E0E5E1;"><th style="padding:12px 16px;">Provider</th><th>Role</th><th>Status</th><th>License</th><th>Signup date</th><th>Approval date</th><th style="padding-right:16px;">Actions</th></tr></thead><tbody id="providersTableBody"><tr><td colspan="7" style="padding:20px;text-align:center;">Loading...</td></tr></tbody></table></div></div>
+        </div>
+
+        <div class="provider-modal" id="providerDetailsModal" onclick="if(event.target===this) closeProviderDetails()">
+            <div class="provider-modal-card"><div class="provider-modal-head"><div><h3 id="providerDetailsTitle">Provider details</h3><p id="providerDetailsSubtitle"></p></div><button class="provider-modal-close" onclick="closeProviderDetails()" aria-label="Close">&times;</button></div><div class="provider-modal-body"><div class="provider-detail-grid" id="providerDetailsGrid"></div></div></div>
+        </div>
+
+        <div class="provider-modal" id="rejectionModal" onclick="if(event.target===this) closeRejectionModal()">
+            <div class="provider-modal-card" style="max-width:500px"><div class="provider-modal-head"><div><h3>Reject provider application</h3><p>The provider will see this reason when they sign in.</p></div><button class="provider-modal-close" onclick="closeRejectionModal()" aria-label="Close">&times;</button></div><div class="provider-modal-body"><p class="rejection-help">Please provide a clear, professional explanation so the provider can correct their application and resubmit it.</p><textarea id="rejectionReasonInput" class="rejection-textarea" placeholder="Enter the rejection reason..." maxlength="1000"></textarea><div id="rejectionReasonError" class="rejection-error">A rejection reason is required.</div><div class="rejection-modal-actions"><button class="admin-modal-btn admin-modal-cancel" onclick="closeRejectionModal()">Cancel</button><button class="admin-modal-btn admin-modal-confirm" onclick="submitProviderRejection()">Reject application</button></div></div></div>
+        </div>
+
+        <div class="provider-modal" id="roleChangeModal" onclick="if(event.target===this) closeRoleChangeModal()">
+            <div class="provider-modal-card" style="max-width:470px"><div class="provider-modal-head"><div><h3>Change provider role</h3><p>Choose the professional role for this provider.</p></div><button class="provider-modal-close" onclick="closeRoleChangeModal()" aria-label="Close">&times;</button></div><div class="provider-modal-body"><label for="providerRoleSelect" style="display:block;margin-bottom:8px;color:#506055;font-size:12px;font-weight:700;">PROVIDER ROLE</label><select id="providerRoleSelect" class="rejection-textarea" style="min-height:0;resize:none;height:45px;padding:0 12px;"><option value="psychiatrist">Psychiatrist</option><option value="psychologist">Psychologist</option></select><div class="rejection-modal-actions"><button class="admin-modal-btn admin-modal-cancel" onclick="closeRoleChangeModal()">Cancel</button><button class="admin-modal-btn admin-modal-confirm" onclick="submitProviderRoleChange()">Save role</button></div></div></div>
+        </div>
+
         <div class="section" id="section-emotions">
             <div class="page-header">
                 <h2>Emotion Analytics</h2>
@@ -1906,6 +2008,64 @@ function emotionEmoji(e) {
 }
 
 // ============================================================ SECTION SWITCHING
+let _assessmentData = [];
+async function loadAssessments() {
+    const body = document.getElementById('assessmentTableBody');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="6" style="padding:24px;color:#68746b;">Loading assessment results…</td></tr>';
+    try {
+        const response = await fetch('/admin/api/assessments');
+        if (response.status === 401) { window.location.href = '/admin/login'; return; }
+        _assessmentData = await response.json();
+        if (!_assessmentData.length) { body.innerHTML = '<tr><td colspan="6" style="padding:24px;color:#68746b;">No completed assessments yet.</td></tr>'; return; }
+        body.innerHTML = _assessmentData.map((a, i) => {
+            const urgent = a.crisisDetected;
+            const profileClass = a.profile === 'High Emotional Distress' ? 'risk-high' : a.profile === 'Overwhelmed' ? 'risk-medium' : 'risk-low';
+            return `<tr><td><b>${esc(a.userName || 'Unknown user')}</b><br><span style="font-size:12px;color:#68746b">${esc(a.userEmail || '')}</span></td><td>${esc(formatProviderDate(a.completedAt))}</td><td><span class="badge ${profileClass}">${urgent ? '🔴 ' : ''}${esc(a.profile || '—')}</span></td><td>${a.totalScore ?? '—'} / ${a.maxScore ?? 104}</td><td><span class="badge ${urgent ? 'risk-high' : 'risk-low'}">${urgent ? 'Immediate support' : 'No indicator'}</span></td><td><button class="user-tab" onclick="showAssessmentDetail(${i})">View</button></td></tr>`;
+        }).join('');
+    } catch (e) { body.innerHTML = '<tr><td colspan="6" style="padding:24px;color:#B71C1C;">Unable to load assessment results.</td></tr>'; }
+}
+function showAssessmentDetail(index) {
+    const a = _assessmentData[index]; if (!a) return;
+    document.getElementById('assessmentDetailCard').style.display = 'block';
+    document.getElementById('assessmentDetailTitle').textContent = `${a.userName || 'User'} — ${a.profile || 'Assessment'}`;
+    document.getElementById('assessmentDetailDescription').textContent = a.profileDescription || '';
+    document.getElementById('assessmentDetailScores').innerHTML = Object.entries(a.categoryScores || {}).map(([k,v]) => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #E8EDE9;padding:9px 0;font-size:13px"><span>${esc(k)}</span><b>${v}</b></div>`).join('') + (a.crisisDetected ? '<div style="margin-top:14px;padding:12px;background:#FFF0F0;color:#B71C1C;border-radius:8px;font-weight:700">Safety check indicated immediate support may be needed. Follow safeguarding and crisis-response procedures.</div>' : '');
+}
+function _assessmentChart(id, config, key) {
+    const canvas = document.getElementById(id);
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (charts[key]) charts[key].destroy();
+    charts[key] = new Chart(canvas, config);
+}
+async function loadAssessmentAnalytics() {
+    const granularity = document.getElementById('assessmentTrendGranularity')?.value || 'weekly';
+    const from = document.getElementById('assessmentTrendFrom')?.value || '';
+    const to = document.getElementById('assessmentTrendTo')?.value || '';
+    const params = new URLSearchParams({ granularity });
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    try {
+        const response = await fetch('/admin/api/assessment-analytics?' + params.toString());
+        if (response.status === 401) { window.location.href = '/admin/login'; return; }
+        const data = await response.json();
+        set('assessmentAnalyticsTotal', data.totalAssessments ?? 0);
+        set('assessmentAnalyticsProfile', data.mostCommonProfile || '—');
+        set('assessmentAnalyticsScore', `${data.averageWellBeingScore ?? 0}%`);
+        set('assessmentAnalyticsSupport', data.usersRequiringSupport ?? 0);
+        const profileLabels = ['Flourishing','Managing','Strained','Overwhelmed','High Emotional Distress'];
+        const profileValues = profileLabels.map(label => data.profiles?.[label] || 0);
+        _assessmentChart('assessmentProfileChart', { type:'doughnut', data:{ labels:profileLabels, datasets:[{ data:profileValues, backgroundColor:['#4CAF50','#8BC34A','#FFC107','#FF9800','#E53935'], borderWidth:2, borderColor:'#fff' }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12, padding:12, font:{size:11} } }, tooltip:{ callbacks:{ label:ctx => { const total=ctx.dataset.data.reduce((a,b)=>a+b,0); const pct=total ? ((ctx.raw/total)*100).toFixed(1) : 0; return `${ctx.label}: ${pct}%`; } } } } } }, 'assessmentProfiles');
+        const categoryLabels = ['Mood & Emotional Well-being','Stress & Anxiety','Sleep & Energy','Daily Functioning','Social & Emotional Support','Coping & Self-Management'];
+        const categoryValues = categoryLabels.map(label => data.categories?.[label] || 0);
+        _assessmentChart('assessmentCategoryChart', { type:'bar', data:{ labels:categoryLabels, datasets:[{ label:'Average concern score', data:categoryValues, backgroundColor:'#6EAA76', borderRadius:6 }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, suggestedMax:20, title:{display:true,text:'Score'} }, x:{ ticks:{ maxRotation:45, minRotation:35, font:{size:10} } } }, plugins:{ legend:{display:false} } } }, 'assessmentCategories');
+        const trend = data.trend || [];
+        _assessmentChart('assessmentTrendChart', { type:'line', data:{ labels:trend.map(item => item.label), datasets:[{ label:'Average well-being score', data:trend.map(item => item.averageScore), borderColor:'#2C5E31', backgroundColor:'rgba(44,94,49,.12)', fill:true, tension:.3, pointRadius:4, pointBackgroundColor:'#2C5E31' }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, max:100, title:{display:true,text:'Score (%)'} } }, plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx => `${ctx.parsed.y}% average well-being` } } } } }, 'assessmentTrend');
+    } catch (error) {
+        console.error('Assessment analytics load error:', error);
+        ['assessmentAnalyticsTotal','assessmentAnalyticsProfile','assessmentAnalyticsScore','assessmentAnalyticsSupport'].forEach(id => set(id, '—'));
+    }
+}
 function switchSection(name, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1920,6 +2080,9 @@ function switchSection(name, el) {
     if (name === 'activity') renderActivityFromState();
     if (name === 'backups') loadBackups();
     if (name === 'admins') loadAdmins();
+    if (name === 'providers') loadProviders('');
+    if (name === 'assessments') loadAssessments();
+    if (name === 'assessment-analytics') loadAssessmentAnalytics();
 }
 
 // ============================================================ TOAST
@@ -2921,6 +3084,8 @@ function skeletonRows(rows, cols) {
 (function startSSE() {
     const dot = document.getElementById('liveDot');
     const ind = document.getElementById('liveIndicator');
+    let es = null;
+    let reconnectTimer = null;
 
     function setLive(ok) {
         if (!dot) return;
@@ -2930,7 +3095,8 @@ function skeletonRows(rows, cols) {
     }
 
     function connect() {
-        const es = new EventSource('/admin/api/stream');
+        if (document.visibilityState === 'hidden' || es) return;
+        es = new EventSource('/admin/api/stream?logs=1&convs=1&crisis=1');
 
         es.addEventListener('connected', () => {
             setLive(true);
@@ -2996,11 +3162,33 @@ function skeletonRows(rows, cols) {
 
         es.onerror = () => {
             setLive(false);
-            es.close();
+            try { es.close(); } catch(_) {}
+            es = null;
             // Reconnect after 5 s
-            setTimeout(connect, 5000);
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connect, 5000);
         };
     }
+
+    function disconnect() {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        if (es) {
+            try { es.close(); } catch (_) {}
+            es = null;
+        }
+        setLive(false);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            disconnect();
+        } else {
+            connect();
+        }
+    });
+
+    window.addEventListener('beforeunload', disconnect);
 
     connect();
 })();
@@ -3085,6 +3273,61 @@ async function deleteAdmin(id, email) {
         showToast('❌ Network error');
     }
 }
+
+let _providerFilter = '';
+let _providerRejectionUid = '';
+let _providerRoleUid = '';
+function formatProviderDate(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString([], { year:'numeric', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+}
+async function loadProviders(status = _providerFilter) {
+    _providerFilter = status;
+    document.querySelectorAll('[data-provider-filter]').forEach(b => b.classList.toggle('active', b.dataset.providerFilter === status));
+    const tbody = document.getElementById('providersTableBody');
+    if (!tbody) return;
+    try {
+        const res = await fetch('/admin/api/providers' + (status ? '?status=' + encodeURIComponent(status) : ''));
+        const providers = await res.json();
+        window._providerRows = providers;
+        document.getElementById('providerCountLabel').textContent = providers.length + ' provider' + (providers.length !== 1 ? 's' : '');
+        if (!providers.length) { tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#68746b;">No providers found</td></tr>'; return; }
+        tbody.innerHTML = providers.map(p => {
+            const name = p.displayName || p.email || 'Provider';
+            let actions = '';
+            if (p.status === 'pending') actions = `<button class="btn-create-admin" onclick="event.stopPropagation();providerAction('${p.uid}','approve')">Approve</button> <button class="btn-delete-admin" onclick="event.stopPropagation();rejectProvider('${p.uid}')">Reject</button>`;
+            if (p.status === 'approved') actions = `<button class="user-tab" onclick="event.stopPropagation();openRoleChangeModal('${p.uid}','${p.role}')">Change role</button> <button class="btn-delete-admin" onclick="event.stopPropagation();providerAction('${p.uid}','disable')">Disable</button>`;
+            if (p.status === 'disabled') actions = `<button class="btn-create-admin" onclick="event.stopPropagation();providerAction('${p.uid}','enable')">Re-enable</button>`;
+            if (p.status === 'rejected') actions = `<button class="user-tab" onclick="event.stopPropagation();viewRejection('${esc(p.rejectionReason || '')}')">View reason</button>`;
+            return `<tr class="provider-row" onclick="openProviderDetails('${esc(p.uid)}')" style="border-bottom:1px solid #F0F4F1"><td style="padding:12px 16px"><b>${esc(name)}</b><br><span style="color:#68746b;font-size:12px">${esc(p.email)}</span></td><td>${esc(cap(p.role))}</td><td>${esc(cap(p.status))}</td><td>${esc(p.licenseNumber || '—')}</td><td>${esc(formatProviderDate(p.createdAt))}</td><td>${esc(formatProviderDate(p.approvedAt))}</td><td style="padding-right:16px;white-space:nowrap">${actions}</td></tr>`;
+        }).join('');
+    } catch (e) { tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#C62828;">Failed to load providers</td></tr>'; }
+}
+async function providerAction(uid, action, extra = {}) {
+    try { const r = await fetch('/admin/api/providers/' + encodeURIComponent(uid), {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...extra})}); const d = await r.json(); if (!r.ok) throw Error(d.error || 'Action failed'); showToast('Provider updated'); loadProviders(); } catch(e) { showToast('❌ ' + e.message); }
+}
+function rejectProvider(uid) { _providerRejectionUid = uid; document.getElementById('rejectionReasonInput').value = ''; document.getElementById('rejectionReasonError').style.display = 'none'; document.getElementById('rejectionModal').classList.add('open'); setTimeout(() => document.getElementById('rejectionReasonInput').focus(), 50); }
+function closeRejectionModal() { document.getElementById('rejectionModal').classList.remove('open'); _providerRejectionUid = ''; }
+function submitProviderRejection() { const input = document.getElementById('rejectionReasonInput'); const reason = input.value.trim(); if (!reason) { document.getElementById('rejectionReasonError').style.display = 'block'; input.focus(); return; } const uid = _providerRejectionUid; closeRejectionModal(); providerAction(uid, 'reject', {reason}); }
+function openRoleChangeModal(uid, current) { _providerRoleUid = uid; document.getElementById('providerRoleSelect').value = current || 'psychologist'; document.getElementById('roleChangeModal').classList.add('open'); }
+function closeRoleChangeModal() { document.getElementById('roleChangeModal').classList.remove('open'); _providerRoleUid = ''; }
+function submitProviderRoleChange() { const role = document.getElementById('providerRoleSelect').value; const uid = _providerRoleUid; closeRoleChangeModal(); if (uid) providerAction(uid, 'change_role', {role}); }
+function viewRejection(reason) { alert(reason || 'No rejection reason recorded.'); }
+
+function openProviderDetails(uid) {
+    const provider = window._providerRows?.find(p => p.uid === uid);
+    if (!provider) return;
+    document.getElementById('providerDetailsTitle').textContent = provider.displayName || 'Provider details';
+    document.getElementById('providerDetailsSubtitle').textContent = provider.email || '';
+    const fields = [['Role', cap(provider.role)], ['Status', cap(provider.status)], ['First name', provider.firstName], ['Middle name', provider.middleName || '—'], ['Last name', provider.lastName], ['Professional license', provider.licenseNumber || '—'], ['Signup date', formatProviderDate(provider.createdAt)], ['Approval date', formatProviderDate(provider.approvedAt)]];
+    if (provider.rejectedAt) fields.push(['Rejected date', formatProviderDate(provider.rejectedAt)]);
+    if (provider.rejectionReason) fields.push(['Rejection reason', provider.rejectionReason]);
+    document.getElementById('providerDetailsGrid').innerHTML = fields.map(([label, value]) => `<div class="provider-detail${label === 'Rejection reason' ? ' wide' : ''}"><label>${esc(label)}</label><strong>${esc(value || '—')}</strong></div>`).join('');
+    document.getElementById('providerDetailsModal').classList.add('open');
+}
+function closeProviderDetails() { document.getElementById('providerDetailsModal').classList.remove('open'); }
 
 function escHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
