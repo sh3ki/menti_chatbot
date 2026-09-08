@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/call-ui.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1124,5 +1125,24 @@
         // Load voices on page load
         loadAvailableVoices();
     </script>
+    <script src="/static/js/call-manager.js"></script>
+    <script>
+      window.setUserTokenForCallManager = (token) => {
+        if (window.mentiCallManager) window.mentiCallManager.setUserToken(token);
+      };
+    </script>
+    <script type="module">
+      import { getApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+      import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+      try {
+        const auth = getAuth(getApp());
+        onAuthStateChanged(auth, async (user) => {
+          if (user && window.setUserTokenForCallManager) {
+            window.setUserTokenForCallManager(await user.getIdToken());
+          }
+        });
+      } catch (e) {}
+    </script>
+<script src="/static/js/background-music.js"></script>
 </body>
 </html>
