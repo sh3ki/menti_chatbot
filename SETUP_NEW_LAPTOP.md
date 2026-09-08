@@ -83,7 +83,10 @@ Create a new file called `.env` in the project root with the following content:
 
 ```env
 # Groq API Key
-GROQ_API_KEY=your-groq-api-key-here
+OPENAI_API_KEY=your-openai-api-key-here
+OPENAI_ANALYSIS_MODEL=gpt-4o-mini
+OPENAI_RESPONSE_MODEL=gpt-4o-mini
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
 
 # Flask Configuration
 FLASK_APP=app.py
