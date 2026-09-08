@@ -17,6 +17,22 @@ body.dark-mode .header h1 {
     color: #4FA858;
 }
 
+.header-brand-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Use the dedicated high-contrast logo whenever the application is in dark mode. */
+body.dark-mode .header-logo,
+body.dark-mode .logo-icon,
+body.dark-mode .logo-image,
+body.dark-mode .logo {
+    content: url('/static/menti%20logo%20dark.png');
+}
+
 /* ===== HEADER RIGHT ===== */
 body.dark-mode .header-right {
     color: #FFFFFF;
@@ -83,24 +99,26 @@ body.dark-mode .profile-dropdown {
 
 body.dark-mode .profile-dropdown-item {
     color: #FFFFFF;
-}}
+}
 
-body.dark-mode .profile-dropdown-item:hover {
+body.dark-mode .profile-dropdown-item:hover,
+body.dark-mode .profile-dropdown-item:focus-visible {
     background: #3A3A3A;
-    color: #4FA858;
+    color: #A0D8A0 !important;
 }
 
 body.dark-mode .profile-dropdown-item.active-page {
-    color: #4FA858;
-    background: #1F3A21;
+    color: #A0D8A0 !important;
+    background: #1F3A21 !important;
 }
 
 body.dark-mode .profile-dropdown-logout {
-    color: #FF6B6B;
+    color: #FF8A8A !important;
 }
 
 body.dark-mode .profile-dropdown-logout:hover {
     background: #4A2C2C !important;
+    color: #FFB0B0 !important;
 }
 
 body.dark-mode .profile-dropdown-divider {
@@ -162,6 +180,19 @@ body.dark-mode .chat-item {
 
 body.dark-mode .chat-item:hover {
     background: #3A3A3A;
+}
+
+body.dark-mode .chat-item.active {
+    background: #1F3A21;
+    border-left-color: #4FA858;
+}
+
+body.dark-mode .chat-item.active .chat-item-text {
+    color: #E8F5E9;
+}
+
+body.dark-mode .chat-item.active:hover {
+    background: #274D2B;
 }
 
 body.dark-mode .chat-item-text {
@@ -263,7 +294,7 @@ body.dark-mode .theme-option {
     background: #1A1A1A;
     border-color: #3A3A3A;
     color: #FFFFFF;
-}}
+}
 
 body.dark-mode .theme-option:hover {
     border-color: #4FA858;
@@ -303,7 +334,7 @@ body.dark-mode .welcome-message h2 {
 
 body.dark-mode .welcome-message p {
     color: #FFFFFF;
-}}
+}
 
 /* ===== MODE SELECTORS ===== */
 body.dark-mode .mode-selector-welcome {
