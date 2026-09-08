@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Menti — Counselling Sessions</title>
+    <link rel="stylesheet" href="/static/css/provider_portal.css">
+    <link rel="stylesheet" href="/static/css/call-ui.css">
+    <style>
+        .call-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 18px
+        }
+
+        .call-tab {
+            padding: 10px 14px;
+            border: 1px solid #d5e2d6;
+            border-radius: 9px;
+            background: #fff;
+            color: #315b38;
+            font-weight: 700;
+            cursor: pointer
+        }
+
+        .call-tab.active {
+            background: #2c5e31;
+            color: #fff
+        }
+
+        .session-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 360px));
+            gap: 18px;
+            align-items: stretch;
+            justify-content: start;
+            width: 100%;
+            max-width: 1200px
+        }
+
+        #sessions { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 360px)); gap: 18px; align-items: start; justify-content: start; }
+        #sessions > section { grid-column: 1 / -1; width: 100%; }
+        #sessions > .session-card { width: 100%; min-width: 0; }
+        .call-history { max-height: 170px; overflow-y: auto; margin: 16px 20px 0; padding: 12px; border: 1px solid #e1eae2; border-radius: 10px; background: #f8fbf8; color: #315b38; font-size: 12px; }
+        .call-history strong { display: block; margin-bottom: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+        .call-history-item { display: grid; gap: 3px; padding: 8px 0; border-top: 1px solid #e1eae2; color: #506055; line-height: 1.35; }
+        .call-history-item:first-of-type { border-top: 0; padding-top: 0; }
+        body.dark-mode .call-history { background: #202820; border-color: #465548; }
+        body.dark-mode .call-history-item { border-color: #465548; color: #d0d8d1; }
+
+        .session-card {
+            padding: 0;
+            background: #fff;
+            border: 1px solid #e1eae2;
+            border-radius: 16px;
+            box-shadow: 0 5px 18px rgba(44,94,49,.08);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column
+        }
+
+        .session-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 19px 20px 15px;
+            background: linear-gradient(135deg, #f8fbf8, #eef6ef);
+            border-bottom: 1px solid #e1eae2
+        }
+
+        .session-card h3 { margin: 0; font-size: 19px; line-height: 1.25; color: #17221a }
+        .session-user-label { margin: 5px 0 0; color: #718076; font-size: 12px; }
+        .session-card-body { padding: 17px 20px 4px; flex: 1; }
+        .session-details { display: grid; grid-template-columns: 1.35fr .65fr; gap: 12px; margin-bottom: 15px; }
+        .session-detail { display: flex; flex-direction: column; gap: 4px; }
+        .session-detail-label, .session-reason-label { color: #89958b; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+        .session-detail strong { color: #315b38; font-size: 13px; line-height: 1.35; }
+        .session-reason { padding: 12px; border: 1px solid #edf2ed; border-radius: 10px; background: #fbfdfb; }
+        .session-reason p { margin: 5px 0 0; color: #506055; font-size: 13px; line-height: 1.45; }
+        .session-card-footer { padding: 15px 20px 19px; }
+        .session-card-footer .session-actions { margin-top: 0; }
+        .session-card-footer .private-notes { margin-top: 14px; }
+        .session-card-footer .note-actions { margin-top: 9px; }
+        .session-card .provider-button { min-height: 40px; }
+        .provider-button.danger-secondary { color: #9b3c32; border-color: #edc9c4; background: #fff8f7; }
+        .provider-button.danger-secondary:hover { background: #fbe9e7; border-color: #d99a91; }
+        body.dark-mode .session-card { background: #242424; border-color: #465548; box-shadow: 0 5px 18px rgba(0,0,0,.2); }
+        body.dark-mode .session-card-header { background: linear-gradient(135deg, #29352b, #242c25); border-bottom-color: #465548; }
+        body.dark-mode .session-card h3 { color: #f5f5f5; }
+        body.dark-mode .session-user-label, body.dark-mode .session-detail-label, body.dark-mode .session-reason-label { color: #a8b5aa; }
+        body.dark-mode .session-detail strong { color: #a0d8a0; }
+        body.dark-mode .session-reason { background: #202820; border-color: #465548; }
+        body.dark-mode .session-reason p { color: #d0d8d1; }
+        body.dark-mode .provider-button.danger-secondary { color: #ffaaa0; border-color: #75433d; background: #342422; }
+        body.dark-mode .provider-button.danger-secondary:hover { background: #4a2c2c; }
+        body.dark-mode .session-status { background: #274d2b; color: #a0d8a0; }
+        body.dark-mode .session-meta { color: #b8c5ba; }
+        @media(max-width:1100px) { .session-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 340px)); } }
+        @media(max-width:700px) { .session-grid { grid-template-columns: minmax(0, 360px); } }
+        @media(max-width:700px) { #sessions { grid-template-columns: minmax(0, 360px); } }
+
+        /* Present the existing session data as a clearer professional card. */
+        .session-card > h3 { padding: 19px 20px 0; }
+        .session-card > .session-status { margin: 13px 20px 0; align-self: flex-start; }
+        .session-card > .session-meta { margin: 13px 20px 0; }
+        .session-card > .session-actions { margin: 15px 20px 0; }
+        .session-card > .private-notes { width: calc(100% - 40px); margin: 16px 20px 0; }
+        .session-card > .private-notes + .session-actions { margin-top: 10px; margin-bottom: 19px; }
+        .session-card > h3 {
+            margin: 0;
+            padding: 21px 20px 6px;
+            background: linear-gradient(135deg, #f8fbf8 0%, #eef6ef 100%);
+            border-top: 4px solid #2c5e31;
+            color: #18351e;
+        }
+        .session-card > .session-status { margin-top: 0; padding-top: 8px; background: #eef6ef; width: 100%; border-radius: 0; padding-left: 20px; padding-bottom: 12px; }
+        .session-card > .session-meta { padding-top: 2px; }
+        .session-card > .session-actions:first-of-type { align-items: center; }
+        .call-button { display: inline-flex; align-items: center; gap: 8px; }
+        .call-button svg { width: 17px; height: 17px; }
+        .session-menu { position: relative; margin-left: auto; }
+        .session-menu-trigger { width: 40px; height: 40px; display: inline-grid; place-items: center; border: 1px solid #d5e2d6; border-radius: 9px; background: #fff; color: #315b38; cursor: pointer; font-size: 22px; line-height: 1; letter-spacing: 2px; }
+        .session-menu-trigger:hover, .session-menu.open .session-menu-trigger { background: #f0f7f1; border-color: #4fa858; }
+        .session-menu-panel { display: none; position: absolute; right: 0; top: calc(100% + 7px); z-index: 20; min-width: 190px; padding: 5px; border: 1px solid #dce8de; border-radius: 11px; background: #fff; box-shadow: 0 10px 28px rgba(23,34,26,.16); }
+        .session-menu.open .session-menu-panel { display: grid; gap: 2px; }
+        .session-menu-item { width: 100%; padding: 10px 11px; border: 0; border-radius: 7px; background: transparent; color: #315b38; text-align: left; font: 600 12px Inter, Arial, sans-serif; cursor: pointer; }
+        .session-menu-item:hover { background: #f0f7f1; }
+        .session-menu-item.danger { color: #a34137; }
+        .session-menu-item.danger:hover { background: #fff1ef; }
+        body.dark-mode .session-card > h3 { background: linear-gradient(135deg, #29352b 0%, #242c25 100%); border-top-color: #4fa858; color: #f5f5f5; }
+        body.dark-mode .session-card > .session-status { background: #29352b; }
+        body.dark-mode .session-menu-trigger { background: #303830; color: #b8dfbb; border-color: #526654; }
+        body.dark-mode .session-menu-trigger:hover, body.dark-mode .session-menu.open .session-menu-trigger { background: #1f3a21; border-color: #4fa858; }
+        body.dark-mode .session-menu-panel { background: #292929; border-color: #465548; box-shadow: 0 10px 28px rgba(0,0,0,.4); }
+        body.dark-mode .session-menu-item { color: #b8dfbb; }
+        body.dark-mode .session-menu-item:hover { background: #344536; }
+        body.dark-mode .session-menu-item.danger { color: #ffaaa0; }
+        body.dark-mode .session-menu-item.danger:hover { background: #4a2c2c; }
+
+        .session-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: #eaf5eb;
+            color: #2c5e31;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase
+        }
+
+        .session-status.ringing {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            animation: pulse-yellow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-yellow {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .call-ringing-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 12px;
+            background: rgba(255, 193, 7, 0.15);
+            color: #ffc107;
+            font-size: 11px;
+            font-weight: 700;
+            margin-top: 8px;
+            animation: pulse-yellow 1.5s ease-in-out infinite;
+            border-left: 3px solid #ffc107;
+        }
+
+        .call-ringing-badge svg {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 auto;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .session-meta {
+            color: #718076;
+            font-size: 13px;
+            line-height: 1.55
+        }
+
+        .session-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 13px
+        }
+
+        .private-notes {
+            width: 100%;
+            min-height: 78px;
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px solid #d5e2d6;
+            border-radius: 8px;
+            font: inherit
+        }
+
+        .call-window {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #132018cc
+        }
+
+        .call-window.open {
+            display: flex
+        }
+
+        .call-panel {
+            width: min(900px, 100%);
+            padding: 22px;
+            border-radius: 17px;
+            background: #142018;
+            color: #fff
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px
+        }
+
+        .video-grid video {
+            width: 100%;
+            min-height: 240px;
+            background: #000;
+            border-radius: 10px
+        }
+
+        .modal-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px
+        }
+
+        #requestCount {
+            display: inline-grid;
+            place-items: center;
+            min-width: 20px;
+            margin-left: 5px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            background: #d86b58;
+            color: #fff;
+            font-size: 11px;
+        }
+
+        #sessions > section { margin-bottom: 26px; }
+        #sessions > section h2 { margin: 0 0 12px; font-size: 20px; color: #284d2e; }
+
+        @media(max-width:700px) {
+
+            .video-grid,
+            .modal-form-grid {
+                grid-template-columns: 1fr
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="provider-header">
+        <div class="provider-brand"><img class="provider-logo" src="/static/menti logo.png"
+                alt="Menti"><span>Menti</span></div>
+        <div class="provider-header-right"><span class="provider-badge">{{ provider_role|capitalize }}</span>
+            <div class="provider-profile" id="profile"><button class="provider-profile-button" id="profileButton"><span
+                        class="provider-avatar">{{ (provider_name[:1] if provider_name else 'P')|upper }}</span><span
+                        class="provider-header-name">{{ provider_name }}</span><svg class="provider-chevron"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="m6 9 6 6 6-6" />
+                    </svg></button>
+                <div class="provider-profile-menu"><a href="/providers/profile">Profile Settings</a><button
+                        class="logout" id="logout">Log out</button></div>
+            </div>
+        </div>
+    </header>
+    <div class="provider-layout">
+        <aside class="provider-sidebar">
+            <div class="provider-sidebar-label">Main</div><a class="provider-nav" href="/providers/dashboard"><svg
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                </svg><span>Dashboard</span></a><a class="provider-nav" href="/providers/calendar"><svg
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="17" rx="2" />
+                    <path d="M16 2v4M8 2v4M3 10h18" />
+                </svg><span>Calendar</span></a><a class="provider-nav active" href="/providers/video-call"><svg
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="6" width="13" height="12" rx="2" />
+                    <path d="m16 10 5-3v10l-5-3z" />
+                </svg><span>Counselling Sessions</span></a>
+            <div class="provider-sidebar-label">Account</div><a class="provider-nav" href="/providers/profile"><svg
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 21a8 8 0 0 1 16 0" />
+                </svg><span>Profile</span></a>
+        </aside>
+        <main class="provider-main">
+            <div class="provider-title-row">
+                <div>
+                    <h1 class="provider-title">Counselling Sessions</h1>
+                    <p class="provider-subtitle">Review requests, call approved users, and maintain private counseling
+                        history.</p>
+                </div><div><button class="provider-button secondary" id="requestsButton">Requests <span id="requestCount">0</span></button> <button class="provider-button" id="createButton">Create session</button></div>
+            </div>
+            <div class="call-tabs"><button class="call-tab active" data-filter="approved">Upcoming</button><button class="call-tab"
+                    data-filter="history">History</button></div>
+            <div id="sessions"></div>
+        </main>
+    </div>
+    <div class="modal-backdrop" id="requestsModal"><section class="provider-modal"><div class="provider-modal-header"><h2>Appointment requests</h2><button class="modal-close" data-close="requestsModal">×</button></div><p class="provider-subtitle">Review incoming requests. Provider notes are not available for requests.</p><div class="session-grid" id="requestSessions"></div></section></div>
+    <div class="modal-backdrop" id="declineModal"><section class="provider-modal"><div class="provider-modal-header"><h2>Decline appointment</h2><button class="modal-close" data-close="declineModal">×</button></div><p class="provider-subtitle">Please provide a reason for declining this request.</p><label class="form-label" for="declineReason">Reason *</label><textarea class="form-input" id="declineReason" rows="4" placeholder="Tell the user why you cannot accept this request."></textarea><div class="modal-actions"><button class="provider-button secondary" data-close="declineModal">Cancel</button><button class="provider-button" id="confirmDecline">Decline appointment</button></div></section></div>
+    <div class="modal-backdrop" id="cancelModal"><section class="provider-modal"><div class="provider-modal-header"><h2>Cancel appointment</h2><button class="modal-close" data-close="cancelModal">Ã—</button></div><p class="provider-subtitle">The user will be able to see this reason in their counseling appointments.</p><label class="form-label" for="cancellationReason">Cancellation reason *</label><textarea class="form-input" id="cancellationReason" rows="4" placeholder="Explain why this appointment must be cancelled."></textarea><div class="modal-actions"><button class="provider-button secondary" data-close="cancelModal">Keep appointment</button><button class="provider-button" id="confirmCancel">Cancel appointment</button></div></section></div>
+    <div class="modal-backdrop" id="createModal">
+        <section class="provider-modal">
+            <div class="provider-modal-header">
+                <h2>Create counseling session</h2><button class="modal-close" data-close="createModal">×</button>
+            </div>
+            <p class="provider-subtitle">Create an approved session for a registered user. Times use Manila time.</p>
+            <label class="form-label">User email</label><input class="form-input" id="manualEmail" type="email">
+            <div class="modal-form-grid">
+                <div><label class="form-label">Start</label><input class="form-input" id="manualStart"
+                        type="datetime-local"></div>
+                <div><label class="form-label">Duration</label><select class="form-input" id="manualDuration">
+                        <option>30</option>
+                        <option>45</option>
+                        <option>60</option>
+                        <option>90</option>
+                        <option>120</option>
+                    </select></div>
+            </div>
+            <div class="modal-actions"><button class="provider-button secondary"
+                    data-close="createModal">Cancel</button><button class="provider-button"
+                    id="createSession">Create</button></div>
+        </section>
+    </div>
+    <div class="call-window" id="callWindow">
+        <section class="call-panel">
+            <h2 id="callTitle">Counseling call</h2>
+            <div class="video-grid"><video id="remote" autoplay playsinline></video><video id="local" autoplay muted
+                    playsinline></video></div>
+            <div class="session-actions"><button class="provider-button" id="hangup">End call</button></div>
+        </section>
+    </div>
+    <div class="provider-toast" id="toast"></div>
+    <script>
+        let appointments = [], filter = 'approved', declineId = null, activePeer = null, pc = null, localStream = null, lastCandidates = 0; const $ = id => document.getElementById(id); function toast(s) { $('toast').textContent = s; $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 2600) } function fmt(x) { return new Date(x).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }) } function manilaDay(x) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(x)) } function openModal(id) { $(id).classList.add('open') } function closeModal(id) { $(id).classList.remove('open') } document.querySelectorAll('[data-close]').forEach(x => x.onclick = () => closeModal(x.dataset.close)); $('createButton').onclick = () => openModal('createModal'); $('requestsButton').onclick = () => openModal('requestsModal'); $('profileButton').onclick = e => { e.stopPropagation(); $('profile').classList.toggle('open') }; document.addEventListener('click', () => $('profile').classList.remove('open')); $('logout').onclick = async () => { await fetch('/providers/logout', { method: 'POST' }); location = '/providers/login' };
+        function formatCallDuration(seconds) { if (seconds === null || seconds === undefined || seconds === '') return ''; const n = Math.max(0, Number(seconds) || 0), m = Math.floor(n / 60), s = Math.floor(n % 60); return `Call lasted ${m}m ${String(s).padStart(2, '0')}s`; }
+        function renderCallHistory(a) { if (!a.callHistory || !a.callHistory.length) return ''; return `<div class="call-history"><strong>Call history</strong>${a.callHistory.map(call => `<div class="call-history-item"><span>Started: ${call.startedAt ? fmt(call.startedAt) : '—'}</span><span>Ended: ${call.endedAt ? fmt(call.endedAt) : 'In progress'}</span><span>Duration: ${call.duration !== null && call.duration !== undefined ? formatCallDuration(call.duration).replace('Call lasted ', '') : '—'}</span></div>`).join('')}</div>`; }
+        async function load() { 
+            appointments = await (await fetch('/providers/api/appointments')).json(); 
+            // Load call status
+            for (let a of appointments) {
+                if (a.status === 'approved') {
+                    try {
+                        const s = await (await fetch(`/api/video/${a.id}/status`)).json();
+                        a._callStatus = s;
+                    } catch (e) {}
+                }
+            }
+            render() 
+        } 
+        
+        function renderRequests() { const rows = appointments.filter(a => a.status === 'pending'); $('requestCount').textContent = rows.length; $('requestSessions').innerHTML = rows.length ? rows.map(a => `<article class="session-card"><h3>${a.userName || 'User'}</h3><span class="session-status">pending</span><p class="session-meta">${fmt(a.start)} · ${a.duration} minutes<br>${a.reason || 'Counseling session'}</p><div class="session-actions"><button class="provider-button" onclick="acceptRequest('${a.id}')">Accept</button><button class="provider-button secondary" onclick="beginDecline('${a.id}')">Decline</button></div></article>`).join('') : '<p class="provider-subtitle">No pending requests.</p>'; }
+        function renderTodayAndUpcoming() { const rows = appointments.filter(a => a.status === 'approved'), today = manilaDay(new Date()), todayRows = rows.filter(a => manilaDay(a.start) === today), upcomingRows = rows.filter(a => manilaDay(a.start) !== today); const card = a => `<article class="session-card"><h3>${a.userName || 'User'}</h3><span class="session-status">approved</span><p class="session-meta">${fmt(a.start)} · ${a.duration} minutes<br>${a.reason || 'Counseling session'}</p><div class="session-actions"><button class="provider-button" onclick="startCall('${a.id}')">Call user</button><button class="provider-button secondary" onclick="decide('${a.id}','cancelled')">Cancel</button></div><textarea class="private-notes" id="notes-${a.id}" placeholder="Private provider notes">${a.providerNotes || ''}</textarea><div class="session-actions"><button class="provider-button secondary" onclick="saveNotes('${a.id}')">Save private notes</button><button class="provider-button secondary" onclick="decide('${a.id}','completed')">Mark completed</button></div></article>`; $('sessions').innerHTML = `<section><h2>Today’s schedules</h2><div class="session-grid">${todayRows.length ? todayRows.map(card).join('') : '<p class="provider-subtitle">No schedules today.</p>'}</div></section><section><h2>Upcoming</h2><div class="session-grid">${upcomingRows.length ? upcomingRows.map(card).join('') : '<p class="provider-subtitle">No upcoming schedules.</p>'}</div></section>`; }
+        function render() { 
+            appointments.forEach(a => { if (a.callHistory && a.callHistory.length) a._callHistoryHtml = renderCallHistory(a); });
+            renderRequests();
+            if (filter === 'approved') { renderTodayAndUpcoming(); return; }
+            let rows = appointments.filter(a => filter === 'history' ? ['completed', 'cancelled', 'declined', 'no_show'].includes(a.status) : a.status === filter); 
+            $('sessions').innerHTML = rows.length ? rows.map(a => {
+                const isRinging = a._callStatus && a._callStatus.status === 'initiated' && !a._callStatus.userConnected;
+                const badge = isRinging ? '<div class="call-ringing-badge"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7.5C3.9 9.1 3.7 11 4.4 12.8l1.3 3.1a2 2 0 0 0 2.5 1.1l2.1-.8a2 2 0 0 0 1.2-2.2l-.3-1.7a2 2 0 0 1 1.6 0l-.3 1.7a2 2 0 0 0 1.2 2.2l2.1.8a2 2 0 0 0 2.5-1.1l1.3-3.1c.7-1.8.5-3.7-.6-5.3C16.2 5.8 7.8 5.8 5 7.5Z"/></svg> Call ringing...</div>' : '';
+                return `<article class="session-card"><h3>${a.userName || 'User'}</h3><span class="session-status ${isRinging ? 'ringing' : ''}">${a.status}</span><p class="session-meta">${fmt(a.start)} · ${a.duration} minutes<br>${a.reason || 'Counseling session'}</p>${filter === 'pending' ? `<div class="session-actions"><button class="provider-button" onclick="decide('${a.id}','approved')">Approve</button><button class="provider-button secondary" onclick="decide('${a.id}','declined')">Decline</button></div>` : ''}${filter === 'approved' ? `<div class="session-actions"><button class="provider-button" onclick="startCall('${a.id}')">Call user</button><button class="provider-button secondary" onclick="decide('${a.id}','cancelled')">Cancel</button></div>` : ''}${badge}<textarea class="private-notes" id="notes-${a.id}" placeholder="Private provider notes">${a.providerNotes || ''}</textarea><div class="session-actions"><button class="provider-button secondary" onclick="saveNotes('${a.id}')">Save private notes</button>${filter === 'approved' ? `<button class="provider-button secondary" onclick="decide('${a.id}','completed')">Mark completed</button>` : ''}</div></article>`;
+            }).join('') : '<section class="provider-card"><p class="provider-subtitle">No sessions in this section.</p></section>' 
+        } async function decide(id, status) { let r = await fetch('/providers/api/appointments/' + id + '/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); toast(r.ok ? 'Appointment updated' : (await r.json()).error || 'Unable to update'); load() } async function saveNotes(id) { let r = await fetch('/providers/api/appointments/' + id + '/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: $('notes-' + id).value }) }); toast(r.ok ? 'Private notes saved' : 'Unable to save notes') }; document.querySelectorAll('.call-tab').forEach(b => b.onclick = () => { document.querySelectorAll('.call-tab').forEach(x => x.classList.remove('active')); b.classList.add('active'); filter = b.dataset.filter; render() });
+        async function acceptRequest(id) { const r = await fetch('/providers/api/appointments/' + id + '/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) }); toast(r.ok ? 'Appointment accepted' : (await r.json()).error || 'Unable to accept'); if (r.ok) { closeModal('requestsModal'); load(); } }
+        function beginDecline(id) { declineId = id; $('declineReason').value = ''; openModal('declineModal'); $('declineReason').focus(); }
+        $('confirmDecline').onclick = async () => { const reason = $('declineReason').value.trim(); if (!reason) { toast('A reason is required'); $('declineReason').focus(); return; } const r = await fetch('/providers/api/appointments/' + declineId + '/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'declined', declineReason: reason }) }); toast(r.ok ? 'Appointment declined' : (await r.json()).error || 'Unable to decline'); if (r.ok) { closeModal('declineModal'); closeModal('requestsModal'); load(); } };
+        if (new URLSearchParams(location.search).get('open') === 'requests') openModal('requestsModal');
+        async function startCall(id) {
+            // Provider tab handles offer creation directly.
+            const videoCallUrl = `/video/${id}?role=provider`;
+            window.open(videoCallUrl, `menti-call-${id}`, 'width=1280,height=720');
+        } async function sendSignal(body) { await fetch('/api/video/' + activePeer + '/signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) } async function pollSignal() { if (!activePeer) return; let s = await (await fetch('/api/video/' + activePeer + '/signal')).json(); if (s.answer && pc && !pc.currentRemoteDescription) await pc.setRemoteDescription(s.answer); let c = (s.userCandidates || []).slice(lastCandidates); lastCandidates += c.length; for (let x of c) try { await pc.addIceCandidate(x) } catch (_) { } if (activePeer) setTimeout(pollSignal, 1500) } function endCall() { if (localStream) localStream.getTracks().forEach(t => t.stop()); if (pc) pc.close(); pc = null; activePeer = null; lastCandidates = 0; $('callWindow').classList.remove('open') } $('hangup').onclick = endCall; window.callStartTime = null;
+        let statusStream = null;
+        let statusFallbackPoll = null;
+        function applyStatusUpdate(update) {
+            if (!update || !update.appointmentId) return;
+            const target = appointments.find(a => a.id === update.appointmentId);
+            if (!target) return;
+            target._callStatus = update;
+            render();
+        }
+        function startStatusFallbackPoll() {
+            if (statusFallbackPoll) return;
+            statusFallbackPoll = setInterval(() => {
+                for (let a of appointments) {
+                    if (a.status === 'approved') {
+                        fetch(`/api/video/${a.id}/status`).then(r => r.json()).then(s => {
+                            if (JSON.stringify(a._callStatus) !== JSON.stringify(s)) {
+                                a._callStatus = s;
+                                render();
+                            }
+                        }).catch(() => {});
+                    }
+                }
+            }, 15000);
+        }
+        function startStatusStream() {
+            if (statusStream) return;
+            try {
+                statusStream = new EventSource('/providers/api/video-status-stream');
+                statusStream.addEventListener('status_update', (evt) => {
+                    try {
+                        applyStatusUpdate(JSON.parse(evt.data || '{}'));
+                    } catch (_) {}
+                });
+                statusStream.onerror = () => {
+                    try { statusStream.close(); } catch (_) {}
+                    statusStream = null;
+                    startStatusFallbackPoll();
+                };
+            } catch (_) {
+                startStatusFallbackPoll();
+            }
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                if (statusStream) {
+                    try { statusStream.close(); } catch (_) {}
+                    statusStream = null;
+                }
+            } else {
+                startStatusStream();
+            }
+        });
+        window.addEventListener('beforeunload', () => {
+            if (statusStream) {
+                try { statusStream.close(); } catch (_) {}
+                statusStream = null;
+            }
+            if (statusFallbackPoll) {
+                clearInterval(statusFallbackPoll);
+                statusFallbackPoll = null;
+            }
+        });
+        startStatusStream();
+        const durationObserver = new MutationObserver(() => {
+            document.querySelectorAll('#sessions .session-card').forEach((card, index) => {
+                const notes = card.querySelector('.private-notes');
+                const appointment = notes && appointments.find(a => a.id === notes.id.replace('notes-', ''));
+                if (!appointment) return;
+                if (appointment.callHistory && appointment.callHistory.length && !card.querySelector('.call-history')) {
+                    const history = document.createElement('div');
+                    history.className = 'call-history';
+                    const heading = document.createElement('strong');
+                    heading.textContent = 'Call history';
+                    history.appendChild(heading);
+                    appointment.callHistory.forEach(call => {
+                        const item = document.createElement('div'); item.className = 'call-history-item';
+                        item.innerHTML = `<span>Started: ${call.startedAt ? fmt(call.startedAt) : '—'}</span><span>Ended: ${call.endedAt ? fmt(call.endedAt) : 'In progress'}</span><span>Duration: ${call.duration !== null && call.duration !== undefined ? formatCallDuration(call.duration).replace('Call lasted ', '') : '—'}</span>`;
+                        history.appendChild(item);
+                    });
+                    notes.parentNode.insertBefore(history, notes);
+                }
+                if (appointment.callDurationSeconds === undefined || card.querySelector('.call-duration')) return;
+                const meta = card.querySelector('.session-meta');
+                if (!meta) return;
+                const line = document.createElement('br');
+                const label = document.createElement('span');
+                label.className = 'call-duration';
+                label.textContent = formatCallDuration(appointment.callDurationSeconds);
+                meta.append(line, label);
+            });
+        });
+        durationObserver.observe($('sessions'), { childList: true, subtree: true });
+        $('createSession').onclick = async () => { let start = $('manualStart').value, d = +$('manualDuration').value, end = new Date(new Date(start + '+08:00').getTime() + d * 60000).toISOString(); let r = await fetch('/providers/api/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: $('manualEmail').value, start: start + '+08:00', end, duration: d }) }); toast(r.ok ? 'Session created' : (await r.json()).error || 'Unable to create session'); if (r.ok) { closeModal('createModal'); load() } }; load();
+    </script>
+    <script>
+        // No-show is always a deliberate provider action; never infer it from time alone.
+        async function markNoShow(id) {
+            if (!window.confirm('Mark this appointment as no-show? This should only be used when the user did not attend.')) return;
+            await decide(id, 'no_show');
+        }
+
+        const noShowActionObserver = new MutationObserver(() => {
+            if (filter !== 'approved') return;
+            document.querySelectorAll('#sessions .session-card').forEach(card => {
+                if (card.querySelector('.mark-no-show')) return;
+                const notes = card.querySelector('.private-notes');
+                const actionGroup = card.querySelector('.session-actions');
+                if (!notes || !actionGroup) return;
+                const appointmentId = notes.id.replace(/^notes-/, '');
+                if (!appointmentId) return;
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'provider-button danger-secondary mark-no-show';
+                button.textContent = 'Mark as no-show';
+                button.onclick = () => markNoShow(appointmentId);
+                actionGroup.appendChild(button);
+            });
+        });
+        noShowActionObserver.observe(document.getElementById('sessions'), { childList: true, subtree: true });
+
+        let cancellationAppointmentId = null;
+        function beginCancel(id) {
+            cancellationAppointmentId = id;
+            document.getElementById('cancellationReason').value = '';
+            openModal('cancelModal');
+            document.getElementById('cancellationReason').focus();
+        }
+        document.getElementById('confirmCancel').onclick = async () => {
+            const reason = document.getElementById('cancellationReason').value.trim();
+            if (!reason) {
+                toast('A cancellation reason is required');
+                document.getElementById('cancellationReason').focus();
+                return;
+            }
+            const response = await fetch('/providers/api/appointments/' + cancellationAppointmentId + '/decision', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'cancelled', cancellationReason: reason })
+            });
+            toast(response.ok ? 'Appointment cancelled' : ((await response.json()).error || 'Unable to cancel appointment'));
+            if (response.ok) {
+                closeModal('cancelModal');
+                load();
+            }
+        };
+
+        const cancelActionObserver = new MutationObserver(() => {
+            document.querySelectorAll('#sessions .session-card').forEach(card => {
+                const cancelButton = [...card.querySelectorAll('button')].find(button => button.textContent.trim() === 'Cancel');
+                const notes = card.querySelector('.private-notes');
+                if (!cancelButton || !notes || cancelButton.dataset.reasonModalAttached) return;
+                const appointmentId = notes.id.replace(/^notes-/, '');
+                cancelButton.textContent = 'Cancel appointment';
+                cancelButton.classList.add('danger-secondary');
+                cancelButton.removeAttribute('onclick');
+                cancelButton.onclick = () => beginCancel(appointmentId);
+                cancelButton.dataset.reasonModalAttached = 'true';
+            });
+        });
+        cancelActionObserver.observe(document.getElementById('sessions'), { childList: true, subtree: true });
+
+        function enhanceSessionActions() {
+            if (filter !== 'approved') return;
+            document.querySelectorAll('#sessions .session-card').forEach(card => {
+                const notes = card.querySelector('.private-notes');
+                const actionGroup = card.querySelector('.session-actions');
+                if (!notes || !actionGroup) return;
+                const appointmentId = notes.id.replace(/^notes-/, '');
+                const callButton = [...actionGroup.querySelectorAll('button')].find(button => button.textContent.trim() === 'Call user');
+                if (callButton && !callButton.classList.contains('call-button')) {
+                    callButton.classList.add('call-button');
+                    callButton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg><span>Call user</span>';
+                }
+                const cancelButton = [...actionGroup.querySelectorAll('button')].find(button => button.textContent.trim() === 'Cancel appointment');
+                const noShowButton = [...actionGroup.querySelectorAll('button')].find(button => button.textContent.trim() === 'Mark as no-show');
+                if (!cancelButton && !noShowButton) return;
+                if (actionGroup.querySelector('.session-menu')) return;
+                if (cancelButton) cancelButton.style.display = 'none';
+                if (noShowButton) noShowButton.style.display = 'none';
+                let menu = actionGroup.querySelector('.session-menu');
+                if (!menu) {
+                    menu = document.createElement('div');
+                    menu.className = 'session-menu';
+                    actionGroup.appendChild(menu);
+                }
+                menu.innerHTML = '<button type="button" class="session-menu-trigger" aria-label="More appointment actions" aria-expanded="false">&middot;&middot;&middot;</button><div class="session-menu-panel" role="menu"></div>';
+                const panel = menu.querySelector('.session-menu-panel');
+                if (cancelButton) {
+                    const cancel = document.createElement('button');
+                    cancel.type = 'button'; cancel.className = 'session-menu-item danger'; cancel.textContent = 'Cancel appointment';
+                    cancel.onclick = () => { menu.classList.remove('open'); beginCancel(appointmentId); };
+                    panel.appendChild(cancel);
+                }
+                if (noShowButton) {
+                    const noShow = document.createElement('button');
+                    noShow.type = 'button'; noShow.className = 'session-menu-item danger'; noShow.textContent = 'Mark as no-show';
+                    noShow.onclick = () => { menu.classList.remove('open'); markNoShow(appointmentId); };
+                    panel.appendChild(noShow);
+                }
+                menu.querySelector('.session-menu-trigger').onclick = event => {
+                    event.stopPropagation();
+                    document.querySelectorAll('.session-menu.open').forEach(item => item !== menu && item.classList.remove('open'));
+                    menu.classList.toggle('open');
+                    menu.querySelector('.session-menu-trigger').setAttribute('aria-expanded', menu.classList.contains('open'));
+                };
+            });
+        }
+        const sessionActionObserver = new MutationObserver(enhanceSessionActions);
+        sessionActionObserver.observe(document.getElementById('sessions'), { childList: true, subtree: true });
+        document.addEventListener('click', () => document.querySelectorAll('.session-menu.open').forEach(menu => menu.classList.remove('open')));
+    </script>
+</body>
+
+</html>
+<script>document.querySelectorAll('.provider-nav[href="/providers/profile"] span').forEach(s => s.textContent = 'Profile Settings');</script>
+<script>const providerMenu = document.querySelector('.provider-profile-menu'); if (providerMenu) { providerMenu.innerHTML = '<a href="/providers/profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profile Settings</a><button class="logout" id="menuLogout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17l5-5-5-5M15 12H3"/><path d="M21 19V5a2 2 0 0 0-2-2h-6"/></svg>Log out</button>'; document.getElementById('menuLogout').onclick = async () => { await fetch('/providers/logout', { method: 'POST' }); location = '/providers/login' } };</script>
+<script>const MentiNativePeer = window.RTCPeerConnection; window.RTCPeerConnection = function (c) { c = c || {}; c.iceServers = {{ rtc_ice_servers | tojson }}; return new MentiNativePeer(c)}; window.RTCPeerConnection.prototype = MentiNativePeer.prototype;</script>
