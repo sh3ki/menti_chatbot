@@ -1,0 +1,531 @@
+/**
+ * Professional Call UI Styles
+ * - Incoming call modal
+ * - In-call interface
+ * - Mobile responsive
+ * Follows Zoom/Google Meet design patterns
+ */
+
+/* ============ INCOMING CALL MODAL ============ */
+
+.menti-call-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.menti-call-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.menti-call-container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+}
+
+.menti-call-inner {
+  background: linear-gradient(135deg, #ffffff 0%, #f9f9f9 100%);
+  border-radius: 24px;
+  padding: 40px 28px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Avatar - Large Professional Style */
+.menti-call-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2c5e31 0%, #1e4620 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  font-weight: 700;
+  margin: 0 auto 24px;
+  box-shadow: 0 10px 30px rgba(44, 94, 49, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 10px 30px rgba(44, 94, 49, 0.3);
+  }
+  50% {
+    box-shadow: 0 10px 40px rgba(44, 94, 49, 0.5);
+  }
+}
+
+/* Caller Info */
+.menti-call-info {
+  margin-bottom: 20px;
+}
+
+.menti-call-name {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f0f0f;
+  margin: 0 0 8px 0;
+}
+
+.menti-call-role {
+  font-size: 16px;
+  color: #2c5e31;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.menti-call-status {
+  font-size: 14px;
+  color: #718076;
+  margin: 0;
+  animation: blink 2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Session Details */
+.menti-call-details {
+  background: rgba(44, 94, 49, 0.08);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.menti-detail-item {
+  font-size: 13px;
+  color: #2c5e31;
+  font-weight: 500;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.menti-detail-icon {
+  width: 16px;
+  height: 16px;
+  color: #2c5e31;
+}
+
+/* Action Buttons */
+.menti-call-actions {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.menti-call-action-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.menti-call-action-label {
+  font-size: 12px;
+  color: #5a6a60;
+  font-weight: 600;
+}
+
+.menti-call-btn {
+  border: 0;
+  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.menti-call-icon {
+  width: 25px;
+  height: 25px;
+  display: inline-flex;
+}
+
+.menti-call-icon svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.menti-call-accept {
+  background: #2c5e31;
+  color: #fff;
+}
+
+.menti-call-accept:hover {
+  background: #1e4620;
+  box-shadow: 0 6px 16px rgba(44, 94, 49, 0.4);
+  transform: scale(1.05);
+}
+
+.menti-call-accept:active {
+  transform: scale(0.95);
+}
+
+.menti-call-decline {
+  background: #fff;
+  color: #e53935;
+  border: 2px solid #e53935;
+}
+
+.menti-call-decline:hover {
+  background: #ffebee;
+  box-shadow: 0 6px 16px rgba(229, 57, 53, 0.2);
+  transform: scale(1.05);
+}
+
+.menti-call-decline:active {
+  transform: scale(0.95);
+}
+
+/* Countdown Timer */
+.menti-call-timer {
+  font-size: 13px;
+  color: #718076;
+  font-weight: 500;
+}
+
+.menti-call-timer span {
+  font-weight: 700;
+  color: #e53935;
+}
+
+/* ============ IN-CALL INTERFACE ============ */
+
+.menti-call-interface {
+  position: fixed;
+  inset: 0;
+  background: #0a0a0a;
+  z-index: 9998;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Video Container */
+.menti-video-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.menti-video-remote {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.menti-video-local {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 140px;
+  height: 200px;
+  border-radius: 12px;
+  background: #1a1a1a;
+  object-fit: cover;
+  border: 3px solid #2c5e31;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Call Info Header */
+.menti-call-header {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menti-call-header-info {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.menti-call-header-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2c5e31 0%, #1e4620 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.menti-call-header-details h3 {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.menti-call-header-details p {
+  color: #aaa;
+  font-size: 12px;
+  margin: 4px 0 0 0;
+}
+
+.menti-call-timer-display {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Monaco', 'Courier', monospace;
+}
+
+/* Control Bar */
+.menti-call-controls {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menti-control-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.menti-control-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.menti-control-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.08);
+}
+
+.menti-control-btn:active {
+  transform: scale(0.95);
+}
+
+.menti-control-btn.active {
+  background: #2c5e31;
+}
+
+.menti-control-btn.active:hover {
+  background: #1e4620;
+}
+
+.menti-control-btn.menti-hangup {
+  background: #e53935;
+}
+
+.menti-control-btn.menti-hangup:hover {
+  background: #c62828;
+  transform: scale(1.08);
+}
+
+.menti-control-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.menti-control-btn.disabled:hover {
+  transform: none;
+}
+
+/* Status Labels */
+.menti-control-label {
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 4px;
+  text-align: center;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .menti-call-inner {
+    padding: 32px 20px;
+    max-width: 90vw;
+  }
+
+  .menti-call-avatar {
+    width: 80px;
+    height: 80px;
+    font-size: 36px;
+    margin-bottom: 18px;
+  }
+
+  .menti-call-name {
+    font-size: 24px;
+  }
+
+  .menti-call-btn {
+    width: 56px;
+    height: 56px;
+  }
+
+  .menti-call-btn svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .menti-video-local {
+    width: 100px;
+    height: 140px;
+    bottom: 80px;
+    right: 12px;
+  }
+
+  .menti-call-controls {
+    gap: 8px;
+  }
+
+  .menti-control-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .menti-control-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .menti-call-inner {
+    padding: 28px 16px;
+  }
+
+  .menti-call-avatar {
+    width: 70px;
+    height: 70px;
+    font-size: 32px;
+  }
+
+  .menti-call-name {
+    font-size: 22px;
+  }
+
+  .menti-call-role {
+    font-size: 14px;
+  }
+
+  .menti-call-btn {
+    width: 52px;
+    height: 52px;
+  }
+
+  .menti-call-actions {
+    gap: 8px;
+  }
+}
+
+/* Animations */
+@keyframes ring {
+  0%, 100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
+.menti-call-avatar.ringing {
+  animation: ring 0.5s ease-in-out infinite, pulse 2s ease-in-out infinite;
+}
+
+/* Status Badge */
+.menti-status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.menti-status-calling {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.menti-status-ringing {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+  animation: blink 1s ease-in-out infinite;
+}
+
+.menti-status-connected {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
