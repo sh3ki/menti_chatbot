@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/dark-mode.css">
+    <link rel="stylesheet" href="/static/css/call-ui.css">
     <style>
         * {
             margin: 0;
@@ -48,6 +49,14 @@
             display: flex;
             align-items: center;
             gap: 12px;
+        }
+
+        .header-brand-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: inherit;
+            text-decoration: none;
         }
 
         .header-logo {
@@ -693,9 +702,18 @@
         }
 
         .message.user .message-avatar {
-            background: #2C5E31;
-            color: #FFFFFF;
-            border: 2px solid #2C5E31;
+             background: #2C5E31;
+             color: #FFFFFF;
+             border: 2px solid #2C5E31;
+         }
+
+        /* Keep user photos framed like the profile dropdown instead of using
+           their natural image dimensions inside the small avatar circle. */
+        .message.user .message-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
         }
 
         .message.user .message-avatar svg {
@@ -1276,7 +1294,7 @@
             padding: 30px;
             border-radius: 16px;
             width: 90%;
-            max-width: 800px;
+            max-width: 900px;
             max-height: 80vh;
             overflow-y: auto;
         }
@@ -1287,6 +1305,47 @@
             font-size: 24px;
             font-weight: 700;
         }
+
+        .chat-options-section {
+            margin-bottom: 24px;
+            padding: 18px;
+            border: 1px solid #E5E5E5;
+            border-radius: 12px;
+            background: #FAFAFA;
+        }
+
+        .chat-options-section h3 { margin: 0 0 14px; color: #2C5E31; font-size: 16px; }
+        .voice-response-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #28282B; font-size: 14px; }
+        .voice-response-row label { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+        .voice-response-row small { color: #777; }
+        .voice-response-switch { width: 46px; height: 26px; accent-color: #4FA858; cursor: pointer; }
+        .voice-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+        .voice-option { padding: 9px 12px; border: 1px solid #D9D9D9; border-radius: 8px; background: #FFFFFF; color: #2C5E31; cursor: pointer; font-size: 13px; font-weight: 500; font-family: inherit; }
+        .voice-option.active, .voice-option:hover { border-color: #4FA858; background: #E8F5E9; }
+
+        .chat-options-list { display: grid; gap: 12px; }
+        .chat-option-button { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; border: 1px solid #E0E0E0; border-radius: 12px; background: #FFFFFF; color: #2C5E31; cursor: pointer; text-align: left; font: inherit; transition: all 0.2s ease; }
+        .chat-option-button:hover { border-color: #4FA858; background: #E8F5E9; transform: translateY(-1px); }
+        .chat-option-button svg { width: 22px; height: 22px; flex: 0 0 auto; }
+        .chat-option-button span { display: flex; flex-direction: column; gap: 3px; }
+        .chat-option-button strong { font-size: 15px; }
+        .chat-option-button small { color: #777; font-size: 12px; }
+
+        .chat-options-popup { left: auto; top: auto; width: auto; height: auto; background: transparent; pointer-events: none; }
+        .chat-options-popup.show { display: block; }
+        .chat-options-popup .themes-modal-content { pointer-events: auto; padding: 20px; box-shadow: 0 10px 30px rgba(15, 15, 15, 0.18); }
+        .chat-options-popup h2 { margin-bottom: 16px; font-size: 20px; }
+
+        .music-category-select { width: 100%; padding: 11px 12px; border: 1px solid #D9D9D9; border-radius: 8px; background: #FFFFFF; color: #28282B; font: inherit; }
+        .music-list { display: grid; gap: 8px; max-height: 300px; overflow-y: auto; margin-top: 16px; }
+        .music-track { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #E3E3E3; border-radius: 9px; background: #FFFFFF; }
+        .music-track.selected { border-color: #4FA858; background: #E8F5E9; }
+        .music-track-title { flex: 1; min-width: 0; color: #28282B; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .music-track button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: #F0F0F0; color: #2C5E31; cursor: pointer; }
+        .music-track button:hover { background: #DDEFE0; }
+        .music-select-button { padding: 8px 12px; border: 1px solid #4FA858; border-radius: 7px; background: #FFFFFF; color: #2C5E31; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; }
+        .music-track.selected .music-select-button { background: #2C5E31; color: #FFFFFF; }
+        .music-empty { padding: 18px 8px; color: #777; text-align: center; font-size: 13px; }
 
         .themes-grid {
             display: grid;
@@ -2048,6 +2107,78 @@
             border-color: #2F2F2F;
             background: #D8D8D8;
         }
+
+        /* Dark mode chat surfaces. These rules come after all pastel theme
+           rules so every theme keeps its accent colors while its surfaces,
+           text, input, and controls remain readable. */
+        body.dark-mode .chat-container { background: var(--chat-dark-surface, #202020); color: #F5F5F5; box-shadow: 0 4px 24px rgba(0,0,0,.35); }
+        body.dark-mode .chat-container .chat-messages { background: var(--chat-dark-messages, #171717) !important; color: #F5F5F5; }
+        body.dark-mode .chat-container .message.bot .message-content { background: var(--chat-dark-bot, #303030) !important; color: #F5F5F5 !important; border-color: var(--chat-dark-border, #4A4A4A) !important; }
+        body.dark-mode .chat-container .message.user .message-content { background: var(--chat-dark-user, #394B3B) !important; color: #FFFFFF !important; }
+        body.dark-mode .chat-container .message.bot .message-avatar { background: var(--chat-dark-surface, #2A2A2A); border-color: var(--chat-dark-border, #4A4A4A); }
+        body.dark-mode .chat-container .message.bot .message-avatar img { content: url('/static/menti%20logo%20dark.png'); }
+        body.dark-mode .chat-container .emotion-tag,
+        body.dark-mode .chat-container .message-speaker-btn { color: #8FD596; }
+
+        body.dark-mode .chat-container .chat-input-container { background: var(--chat-dark-surface, #202020); border-top-color: var(--chat-dark-border, #3A3A3A); }
+        body.dark-mode .chat-container .chat-input { background: var(--chat-dark-input, #2A2A2A) !important; color: #F5F5F5 !important; border-color: var(--chat-dark-border, #505050) !important; }
+        body.dark-mode .chat-container .chat-input::placeholder { color: #A8A8A8; opacity: 1; }
+        body.dark-mode .chat-container .chat-input:focus { background: #303030 !important; border-color: #4FA858 !important; }
+        body.dark-mode .chat-container .theme-btn,
+        body.dark-mode .chat-container .voice-btn { background: var(--chat-dark-input, #2A2A2A); color: var(--chat-dark-accent, #A0D8A0); border-color: var(--chat-dark-border, #505050); }
+        body.dark-mode .chat-container .theme-btn:hover,
+        body.dark-mode .chat-container .voice-btn:hover:not(:disabled) { background: var(--chat-dark-hover, #1F3A21); border-color: var(--chat-dark-accent, #4FA858); }
+        body.dark-mode .chat-container .typing-indicator { background: #303030; color: #F5F5F5; border-color: #4A4A4A; }
+
+        body.dark-mode .chat-container .mode-card,
+        body.dark-mode .chat-container .mode-card-small { background: #292929; color: #F5F5F5; border-color: #4A4A4A; }
+        body.dark-mode .chat-container .mode-card-name,
+        body.dark-mode .chat-container .mode-card-small .mode-card-name { color: #A0D8A0; }
+        body.dark-mode .chat-container .mode-card-preview,
+        body.dark-mode .chat-container .mode-card-bullets { color: #C8C8C8; }
+        body.dark-mode .chat-container .mode-card:hover,
+        body.dark-mode .chat-container .mode-card-small:hover { background: #343434; border-color: #4FA858; }
+        body.dark-mode .chat-container .mode-card.active,
+        body.dark-mode .chat-container .mode-card-small.active { background: #1F3A21; border-color: #4FA858; }
+
+        /* Preserve each selected theme's hue in dark mode. */
+        body.dark-mode .chat-container.theme-lavender { --chat-dark-surface: #282333; --chat-dark-messages: #211C2B; --chat-dark-bot: #3A2E50; --chat-dark-user: #66558B; --chat-dark-input: #30283F; --chat-dark-border: #66558B; --chat-dark-accent: #C8B7FF; --chat-dark-hover: #463866; }
+        body.dark-mode .chat-container.theme-mint { --chat-dark-surface: #1F302D; --chat-dark-messages: #192622; --chat-dark-bot: #2C4941; --chat-dark-user: #397466; --chat-dark-input: #253B36; --chat-dark-border: #4C8B7C; --chat-dark-accent: #A6E8D6; --chat-dark-hover: #315B51; }
+        body.dark-mode .chat-container.theme-peach { --chat-dark-surface: #33251F; --chat-dark-messages: #281D19; --chat-dark-bot: #4A3024; --chat-dark-user: #89563F; --chat-dark-input: #3C2921; --chat-dark-border: #9A6248; --chat-dark-accent: #FFD0B8; --chat-dark-hover: #603D2E; }
+        body.dark-mode .chat-container.theme-sky { --chat-dark-surface: #202C3A; --chat-dark-messages: #19232E; --chat-dark-bot: #2D4358; --chat-dark-user: #416C94; --chat-dark-input: #263746; --chat-dark-border: #527FA8; --chat-dark-accent: #B7DCFF; --chat-dark-hover: #34536F; }
+        body.dark-mode .chat-container.theme-yellow { --chat-dark-surface: #302D1F; --chat-dark-messages: #262319; --chat-dark-bot: #494329; --chat-dark-user: #806F32; --chat-dark-input: #393521; --chat-dark-border: #8D7C3A; --chat-dark-accent: #F8E89A; --chat-dark-hover: #5A5028; }
+        body.dark-mode .chat-container.theme-rose { --chat-dark-surface: #33232D; --chat-dark-messages: #281B23; --chat-dark-bot: #4B2F40; --chat-dark-user: #824D6B; --chat-dark-input: #3C2734; --chat-dark-border: #965D7D; --chat-dark-accent: #FFC0DE; --chat-dark-hover: #623A52; }
+        body.dark-mode .chat-container.theme-seafoam { --chat-dark-surface: #1D302F; --chat-dark-messages: #182624; --chat-dark-bot: #294744; --chat-dark-user: #397A73; --chat-dark-input: #243A38; --chat-dark-border: #4B938A; --chat-dark-accent: #A9EEE5; --chat-dark-hover: #315E59; }
+        body.dark-mode .chat-container.theme-coral { --chat-dark-surface: #33241F; --chat-dark-messages: #281D19; --chat-dark-bot: #4A3028; --chat-dark-user: #8A5541; --chat-dark-input: #3D2A22; --chat-dark-border: #A1664F; --chat-dark-accent: #FFD0BD; --chat-dark-hover: #613D31; }
+        body.dark-mode .chat-container.theme-cream { --chat-dark-surface: #2D2D29; --chat-dark-messages: #242421; --chat-dark-bot: #414139; --chat-dark-user: #6E6E5D; --chat-dark-input: #363631; --chat-dark-border: #85856F; --chat-dark-accent: #E8E8C8; --chat-dark-hover: #51513F; }
+        body.dark-mode .chat-container.theme-gray { --chat-dark-surface: #292929; --chat-dark-messages: #202020; --chat-dark-bot: #3A3A3A; --chat-dark-user: #606060; --chat-dark-input: #303030; --chat-dark-border: #686868; --chat-dark-accent: #D0D0D0; --chat-dark-hover: #4A4A4A; }
+
+        /* Chat options, theme picker, voice response, and music picker. */
+        body.dark-mode .themes-modal-content { background: #292929; color: #F5F5F5; border: 1px solid #444444; }
+        body.dark-mode .themes-modal-content h2,
+        body.dark-mode .theme-name { color: #F5F5F5; }
+        body.dark-mode .chat-options-section { background: #202020; border-color: #444444; }
+        body.dark-mode .voice-response-row,
+        body.dark-mode .voice-response-row small { color: #E5E5E5; }
+        body.dark-mode .chat-option-button,
+        body.dark-mode .theme-card,
+        body.dark-mode .music-track { background: #303030; color: #F5F5F5; border-color: #4A4A4A; }
+        body.dark-mode .chat-option-button small,
+        body.dark-mode .music-empty,
+        body.dark-mode .music-track-title { color: #C8C8C8; }
+        body.dark-mode .chat-option-button:hover,
+        body.dark-mode .theme-card:hover { background: #1F3A21; border-color: #4FA858; }
+        body.dark-mode .theme-card.active,
+        body.dark-mode .music-track.selected { background: #1F3A21; border-color: #4FA858; }
+        body.dark-mode .music-category-select,
+        body.dark-mode .music-track button,
+        body.dark-mode .music-select-button { background: #303030; color: #F5F5F5; border-color: #505050; }
+        body.dark-mode .music-track button:hover,
+        body.dark-mode .music-select-button:hover { background: #3A3A3A; border-color: #4FA858; }
+        body.dark-mode .chat-options-popup { background: transparent !important; }
+        body.dark-mode .chat-options-popup .themes-modal-content { box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+        body.dark-mode .themes-modal-content .rename-cancel-btn { background: #3A3A3A; color: #F5F5F5; border: 1px solid #555555; }
+        body.dark-mode .themes-modal-content .rename-cancel-btn:hover { background: #4A4A4A; border-color: #707070; }
     </style>
 </head>
 <body>
@@ -2059,8 +2190,10 @@
                     <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
                 </svg>
             </button>
-            <img src="/static/menti logo.png" alt="Menti Logo" class="header-logo">
-            <h1>Menti</h1>
+            <a href="/chat-page" class="header-brand-link" id="headerBrandLink" aria-label="Menti chat home">
+                <img src="/static/menti logo.png" alt="Menti Logo" class="header-logo">
+                <h1>Menti</h1>
+            </a>
         </div>
 
         <!-- Mode selector — shown in the header once a chat is active -->
@@ -2119,6 +2252,10 @@
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                         Profile Settings
                     </a>
+                    <a class="profile-dropdown-item" href="/counseling-appointments">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h5v5H7v-5z"/></svg>
+                        Counseling Sessions
+                    </a>
                     <div class="profile-dropdown-divider"></div>
                     <button class="profile-dropdown-item profile-dropdown-logout" id="logoutBtn">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
@@ -2153,6 +2290,30 @@
         </div>
     </div>
 
+    <!-- Chat Options Menu Modal -->
+    <div id="chatOptionsModal" class="themes-modal chat-options-popup">
+        <div class="themes-modal-content" style="max-width: 420px;">
+            <h2>Chat Options</h2>
+            <div class="chat-options-list">
+                <button type="button" class="chat-option-button" id="openThemeOptionBtn">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    <span><strong>Chat Theme</strong><small>Choose the look and feel of your chat.</small></span>
+                </button>
+                <button type="button" class="chat-option-button" id="openVoiceOptionBtn">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                    <span><strong>Voice Response</strong><small>Turn spoken replies on or off.</small></span>
+                </button>
+                <button type="button" class="chat-option-button" id="openMusicOptionBtn">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+                    <span><strong>Background Music</strong><small>Choose calming music to play in a loop.</small></span>
+                </button>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="rename-cancel-btn" onclick="closeChatOptionsModal()" style="padding: 10px 20px; border-radius: 8px; font-size: 14px;">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Themes Modal -->
     <div id="themesModal" class="themes-modal">
         <div class="themes-modal-content">
@@ -2162,6 +2323,42 @@
             </div>
             <div style="text-align: right;">
                 <button class="rename-cancel-btn" onclick="closeThemesModal()" style="padding: 12px 24px; border-radius: 8px; font-size: 14px;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice Response Modal -->
+    <div id="voiceModal" class="themes-modal">
+        <div class="themes-modal-content" style="max-width: 520px;">
+            <h2>Voice Response</h2>
+            <div class="chat-options-section">
+                <div class="voice-response-row">
+                    <label for="voiceResponseToggle">
+                        <span>Read Menti's replies aloud</span>
+                        <small>Enable or disable automatic voice responses.</small>
+                    </label>
+                    <input class="voice-response-switch" type="checkbox" id="voiceResponseToggle" aria-label="Toggle voice response">
+                </div>
+                <div class="voice-options" id="voiceOptions" aria-label="Choose voice"></div>
+            </div>
+            <div style="text-align: right;">
+                <button class="rename-cancel-btn" onclick="closeVoiceModal()" style="padding: 12px 24px; border-radius: 8px; font-size: 14px;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Background Music Modal -->
+    <div id="musicModal" class="themes-modal">
+        <div class="themes-modal-content" style="max-width: 560px;">
+            <h2>Background Music</h2>
+            <select id="musicCategorySelect" class="music-category-select" aria-label="Choose music category"></select>
+            <div id="musicList" class="music-list"></div>
+            <div style="display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;">
+                <button type="button" class="music-select-button" id="shuffleMusicBtn">🔀 Shuffle All Categories</button>
+                <button type="button" class="music-select-button" id="turnOffMusicBtn">🔇 Turn Off Music</button>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="rename-cancel-btn" onclick="closeMusicModal()" style="padding: 12px 24px; border-radius: 8px; font-size: 14px;">Close</button>
             </div>
         </div>
     </div>
@@ -2285,14 +2482,11 @@
                     placeholder="Type your message here..."
                     autocomplete="off"
                 >
-                <button class="theme-btn" id="themesBtn" title="Choose chat theme" onclick="openThemesModal()">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                <button class="theme-btn" id="chatOptionsBtn" title="Chat options" aria-label="Open chat options" onclick="openChatOptionsModal()">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
                 </button>
                 <button class="voice-btn" id="voiceMicBtn" title="Click to record your message">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3z"/><path d="M17 16.91c-1.48 1.46-3.51 2.36-5.77 2.36-2.26 0-4.29-.9-5.77-2.36M19 12h2c0 .91-.24 1.75-.67 2.5M4 12H2c0-.91.24-1.75.67-2.5M12 20v2M12 4V2"/></svg>
-                </button>
-                <button class="voice-btn" id="voiceSpeakerBtn" title="Toggle voice response">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
                 </button>
                 <button class="send-btn" id="sendBtn">Send</button>
             </div>
@@ -2333,11 +2527,20 @@
         const newChatBtn = document.getElementById('newChatBtn');
         const contextMenu = document.getElementById('contextMenu');
         const renameModal = document.getElementById('renameModal');
+        const chatOptionsModal = document.getElementById('chatOptionsModal');
         const themesModal = document.getElementById('themesModal');
+        const voiceModal = document.getElementById('voiceModal');
+        const musicModal = document.getElementById('musicModal');
+        const musicCategorySelect = document.getElementById('musicCategorySelect');
+        const musicList = document.getElementById('musicList');
+        const shuffleMusicBtn = document.getElementById('shuffleMusicBtn');
+        const turnOffMusicBtn = document.getElementById('turnOffMusicBtn');
         const themesGrid = document.getElementById('themesGrid');
         const chatContainer = document.querySelector('.chat-container');
+        const headerBrandLink = document.getElementById('headerBrandLink');
 
         let currentUser = null;
+        let currentPhotoURL = '';
         let conversations = [];
         let currentConversationId = null;
         let selectedChatId = null;
@@ -2347,6 +2550,51 @@
         let currentMode = 'friendly'; // Track selected conversation mode
         let currentResponseLength = 'short'; // 'short' or 'detailed'
         let currentTheme = 'default'; // Track current theme
+        const chatPageParams = new URLSearchParams(window.location.search);
+        let requestedConversationId = chatPageParams.get('conversation_id') || null;
+        const requestedArchivedView = chatPageParams.get('is_archived') === '1';
+        let anonymousBackNavigationConfigured = false;
+
+        async function redirectAnonymousToLanding(event) {
+            if (event) event.preventDefault();
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.warn('Could not sign out anonymous user before leaving chat:', error);
+            } finally {
+                window.location.replace('/');
+            }
+        }
+
+        function configureAnonymousNavigation() {
+            if (headerBrandLink) {
+                headerBrandLink.href = '/';
+                headerBrandLink.setAttribute('aria-label', 'Return to Menti landing page');
+                headerBrandLink.onclick = redirectAnonymousToLanding;
+            }
+
+            if (!anonymousBackNavigationConfigured) {
+                anonymousBackNavigationConfigured = true;
+                // Add a same-page history entry so browser Back is handled
+                // consistently even when the anonymous chat was opened directly.
+                window.history.pushState({ anonymousChat: true }, '', window.location.href);
+                window.addEventListener('popstate', () => {
+                    redirectAnonymousToLanding();
+                }, { once: true });
+            }
+        }
+
+        function configureAuthenticatedNavigation() {
+            if (headerBrandLink) {
+                headerBrandLink.href = '/chat-page';
+                headerBrandLink.setAttribute('aria-label', 'Menti chat home');
+                headerBrandLink.onclick = null;
+            }
+        }
+
+        if (requestedArchivedView) {
+            showingArchived = true;
+        }
 
         // ===== DARK MODE ===== 
         const darkModeToggle = document.getElementById('darkModeToggle');
@@ -2531,12 +2779,225 @@
             themesModal.classList.remove('show');
         };
 
+        window.openChatOptionsModal = function() {
+            const buttonRect = chatOptionsBtn.getBoundingClientRect();
+            chatOptionsModal.style.right = `${Math.max(12, window.innerWidth - buttonRect.right)}px`;
+            chatOptionsModal.style.bottom = `${Math.max(12, window.innerHeight - buttonRect.top + 8)}px`;
+            chatOptionsModal.classList.add('show');
+        };
+
+        window.closeChatOptionsModal = function() {
+            chatOptionsModal.classList.remove('show');
+        };
+
+        window.openVoiceModal = function() {
+            voiceModal.classList.add('show');
+        };
+
+        window.closeVoiceModal = function() {
+            voiceModal.classList.remove('show');
+        };
+
+        window.openMusicModal = function() {
+            closeChatOptionsModal();
+            musicModal.classList.add('show');
+        };
+
+        window.closeMusicModal = function() {
+            musicModal.classList.remove('show');
+        };
+
+        document.getElementById('openThemeOptionBtn').addEventListener('click', () => {
+            closeChatOptionsModal();
+            openThemesModal();
+        });
+
+        document.getElementById('openVoiceOptionBtn').addEventListener('click', () => {
+            closeChatOptionsModal();
+            openVoiceModal();
+        });
+
+        document.getElementById('openMusicOptionBtn').addEventListener('click', openMusicModal);
+
         // Close modal when clicking outside
         themesModal.addEventListener('click', (e) => {
             if (e.target === themesModal) {
                 closeThemesModal();
             }
         });
+
+        [chatOptionsModal, voiceModal, musicModal].forEach((modal) => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.remove('show');
+            });
+        });
+
+        let musicLibrary = {};
+        let allMusicTracks = [];
+        let previewAudio = null;
+        let previewTimer = null;
+        let backgroundMusic = null;
+        let selectedMusicUrl = localStorage.getItem('menti_background_music_url') || '';
+        let backgroundMusicMode = localStorage.getItem('menti_background_music_mode') || (selectedMusicUrl ? 'loop' : 'off');
+
+        window.addEventListener('pagehide', () => {
+            if (backgroundMusic && Number.isFinite(backgroundMusic.currentTime)) {
+                localStorage.setItem('menti_background_music_position', String(backgroundMusic.currentTime));
+                localStorage.setItem('menti_background_music_saved_at', String(Date.now()));
+            }
+        });
+
+        function stopMusicPreview() {
+            if (previewTimer) clearTimeout(previewTimer);
+            previewTimer = null;
+            if (previewAudio) {
+                previewAudio.pause();
+                previewAudio.currentTime = 0;
+                previewAudio = null;
+            }
+        }
+
+        function renderMusicTracks(category) {
+            const tracks = musicLibrary[category] || [];
+            musicList.innerHTML = '';
+            if (!tracks.length) {
+                musicList.innerHTML = '<div class="music-empty">No music found in this category.</div>';
+                return;
+            }
+
+            tracks.forEach((track) => {
+                const row = document.createElement('div');
+                row.className = `music-track${track.url === selectedMusicUrl ? ' selected' : ''}`;
+
+                const previewButton = document.createElement('button');
+                previewButton.type = 'button';
+                previewButton.title = 'Preview for 15 seconds';
+                previewButton.setAttribute('aria-label', `Preview ${track.title}`);
+                previewButton.textContent = '🔊';
+                previewButton.addEventListener('click', () => {
+                    stopMusicPreview();
+                    previewAudio = new Audio(track.url);
+                    previewAudio.volume = 0.45;
+                    previewAudio.play().catch(() => {});
+                    previewTimer = setTimeout(stopMusicPreview, 15000);
+                });
+
+                const title = document.createElement('span');
+                title.className = 'music-track-title';
+                title.textContent = track.title;
+
+                const selectButton = document.createElement('button');
+                selectButton.type = 'button';
+                selectButton.className = 'music-select-button';
+                selectButton.textContent = track.url === selectedMusicUrl ? 'Playing' : 'Select';
+                selectButton.addEventListener('click', () => {
+                    selectedMusicUrl = track.url;
+                    backgroundMusicMode = 'loop';
+                    localStorage.setItem('menti_background_music_url', selectedMusicUrl);
+                    localStorage.setItem('menti_background_music_mode', backgroundMusicMode);
+                    if (!backgroundMusic) backgroundMusic = new Audio();
+                    backgroundMusic.src = selectedMusicUrl;
+                    backgroundMusic.loop = true;
+                    backgroundMusic.volume = 0.25;
+                    backgroundMusic.play().catch(() => {});
+                    renderMusicTracks(category);
+                });
+
+                row.append(previewButton, title, selectButton);
+                musicList.appendChild(row);
+            });
+        }
+
+        async function loadMusicLibrary() {
+            try {
+                const response = await fetch('/api/music');
+                const data = await response.json();
+                musicLibrary = data.music || {};
+                allMusicTracks = Object.values(musicLibrary).flat();
+                musicCategorySelect.innerHTML = (data.categories || []).map(category =>
+                    `<option value="${category}">${category.charAt(0).toUpperCase() + category.slice(1)}</option>`
+                ).join('');
+                const savedCategory = localStorage.getItem('menti_background_music_category');
+                if (savedCategory && musicLibrary[savedCategory]) musicCategorySelect.value = savedCategory;
+                renderMusicTracks(musicCategorySelect.value);
+                if (backgroundMusicMode === 'shuffle') {
+                    const savedShuffleUrl = localStorage.getItem('menti_background_music_url');
+                    if (savedShuffleUrl && allMusicTracks.some(track => track.url === savedShuffleUrl)) {
+                        selectedMusicUrl = savedShuffleUrl;
+                        backgroundMusic = new Audio(savedShuffleUrl);
+                        backgroundMusic.loop = false;
+                        backgroundMusic.volume = 0.25;
+                        backgroundMusic.onended = playRandomBackgroundTrack;
+                        backgroundMusic.addEventListener('loadedmetadata', () => {
+                            const savedPosition = parseFloat(localStorage.getItem('menti_background_music_position') || '0');
+                            const savedAt = parseInt(localStorage.getItem('menti_background_music_saved_at') || '0', 10);
+                            if (savedPosition > 0 && backgroundMusic.duration) {
+                                const elapsed = savedAt ? Math.max(0, (Date.now() - savedAt) / 1000) : 0;
+                                backgroundMusic.currentTime = (savedPosition + elapsed) % backgroundMusic.duration;
+                            }
+                        }, { once: true });
+                        backgroundMusic.play().catch(() => {});
+                    } else {
+                        playRandomBackgroundTrack();
+                    }
+                } else if (backgroundMusicMode === 'loop' && selectedMusicUrl) {
+                    backgroundMusic = new Audio(selectedMusicUrl);
+                    backgroundMusic.loop = true;
+                    backgroundMusic.volume = 0.25;
+                    backgroundMusic.addEventListener('loadedmetadata', () => {
+                        const savedPosition = parseFloat(localStorage.getItem('menti_background_music_position') || '0');
+                        const savedAt = parseInt(localStorage.getItem('menti_background_music_saved_at') || '0', 10);
+                        if (savedPosition > 0 && backgroundMusic.duration) {
+                            const elapsed = savedAt ? Math.max(0, (Date.now() - savedAt) / 1000) : 0;
+                            backgroundMusic.currentTime = (savedPosition + elapsed) % backgroundMusic.duration;
+                        }
+                    }, { once: true });
+                    backgroundMusic.play().catch(() => {});
+                }
+            } catch (error) {
+                musicList.innerHTML = '<div class="music-empty">Music could not be loaded.</div>';
+                console.error('[Music] Could not load music library:', error);
+            }
+        }
+
+        musicCategorySelect.addEventListener('change', () => {
+            localStorage.setItem('menti_background_music_category', musicCategorySelect.value);
+            stopMusicPreview();
+            renderMusicTracks(musicCategorySelect.value);
+        });
+
+        function playRandomBackgroundTrack() {
+            if (!allMusicTracks.length) return;
+            const nextTrack = allMusicTracks[Math.floor(Math.random() * allMusicTracks.length)];
+            selectedMusicUrl = nextTrack.url;
+            if (!backgroundMusic) backgroundMusic = new Audio();
+            backgroundMusic.src = selectedMusicUrl;
+            backgroundMusic.loop = false;
+            backgroundMusic.volume = 0.25;
+            backgroundMusic.onended = playRandomBackgroundTrack;
+            backgroundMusic.play().catch(() => {});
+        }
+
+        shuffleMusicBtn.addEventListener('click', () => {
+            backgroundMusicMode = 'shuffle';
+            localStorage.setItem('menti_background_music_mode', backgroundMusicMode);
+            playRandomBackgroundTrack();
+        });
+
+        turnOffMusicBtn.addEventListener('click', () => {
+            backgroundMusicMode = 'off';
+            localStorage.setItem('menti_background_music_mode', backgroundMusicMode);
+            if (backgroundMusic) {
+                backgroundMusic.pause();
+                backgroundMusic.currentTime = 0;
+            }
+            selectedMusicUrl = '';
+            localStorage.removeItem('menti_background_music_url');
+            localStorage.removeItem('menti_background_music_position');
+            localStorage.removeItem('menti_background_music_saved_at');
+            renderMusicTracks(musicCategorySelect.value);
+        });
+        loadMusicLibrary();
 
         // Quick toggle button beside Private
         document.addEventListener('click', (e) => {
@@ -2570,15 +3031,30 @@
                 
                 // Display user info
                 if (user.isAnonymous) {
+                    configureAnonymousNavigation();
                     updateHeaderProfile(null);
                     // Hide sidebar for guests
                     sidebar.style.display = 'none';
                     sidebarToggle.style.display = 'none';
                 } else {
+                    configureAuthenticatedNavigation();
                     // Show sidebar for logged-in users
                     sidebar.style.display = 'flex';
                     sidebarToggle.style.display = '';
-                    updateHeaderProfile(user);
+                    try {
+                        const profileRes = await fetch(`/user/profile/${encodeURIComponent(user.uid)}`);
+                        if (profileRes.ok) currentPhotoURL = (await profileRes.json()).photoURL || '';
+                    } catch (_) {}
+                    updateHeaderProfile(user, currentPhotoURL);
+
+                    if (showingArchived) {
+                        const toggleBtn = document.getElementById('toggleArchivedBtn');
+                        const toggleText = document.getElementById('toggleArchivedText');
+                        const chatsTitle = document.getElementById('chatsTitle');
+                        if (toggleBtn) toggleBtn.classList.add('active');
+                        if (toggleText) toggleText.textContent = 'Show Active';
+                        if (chatsTitle) chatsTitle.textContent = 'Archived Chats';
+                    }
                     
                     // Load conversations
                     await loadConversations();
@@ -2704,7 +3180,7 @@
 
             try {
                 // Send message to backend with guest mode flag and conversation ID
-                const response = await fetch('/chat', {
+                const analysisResponse = await fetch('/api/chat/analyze', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -2719,10 +3195,27 @@
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error('Failed to get response');
+                if (!analysisResponse.ok) {
+                    throw new Error('Failed to analyze message');
                 }
 
+                const analysis = await analysisResponse.json();
+                const response = await fetch('/api/chat/respond', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        user_id: currentUser.uid,
+                        is_guest: currentUser.isAnonymous,
+                        conversation_id: currentConversationId,
+                        mode: currentMode,
+                        response_length: currentResponseLength,
+                        analysis: analysis
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to generate response');
+                }
                 const data = await response.json();
                 const safeReply = (data.reply || '').trim() || "I'm here with you. Could you share a little more so I can support you better?";
 
@@ -2733,7 +3226,7 @@
                 addMessage(safeReply, 'bot', data.emotion);
                 
                 // Speak bot response if speaker not muted
-                speakBotResponse(safeReply);
+                speakBotResponse(safeReply, data.voice_tone);
                 
                 // If this is a new conversation and user is logged in, create it now
                 if (isNewConversation && !currentUser.isAnonymous && pendingConversationTitle) {
@@ -2777,15 +3270,25 @@
             const avatar = document.createElement('div');
             avatar.className = 'message-avatar';
             
-            // Use logo image for bot, SVG icon for user
+            // Use logo image for bot and the persisted profile photo for users.
             if (sender === 'bot') {
                 const logoImg = document.createElement('img');
                 logoImg.src = '/static/menti logo.png';
                 logoImg.alt = 'Menti';
                 avatar.appendChild(logoImg);
             } else {
-                // User avatar: white user icon SVG on green background
-                avatar.innerHTML = '<svg viewBox="0 0 24 24" fill="white"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+                if (currentPhotoURL) {
+                    const userImg = document.createElement('img');
+                    userImg.src = currentPhotoURL;
+                    userImg.alt = 'You';
+                    userImg.onerror = () => {
+                        userImg.remove();
+                        avatar.innerHTML = '<svg viewBox="0 0 24 24" fill="white"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+                    };
+                    avatar.appendChild(userImg);
+                } else {
+                    avatar.innerHTML = '<svg viewBox="0 0 24 24" fill="white"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+                }
             }
 
             const contentDiv = document.createElement('div');
@@ -2917,12 +3420,23 @@
                 const isGuest = currentUser.isAnonymous;
                 console.log(`🔍 Loading conversations: userId=${currentUser.uid}, isGuest=${isGuest}, isArchived=${showingArchived}`);
                 
-                const response = await fetch(`/conversations?user_id=${currentUser.uid}&is_guest=${isGuest}&is_archived=${showingArchived}`);
+                const response = await fetch(`/conversations?user_id=${currentUser.uid}&is_guest=${isGuest}&is_archived=${showingArchived}&titles_only=true`);
                 
                 if (response.ok) {
                     conversations = await response.json();
+                    persistSidebarConversationCache();
                     console.log(`✅ Loaded ${conversations.length} conversations:`, conversations);
                     renderConversations();
+
+                    if (requestedConversationId) {
+                        const requestedConversation = conversations.find((chat) => chat.id === requestedConversationId);
+                        if (requestedConversation) {
+                            await switchConversation(requestedConversationId);
+                            requestedConversationId = null;
+                            return;
+                        }
+                        requestedConversationId = null;
+                    }
                     
                     // DON'T auto-load any conversation - let user click to open
                     // Just show welcome message until user selects a conversation
@@ -2970,6 +3484,22 @@
                 }).join('');
             }
         }
+
+        // The sidebar is shared by the user pages through sessionStorage. The
+        // chat page is the single owner responsible for refreshing this list.
+        function persistSidebarConversationCache() {
+            if (!currentUser || currentUser.isAnonymous) return;
+            try {
+                sessionStorage.setItem('menti_sidebar_uid', currentUser.uid);
+                sessionStorage.setItem(
+                    `menti_sidebar_cache:${currentUser.uid}:${showingArchived ? 'archived' : 'active'}`,
+                    JSON.stringify({ ts: Date.now(), data: conversations || [] })
+                );
+            } catch (e) {
+                console.warn('Could not persist sidebar state:', e);
+            }
+        }
+        window.addEventListener('pagehide', persistSidebarConversationCache);
 
         // Create new conversation (only when user sends first message and gets response)
         async function createNewConversation(firstMessage) {
@@ -3303,7 +3833,7 @@
         window.deleteChat = deleteChat;
 
         // ==================== HEADER PROFILE DROPDOWN ====================
-        function updateHeaderProfile(user) {
+        function updateHeaderProfile(user, photoURL = currentPhotoURL) {
             const wrap = document.getElementById('profileMenuWrap');
             const incogBtn = document.getElementById('incognitoTopBtn');
             if (!user || user.isAnonymous) {
@@ -3318,8 +3848,8 @@
             if (nameEl) nameEl.textContent = name;
             const avatarEl = document.getElementById('headerAvatar');
             if (avatarEl) {
-                if (user.photoURL) {
-                    avatarEl.innerHTML = `<img src="${user.photoURL}" alt="Avatar" onerror="this.parentNode.innerHTML='<span>${name.slice(0,1).toUpperCase()}</span>'">`;
+                if (photoURL || user.photoURL) {
+                    avatarEl.innerHTML = `<img src="${photoURL || user.photoURL}" alt="Avatar" onerror="this.parentNode.innerHTML='<span>${name.slice(0,1).toUpperCase()}</span>'">`;
                 } else {
                     const initials = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
                     avatarEl.innerHTML = `<span>${initials}</span>`;
@@ -3356,7 +3886,11 @@
         // Both are free, open-source, and require no API keys
         
         const voiceMicBtn = document.getElementById('voiceMicBtn');
-        const voiceSpeakerBtn = document.getElementById('voiceSpeakerBtn');
+        const chatOptionsBtn = document.getElementById('chatOptionsBtn');
+        // Kept as an alias for the shared voice state styling below.
+        const voiceSpeakerBtn = chatOptionsBtn;
+        const voiceResponseToggle = document.getElementById('voiceResponseToggle');
+        const voiceOptions = document.getElementById('voiceOptions');
 
         let isRecording = false;
         let recordingStream = null;
@@ -3365,10 +3899,34 @@
         let recordingProcessor = null;
         let recordingChunks = [];
         let recordingSampleRate = 44100;
-        let isSpeakerMuted = false;
+        let isSpeakerMuted = localStorage.getItem('menti_voice_response') === 'false';
         let currentPlayingAudio = null;
         let selectedVoiceId = parseInt(localStorage.getItem('menti_selectedVoiceId') ?? '0', 10);
         let availableVoices = [];
+
+        voiceResponseToggle.checked = !isSpeakerMuted;
+        chatOptionsBtn.classList.toggle('muted', isSpeakerMuted);
+
+        voiceResponseToggle.addEventListener('change', () => {
+            isSpeakerMuted = !voiceResponseToggle.checked;
+            localStorage.setItem('menti_voice_response', String(!isSpeakerMuted));
+            chatOptionsBtn.classList.toggle('muted', isSpeakerMuted);
+        });
+
+        function renderVoiceOptions() {
+            voiceOptions.innerHTML = availableVoices.map(voice => `
+                <button type="button" class="voice-option ${voice.id === selectedVoiceId ? 'active' : ''}" data-voice-id="${voice.id}">
+                    🎙️ ${voice.name}
+                </button>
+            `).join('');
+            voiceOptions.querySelectorAll('.voice-option').forEach(option => {
+                option.addEventListener('click', () => {
+                    selectedVoiceId = Number(option.dataset.voiceId);
+                    localStorage.setItem('menti_selectedVoiceId', selectedVoiceId.toString());
+                    renderVoiceOptions();
+                });
+            });
+        }
 
         // Check browser support for audio recording
         const hasAudioSupport = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
@@ -3558,6 +4116,7 @@
                 const response = await fetch('/api/voice/voices');
                 const data = await response.json();
                 availableVoices = data.voices || [];
+                renderVoiceOptions();
                 if (data.error) {
                     console.warn('[Voice] Voice engine warning:', data.error);
                 }
@@ -3567,7 +4126,7 @@
             }
         }
 
-        async function synthesizeAndSpeak(text, voiceId = selectedVoiceId) {
+        async function synthesizeAndSpeak(text, voiceId = selectedVoiceId, voiceTone = 'soft, natural, warm, and supportive') {
             try {
                 if (currentPlayingAudio) {
                     currentPlayingAudio.pause();
@@ -3578,7 +4137,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         text: text,
-                        voice_id: voiceId
+                        voice_id: voiceId,
+                        voice_tone: voiceTone,
+                        mode: currentMode
                     })
                 });
                 
@@ -3598,9 +4159,9 @@
             }
         }
 
-        function speakBotResponse(text) {
+        function speakBotResponse(text, voiceTone) {
             if (isSpeakerMuted) return;
-            synthesizeAndSpeak(text, selectedVoiceId);
+            synthesizeAndSpeak(text, selectedVoiceId, voiceTone);
         }
 
         function speakMessage(text) {
@@ -3609,6 +4170,11 @@
 
         // Show voice selector menu
         voiceSpeakerBtn.addEventListener('click', () => {
+            openChatOptionsModal();
+            return;
+
+            /* Legacy dropdown kept unreachable for compatibility with older state. */
+            if (false) {
             const existingMenu = document.getElementById('voiceMenuDropdown');
             if (existingMenu) {
                 existingMenu.remove();
@@ -3706,6 +4272,7 @@
             }
 
             voiceSpeakerBtn.appendChild(menuDiv);
+            }
         });
 
         // Microphone button listener
@@ -3719,6 +4286,25 @@
 
         // Load voices on page load
         loadAvailableVoices();
+    </script>
+    <script src="/static/js/call-manager.js"></script>
+    <script src="/static/js/sidebar-persistence.js"></script>
+    <script>
+      window.setUserTokenForCallManager = (token) => {
+        if (window.mentiCallManager) window.mentiCallManager.setUserToken(token);
+      };
+    </script>
+    <script type="module">
+      import { getApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+      import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+      try {
+        const auth = getAuth(getApp());
+        onAuthStateChanged(auth, async (user) => {
+          if (user && window.setUserTokenForCallManager) {
+            window.setUserTokenForCallManager(await user.getIdToken());
+          }
+        });
+      } catch (e) {}
     </script>
 </body>
 </html>
