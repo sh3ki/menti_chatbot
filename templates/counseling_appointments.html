@@ -36,8 +36,8 @@
         }
 
         .main {
-            flex: 1 1 auto;
-            width: 100%;
+            flex: 1 1 0;
+            width: auto;
             max-width: none;
             min-width: 0;
             margin: 0;
@@ -191,9 +191,10 @@
         .question-section h3 { color:#2c5e31; font-size:15px; margin:25px 0 10px; border-bottom:1px solid #d9e9dc; padding-bottom:8px; }
         .question { border:1px solid #e1eae2; border-radius:10px; padding:14px; margin:10px 0; }
         .question p { margin:0 0 11px; font-weight:600; font-size:14px; }
-        .scale { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
-        .scale label { border:1px solid #d4e0d5; border-radius:7px; padding:9px 4px; text-align:center; cursor:pointer; font-size:11px; color:#607064; }
-        .scale input { position:absolute; opacity:0; pointer-events:none; }
+        .scale { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; min-width:0; }
+        .scale label { min-width:0; border:1px solid #d4e0d5; border-radius:7px; padding:9px 4px; text-align:center; cursor:pointer; font-size:11px; color:#607064; }
+        /* Keep the native control in the label without letting focus reposition the scroll container. */
+        .scale input { appearance:none; -webkit-appearance:none; width:0; height:0; margin:0; opacity:0; pointer-events:none; }
         .scale label:focus-within { outline:2px solid #4fa858; outline-offset:2px; }
         .scale label:has(input:checked) { background:#2c5e31; color:#fff; border-color:#2c5e31; }
         .safety-box { background:#fff8ed; border:1px solid #f0d7a6; border-radius:10px; padding:15px; margin-top:24px; }
