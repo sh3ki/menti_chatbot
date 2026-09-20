@@ -63,6 +63,12 @@ def favicon_noop():
     return ('', 204)
 
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for monitoring and load balancers."""
+    return jsonify({'status': 'ok', 'message': 'Service is healthy'})
+
+
 @app.route('/api/music', methods=['GET'])
 def get_background_music():
     """Return the available background music grouped by category."""
