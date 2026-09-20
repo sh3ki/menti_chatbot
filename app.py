@@ -345,22 +345,11 @@ def provider_required(f):
 # Initialize Firebase Admin SDK
 try:
     cred_path = os.getenv('FIREBASE_CREDENTIALS_PATH', 'firebase-credentials.json')
-    
-    # Check if credentials are provided as base64 env var (for Render/cloud deployment)
-    cred_json_b64 = os.getenv('FIREBASE_CREDENTIALS_JSON')
-    if cred_json_b64:
-        import base64
-        cred_json_str = base64.b64decode(cred_json_b64).decode('utf-8')
-        cred_dict = json.loads(cred_json_str)
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print("✅ Firebase initialized successfully (from env)")
-    elif os.path.exists(cred_path):
+    if os.path.exists(cred_path):
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
-        print("✅ Firebase initialized successfully (from file)")
+        print("✅ Firebase initialized successfully")
     else:
         print("⚠️  Firebase credentials not found. Firestore storage disabled.")
         db = None
