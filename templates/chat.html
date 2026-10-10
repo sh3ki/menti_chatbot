@@ -3011,21 +3011,6 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
-                // Load saved response-length preference
-                try {
-                    if (!user.isAnonymous) {
-                        const res = await fetch(`/user/preferences/${encodeURIComponent(user.uid)}`);
-                        if (res.ok) {
-                            const prefs = await res.json();
-                            const rl = (prefs && prefs.response_length) ? prefs.response_length : null;
-                            if (rl) window.selectResponseLength(rl, false);
-                        }
-                    } else {
-                        const local = localStorage.getItem('menti_response_length');
-                        if (local) window.selectResponseLength(local, false);
-                    }
-                } catch (e) { console.error('Error loading preferences', e); }
-                
                 // Initialize themes
                 window.initializeThemes();
                 
@@ -3033,6 +3018,8 @@
                 if (user.isAnonymous) {
                     configureAnonymousNavigation();
                     updateHeaderProfile(null);
+                    const local = localStorage.getItem('menti_response_length');
+                    if (local) window.selectResponseLength(local, false);
                     // Hide sidebar for guests
                     sidebar.style.display = 'none';
                     sidebarToggle.style.display = 'none';
@@ -3041,11 +3028,31 @@
                     // Show sidebar for logged-in users
                     sidebar.style.display = 'flex';
                     sidebarToggle.style.display = '';
-                    try {
-                        const profileRes = await fetch(`/user/profile/${encodeURIComponent(user.uid)}`);
-                        if (profileRes.ok) currentPhotoURL = (await profileRes.json()).photoURL || '';
-                    } catch (_) {}
+                    // Render the Google/Firebase identity immediately. Do not
+                    // make the header or sidebar wait for Firestore.
                     updateHeaderProfile(user, currentPhotoURL);
+
+                    const uid = encodeURIComponent(user.uid);
+                    const dataRequests = [
+                        fetch(`/user/preferences/${uid}`),
+                        fetch(`/user/profile/${uid}`)
+                    ];
+                    // Start the sidebar query at the same time as profile data.
+                    const conversationsRequest = loadConversations();
+                    try {
+                        const [preferencesRes, profileRes] = await Promise.all(dataRequests);
+                        if (preferencesRes.ok) {
+                            const prefs = await preferencesRes.json();
+                            const rl = (prefs && prefs.response_length) ? prefs.response_length : null;
+                            if (rl) window.selectResponseLength(rl, false);
+                        }
+                        if (profileRes.ok) {
+                            currentPhotoURL = (await profileRes.json()).photoURL || '';
+                            updateHeaderProfile(user, currentPhotoURL);
+                        }
+                    } catch (e) {
+                        console.warn('[Chat] Profile/preferences refresh failed:', e);
+                    }
 
                     if (showingArchived) {
                         const toggleBtn = document.getElementById('toggleArchivedBtn');
@@ -3057,7 +3064,7 @@
                     }
                     
                     // Load conversations
-                    await loadConversations();
+                    await conversationsRequest;
                     
                     // Start with a fresh conversation (not yet in sidebar)
                     if (conversations.length === 0) {
@@ -3420,7 +3427,10 @@
                 const isGuest = currentUser.isAnonymous;
                 console.log(`🔍 Loading conversations: userId=${currentUser.uid}, isGuest=${isGuest}, isArchived=${showingArchived}`);
                 
-                const response = await fetch(`/conversations?user_id=${currentUser.uid}&is_guest=${isGuest}&is_archived=${showingArchived}&titles_only=true`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 17000);
+                const response = await fetch(`/conversations?user_id=${encodeURIComponent(currentUser.uid)}&is_guest=${isGuest}&is_archived=${showingArchived}&titles_only=true`, { signal: controller.signal });
+                clearTimeout(timeoutId);
                 
                 if (response.ok) {
                     conversations = await response.json();
