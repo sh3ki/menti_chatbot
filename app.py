@@ -3188,18 +3188,19 @@ def manage_conversations():
         try:
             print(f"🔍 Querying conversations: userId={user_id}, isGuest={is_guest}, isArchived={is_archived}")
             
-            # Query conversations with proper filters
-            # NOTE: Firestore requires composite index for multiple where clauses
+            # Query by user only, then filter in Python. The previous query
+            # required a Firestore composite index and excluded older records
+            # where isAnonymous/isArchived had never been written.
             conversations_ref = _where_eq(db.collection('conversations'), 'userId', user_id)
-            conversations_ref = _where_eq(conversations_ref, 'isAnonymous', is_guest)
-            conversations_ref = _where_eq(conversations_ref, 'isArchived', is_archived)
-            conversations_ref = conversations_ref.order_by('lastUpdated', direction=firestore.Query.DESCENDING)
-            if titles_only:
-                conversations_ref = conversations_ref.select(['title', 'lastUpdated'])
-            
             conversations = []
-            for doc in conversations_ref.stream():
+            # Do not let a Firestore transport/index problem hang the Flask
+            # request forever. The client can then show a recoverable error.
+            for doc in conversations_ref.stream(timeout=15):
                 conv_data = doc.to_dict()
+                if bool(conv_data.get('isAnonymous', False)) != is_guest:
+                    continue
+                if bool(conv_data.get('isArchived', False)) != is_archived:
+                    continue
                 if titles_only:
                     conv_data = {
                         'id': doc.id,
@@ -3213,13 +3214,7 @@ def manage_conversations():
             
             print(f"✅ Loaded {len(conversations)} {'archived' if is_archived else 'active'} conversations for {'guest' if is_guest else 'user'}: {user_id}")
             
-            # Debug: If no conversations found, check if any exist for this user at all
-            if len(conversations) == 0:
-                print(f"⚠️ No conversations found with filters. Checking all conversations for user...")
-                all_convs_ref = _where_eq(db.collection('conversations'), 'userId', user_id)
-                all_count = len(list(all_convs_ref.stream()))
-                print(f"   Total conversations for this user (no filters): {all_count}")
-            
+            conversations.sort(key=lambda item: str(item.get('lastUpdated') or ''), reverse=True)
             return jsonify(conversations)
         except Exception as e:
             print(f"❌ Error fetching conversations: {e}")
