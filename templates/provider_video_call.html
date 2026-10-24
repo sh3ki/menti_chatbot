@@ -213,6 +213,11 @@
             font: inherit
         }
 
+        .provider-button:disabled {
+            cursor: not-allowed;
+            opacity: .5;
+        }
+
         .call-window {
             display: none;
             position: fixed;
@@ -327,14 +332,15 @@
                         history.</p>
                 </div><div><button class="provider-button secondary" id="requestsButton">Requests <span id="requestCount">0</span></button> <button class="provider-button" id="createButton">Create session</button></div>
             </div>
-            <div class="call-tabs"><button class="call-tab active" data-filter="approved">Upcoming</button><button class="call-tab"
+            <div class="call-tabs"><button class="call-tab active" data-filter="approved">Active Sessions</button><button class="call-tab"
                     data-filter="history">History</button></div>
             <div id="sessions"></div>
         </main>
     </div>
     <div class="modal-backdrop" id="requestsModal"><section class="provider-modal"><div class="provider-modal-header"><h2>Appointment requests</h2><button class="modal-close" data-close="requestsModal">×</button></div><p class="provider-subtitle">Review incoming requests. Provider notes are not available for requests.</p><div class="session-grid" id="requestSessions"></div></section></div>
     <div class="modal-backdrop" id="declineModal"><section class="provider-modal"><div class="provider-modal-header"><h2>Decline appointment</h2><button class="modal-close" data-close="declineModal">×</button></div><p class="provider-subtitle">Please provide a reason for declining this request.</p><label class="form-label" for="declineReason">Reason *</label><textarea class="form-input" id="declineReason" rows="4" placeholder="Tell the user why you cannot accept this request."></textarea><div class="modal-actions"><button class="provider-button secondary" data-close="declineModal">Cancel</button><button class="provider-button" id="confirmDecline">Decline appointment</button></div></section></div>
-    <div class="modal-backdrop" id="cancelModal"><section class="provider-modal"><div class="provider-modal-header"><h2>Cancel appointment</h2><button class="modal-close" data-close="cancelModal">Ã—</button></div><p class="provider-subtitle">The user will be able to see this reason in their counseling appointments.</p><label class="form-label" for="cancellationReason">Cancellation reason *</label><textarea class="form-input" id="cancellationReason" rows="4" placeholder="Explain why this appointment must be cancelled."></textarea><div class="modal-actions"><button class="provider-button secondary" data-close="cancelModal">Keep appointment</button><button class="provider-button" id="confirmCancel">Cancel appointment</button></div></section></div>
+    <div class="modal-backdrop" id="cancelModal"><section class="provider-modal"><div class="provider-modal-header"><h2>Cancel appointment</h2><button class="modal-close" data-close="cancelModal" aria-label="Close">×</button></div><p class="provider-subtitle">The user will be able to see this reason in their counseling appointments.</p><label class="form-label" for="cancellationReason">Cancellation reason *</label><textarea class="form-input" id="cancellationReason" rows="4" placeholder="Explain why this appointment must be cancelled."></textarea><div class="modal-actions"><button class="provider-button secondary" data-close="cancelModal">Keep appointment</button><button class="provider-button" id="confirmCancel">Cancel appointment</button></div></section></div>
+    <div class="modal-backdrop" id="noShowModal"><section class="provider-modal"><div class="provider-modal-header"><h2>Mark as no-show</h2><button class="modal-close" data-close="noShowModal" aria-label="Close">×</button></div><p class="provider-subtitle">Only mark this appointment as no-show if the user did not attend the scheduled session.</p><div class="modal-actions"><button class="provider-button secondary" data-close="noShowModal">Keep appointment</button><button class="provider-button danger-secondary" id="confirmNoShow">Mark as no-show</button></div></section></div>
     <div class="modal-backdrop" id="createModal">
         <section class="provider-modal">
             <div class="provider-modal-header">
@@ -377,7 +383,7 @@
             for (let a of appointments) {
                 if (a.status === 'approved') {
                     try {
-                        const s = await (await fetch(`/api/video/${a.id}/status`)).json();
+                        const s = await (await fetch(`/providers/api/video/${a.id}/status`)).json();
                         a._callStatus = s;
                     } catch (e) {}
                 }
@@ -386,18 +392,33 @@
         } 
         
         function renderRequests() { const rows = appointments.filter(a => a.status === 'pending'); $('requestCount').textContent = rows.length; $('requestSessions').innerHTML = rows.length ? rows.map(a => `<article class="session-card"><h3>${a.userName || 'User'}</h3><span class="session-status">pending</span><p class="session-meta">${fmt(a.start)} · ${a.duration} minutes<br>${a.reason || 'Counseling session'}</p><div class="session-actions"><button class="provider-button" onclick="acceptRequest('${a.id}')">Accept</button><button class="provider-button secondary" onclick="beginDecline('${a.id}')">Decline</button></div></article>`).join('') : '<p class="provider-subtitle">No pending requests.</p>'; }
-        function renderTodayAndUpcoming() { const rows = appointments.filter(a => a.status === 'approved'), today = manilaDay(new Date()), todayRows = rows.filter(a => manilaDay(a.start) === today), upcomingRows = rows.filter(a => manilaDay(a.start) !== today); const card = a => `<article class="session-card"><h3>${a.userName || 'User'}</h3><span class="session-status">approved</span><p class="session-meta">${fmt(a.start)} · ${a.duration} minutes<br>${a.reason || 'Counseling session'}</p><div class="session-actions"><button class="provider-button" onclick="startCall('${a.id}')">Call user</button><button class="provider-button secondary" onclick="decide('${a.id}','cancelled')">Cancel</button></div><textarea class="private-notes" id="notes-${a.id}" placeholder="Private provider notes">${a.providerNotes || ''}</textarea><div class="session-actions"><button class="provider-button secondary" onclick="saveNotes('${a.id}')">Save private notes</button><button class="provider-button secondary" onclick="decide('${a.id}','completed')">Mark completed</button></div></article>`; $('sessions').innerHTML = `<section><h2>Today’s schedules</h2><div class="session-grid">${todayRows.length ? todayRows.map(card).join('') : '<p class="provider-subtitle">No schedules today.</p>'}</div></section><section><h2>Upcoming</h2><div class="session-grid">${upcomingRows.length ? upcomingRows.map(card).join('') : '<p class="provider-subtitle">No upcoming schedules.</p>'}</div></section>`; }
+        function renderTodayAndUpcoming() {
+            const now = Date.now();
+            const rows = appointments
+                .filter(a => a.status === 'approved')
+                .map(a => ({ appointment: a, startTime: new Date(a.start).getTime() }))
+                .filter(item => Number.isFinite(item.startTime));
+            const lateRows = rows.filter(item => item.startTime <= now).sort((a, b) => b.startTime - a.startTime);
+            const upcomingRows = rows.filter(item => item.startTime > now).sort((a, b) => a.startTime - b.startTime);
+            const card = a => `<article class="session-card"><h3>${a.userName || 'User'}</h3><span class="session-status">approved</span><p class="session-meta">${fmt(a.start)} · ${a.duration} minutes<br>${a.reason || 'Counseling session'}</p><div class="session-actions"><button class="provider-button" onclick="startCall('${a.id}')">Call user</button><button class="provider-button secondary" onclick="decide('${a.id}','cancelled')">Cancel</button></div><textarea class="private-notes" id="notes-${a.id}" placeholder="Private provider notes">${a.providerNotes || ''}</textarea><div class="session-actions"><button class="provider-button secondary" onclick="saveNotes('${a.id}')">Save private notes</button><button class="provider-button secondary" onclick="decide('${a.id}','completed')">Mark completed</button></div></article>`;
+            const section = (title, items, emptyText) => `<section><h2>${title}</h2><div class="session-grid">${items.length ? items.map(item => card(item.appointment)).join('') : `<p class="provider-subtitle">${emptyText}</p>`}</div></section>`;
+            $('sessions').innerHTML = section('Late', lateRows, 'No late sessions.') + section('Upcoming', upcomingRows, 'No upcoming sessions.');
+        }
         function render() { 
             appointments.forEach(a => { if (a.callHistory && a.callHistory.length) a._callHistoryHtml = renderCallHistory(a); });
             renderRequests();
             if (filter === 'approved') { renderTodayAndUpcoming(); return; }
-            let rows = appointments.filter(a => filter === 'history' ? ['completed', 'cancelled', 'declined', 'no_show'].includes(a.status) : a.status === filter); 
+            let rows = appointments.filter(a => filter === 'history' ? ['completed', 'cancelled', 'declined', 'no_show'].includes(a.status) : a.status === filter);
+            if (filter === 'history') {
+                const timestamp = a => new Date(a.updatedAt || a.end || a.start || 0).getTime() || 0;
+                rows.sort((a, b) => timestamp(b) - timestamp(a));
+            }
             $('sessions').innerHTML = rows.length ? rows.map(a => {
                 const isRinging = a._callStatus && a._callStatus.status === 'initiated' && !a._callStatus.userConnected;
                 const badge = isRinging ? '<div class="call-ringing-badge"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7.5C3.9 9.1 3.7 11 4.4 12.8l1.3 3.1a2 2 0 0 0 2.5 1.1l2.1-.8a2 2 0 0 0 1.2-2.2l-.3-1.7a2 2 0 0 1 1.6 0l-.3 1.7a2 2 0 0 0 1.2 2.2l2.1.8a2 2 0 0 0 2.5-1.1l1.3-3.1c.7-1.8.5-3.7-.6-5.3C16.2 5.8 7.8 5.8 5 7.5Z"/></svg> Call ringing...</div>' : '';
                 return `<article class="session-card"><h3>${a.userName || 'User'}</h3><span class="session-status ${isRinging ? 'ringing' : ''}">${a.status}</span><p class="session-meta">${fmt(a.start)} · ${a.duration} minutes<br>${a.reason || 'Counseling session'}</p>${filter === 'pending' ? `<div class="session-actions"><button class="provider-button" onclick="decide('${a.id}','approved')">Approve</button><button class="provider-button secondary" onclick="decide('${a.id}','declined')">Decline</button></div>` : ''}${filter === 'approved' ? `<div class="session-actions"><button class="provider-button" onclick="startCall('${a.id}')">Call user</button><button class="provider-button secondary" onclick="decide('${a.id}','cancelled')">Cancel</button></div>` : ''}${badge}<textarea class="private-notes" id="notes-${a.id}" placeholder="Private provider notes">${a.providerNotes || ''}</textarea><div class="session-actions"><button class="provider-button secondary" onclick="saveNotes('${a.id}')">Save private notes</button>${filter === 'approved' ? `<button class="provider-button secondary" onclick="decide('${a.id}','completed')">Mark completed</button>` : ''}</div></article>`;
             }).join('') : '<section class="provider-card"><p class="provider-subtitle">No sessions in this section.</p></section>' 
-        } async function decide(id, status) { let r = await fetch('/providers/api/appointments/' + id + '/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); toast(r.ok ? 'Appointment updated' : (await r.json()).error || 'Unable to update'); load() } async function saveNotes(id) { let r = await fetch('/providers/api/appointments/' + id + '/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: $('notes-' + id).value }) }); toast(r.ok ? 'Private notes saved' : 'Unable to save notes') }; document.querySelectorAll('.call-tab').forEach(b => b.onclick = () => { document.querySelectorAll('.call-tab').forEach(x => x.classList.remove('active')); b.classList.add('active'); filter = b.dataset.filter; render() });
+        } async function decide(id, status) { let r = await fetch('/providers/api/appointments/' + id + '/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); toast(r.ok ? 'Appointment updated' : (await r.json()).error || 'Unable to update'); load() } async function saveNotes(id) { const field = $('notes-' + id); if (!field) return; let r = await fetch('/providers/api/appointments/' + id + '/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: field.value }) }); if (r.ok) { field.dataset.savedValue = field.value; const saveButton = [...field.closest('.session-card').querySelectorAll('button')].find(button => button.textContent.trim() === 'Save private notes'); if (saveButton) saveButton.disabled = true; } toast(r.ok ? 'Private notes saved' : 'Unable to save notes') }; document.querySelectorAll('.call-tab').forEach(b => b.onclick = () => { document.querySelectorAll('.call-tab').forEach(x => x.classList.remove('active')); b.classList.add('active'); filter = b.dataset.filter; render() });
         async function acceptRequest(id) { const r = await fetch('/providers/api/appointments/' + id + '/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) }); toast(r.ok ? 'Appointment accepted' : (await r.json()).error || 'Unable to accept'); if (r.ok) { closeModal('requestsModal'); load(); } }
         function beginDecline(id) { declineId = id; $('declineReason').value = ''; openModal('declineModal'); $('declineReason').focus(); }
         $('confirmDecline').onclick = async () => { const reason = $('declineReason').value.trim(); if (!reason) { toast('A reason is required'); $('declineReason').focus(); return; } const r = await fetch('/providers/api/appointments/' + declineId + '/decision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'declined', declineReason: reason }) }); toast(r.ok ? 'Appointment declined' : (await r.json()).error || 'Unable to decline'); if (r.ok) { closeModal('declineModal'); closeModal('requestsModal'); load(); } };
@@ -421,7 +442,7 @@
             statusFallbackPoll = setInterval(() => {
                 for (let a of appointments) {
                     if (a.status === 'approved') {
-                        fetch(`/api/video/${a.id}/status`).then(r => r.json()).then(s => {
+                        fetch(`/providers/api/video/${a.id}/status`).then(r => r.json()).then(s => {
                             if (JSON.stringify(a._callStatus) !== JSON.stringify(s)) {
                                 a._callStatus = s;
                                 render();
@@ -503,10 +524,19 @@
     </script>
     <script>
         // No-show is always a deliberate provider action; never infer it from time alone.
-        async function markNoShow(id) {
-            if (!window.confirm('Mark this appointment as no-show? This should only be used when the user did not attend.')) return;
-            await decide(id, 'no_show');
+        let noShowAppointmentId = null;
+        function markNoShow(id) {
+            noShowAppointmentId = id;
+            openModal('noShowModal');
         }
+
+        document.getElementById('confirmNoShow').onclick = async () => {
+            if (!noShowAppointmentId) return;
+            const id = noShowAppointmentId;
+            noShowAppointmentId = null;
+            closeModal('noShowModal');
+            await decide(id, 'no_show');
+        };
 
         const noShowActionObserver = new MutationObserver(() => {
             if (filter !== 'approved') return;
@@ -617,6 +647,51 @@
         const sessionActionObserver = new MutationObserver(enhanceSessionActions);
         sessionActionObserver.observe(document.getElementById('sessions'), { childList: true, subtree: true });
         document.addEventListener('click', () => document.querySelectorAll('.session-menu.open').forEach(menu => menu.classList.remove('open')));
+    </script>
+    <script>
+        function normalizeHistoryNotes() {
+            if (filter !== 'history') return;
+            document.querySelectorAll('#sessions .session-card').forEach(card => {
+                const notes = card.querySelector('.private-notes');
+                if (!notes) return;
+                const saveButton = [...card.querySelectorAll('button')]
+                    .find(button => button.textContent.trim() === 'Save private notes');
+                if (saveButton) {
+                    const saveActions = saveButton.closest('.session-actions');
+                    if (saveActions) saveActions.remove();
+                }
+                if (!notes.value.trim()) {
+                    notes.remove();
+                    return;
+                }
+                notes.readOnly = true;
+                notes.placeholder = '';
+            });
+        }
+
+        const historyNotesObserver = new MutationObserver(normalizeHistoryNotes);
+        historyNotesObserver.observe(document.getElementById('sessions'), { childList: true, subtree: true });
+        normalizeHistoryNotes();
+
+        function syncActiveNoteButtons() {
+            if (filter !== 'approved') return;
+            document.querySelectorAll('#sessions .session-card').forEach(card => {
+                const notes = card.querySelector('.private-notes');
+                const saveButton = [...card.querySelectorAll('button')]
+                    .find(button => button.textContent.trim() === 'Save private notes');
+                if (!notes || !saveButton || notes.dataset.changeBound === 'true') return;
+                notes.dataset.savedValue = notes.value;
+                notes.addEventListener('input', () => {
+                    saveButton.disabled = notes.value === notes.dataset.savedValue;
+                });
+                notes.dataset.changeBound = 'true';
+                saveButton.disabled = true;
+            });
+        }
+
+        const activeNotesObserver = new MutationObserver(syncActiveNoteButtons);
+        activeNotesObserver.observe(document.getElementById('sessions'), { childList: true, subtree: true });
+        syncActiveNoteButtons();
     </script>
 </body>
 
