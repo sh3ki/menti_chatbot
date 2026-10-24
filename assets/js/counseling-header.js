@@ -61,6 +61,13 @@
   document.getElementById('darkModeToggle').innerHTML = '<svg class="sun-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 10.5H1v2h3v-2zm9-9.95h-2V3.5h2V.55zm7.45 3.91l-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zM17.24 4.84l1.79-1.8-1.41-1.41-1.79 1.79 1.41 1.42zM20 10.5v2h3v-2h-3zm-8-5c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm-1 16.95h2V19.5h-2v2.95zm-7.45-3.91l1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8zm12.9 0l1.79 1.79 1.41-1.41-1.8-1.79-1.4 1.41z"/></svg><svg class="moon-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>';
   const dropdown = document.getElementById('profileDropdown');
   dropdown.innerHTML = `<a class="profile-dropdown-item" id="progressNavLink" href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>My Progress</a><a class="profile-dropdown-item" id="planNavLink" href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm1 16H8v-2h7v2zm1-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Personalized Plan</a><a class="profile-dropdown-item" id="journalNavLink" href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-2-9H7V8h10v2zm0 4H7v-2h10v2z"/></svg>My Journal</a><a class="profile-dropdown-item" id="offlineResourcesNavLink" href="/offline-resources"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 18H4V6h16v12zm0-14H4c-1.1 0-2 .9-2 2v14h20V6c0-1.1-.9-2-2-2zm-7 13h-2v2h2v-2z"/></svg>Offline Resources</a><a class="profile-dropdown-item" href="/profile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>Profile Settings</a><a class="profile-dropdown-item active-page" href="/counseling-appointments"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h5v5H7v-5z"/></svg>Counseling Sessions</a><div class="profile-dropdown-divider"></div><button class="profile-dropdown-item profile-dropdown-logout" id="logoutBtn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>Logout</button>`;
+  const profileLink = dropdown.querySelector('a[href="/profile"]');
+  const counselingLink = dropdown.querySelector('a[href="/counseling-appointments"]');
+  const dropdownDivider = dropdown.querySelector('.profile-dropdown-divider');
+  if (profileLink && counselingLink && dropdownDivider) {
+    dropdownDivider.before(counselingLink);
+    dropdownDivider.before(profileLink);
+  }
   const wrap = document.getElementById('profileMenuWrap');
   document.getElementById('profileMenuTrigger').onclick = e => { e.stopPropagation(); wrap.classList.toggle('open'); };
   document.addEventListener('click', e => { if (!wrap.contains(e.target)) wrap.classList.remove('open'); });
@@ -69,24 +76,24 @@
   const toggle = document.getElementById('darkModeToggle');
   if (localStorage.getItem('menti_dark_mode') === 'true') document.body.classList.add('dark-mode');
   toggle.onclick = () => { document.body.classList.toggle('dark-mode'); localStorage.setItem('menti_dark_mode', document.body.classList.contains('dark-mode')); };
-  import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js').then(({ getApp, getApps, initializeApp }) => import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js').then(({ getAuth, onAuthStateChanged }) => {
-    const firebaseConfig = {
-      apiKey: 'AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0',
-      authDomain: 'menti-7b8a1.firebaseapp.com',
-      projectId: 'menti-7b8a1',
-      storageBucket: 'menti-7b8a1.firebasestorage.app',
+  import('/static/js/auth-client.js').then(({ getApp, getApps, initializeApp }) => import('/static/js/auth-client.js').then(({ getAuth, onAuthStateChanged }) => {
+    const authConfig = {
+      apiKey: '',
+      authDomain: '',
+      projectId: '',
+      storageBucket: '',
       messagingSenderId: '164612023817',
       appId: '1:164612023817:web:c0437146e86951377f3ad8'
     };
-    const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    return onAuthStateChanged(getAuth(firebaseApp), async user => {
+    const authApp = getApps().length ? getApp() : initializeApp(authConfig);
+    return onAuthStateChanged(getAuth(authApp), async user => {
     if (!user || user.isAnonymous) return;
     wrap.style.display = 'block'; document.getElementById('incognitoTopBtn').style.display = 'flex';
     let profile = {};
     try { profile = await fetch(`/user/profile/${user.uid}`).then(response => response.ok ? response.json() : ({})); } catch (_) {}
     const name = profile.displayName || user.displayName || user.email || 'User'; document.getElementById('headerName').textContent = name;
     const avatar = document.getElementById('headerAvatar');
-    const photoURL = user.photoURL || profile.photoURL || '';
+    const photoURL = profile.photoURL || user.photoURL || '';
     if (photoURL) avatar.innerHTML = `<img src="${photoURL}" alt="Avatar" onerror="this.parentNode.innerHTML='<span>${name.slice(0, 1).toUpperCase()}</span>'">`;
     else avatar.textContent = (name.match(/\b\w/g) || ['U']).slice(0, 2).join('').toUpperCase();
     document.getElementById('progressNavLink').href = `/progress/${user.uid}`; document.getElementById('planNavLink').href = `/personalized-plan/${user.uid}`; document.getElementById('journalNavLink').href = `/journal/${user.uid}`;
