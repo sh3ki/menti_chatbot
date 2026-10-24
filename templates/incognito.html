@@ -519,19 +519,19 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { initializeApp } from '/static/js/auth-client.js';
+        import { getAuth, onAuthStateChanged } from '/static/js/auth-client.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
-            authDomain: "menti-7b8a1.firebaseapp.com",
-            projectId: "menti-7b8a1",
-            storageBucket: "menti-7b8a1.firebasestorage.app",
+        const authConfig = {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
             messagingSenderId: "164612023817",
             appId: "1:164612023817:web:c0437146e86951377f3ad8"
         };
 
-        const app = initializeApp(firebaseConfig);
+        const app = initializeApp(authConfig);
         const auth = getAuth(app);
 
         const chatMessages = document.getElementById('chatMessages');
@@ -661,11 +661,13 @@
                 });
                 if (!response.ok) throw new Error('Network response not ok');
                 const data = await response.json();
+                // Prepare cloud TTS before rendering so the visible reply and
+                // selected cloud voice begin together.
+                if (!isSpeakerMuted) {
+                    await speakBotResponse(data.reply);
+                }
                 hideTypingIndicator();
                 addMessage(data.reply, 'bot', data.emotion);
-                
-                // Speak bot response if speaker not muted
-                speakBotResponse(data.reply);
 
                 // Create a temporary conv id for this session (first message)
                 if (!incognitoConvId && data.conversation_id) {
@@ -996,16 +998,16 @@
                 const audioBlob = await response.blob();
                 const audioUrl = URL.createObjectURL(audioBlob);
                 currentPlayingAudio = new Audio(audioUrl);
-                currentPlayingAudio.play();
+                await currentPlayingAudio.play();
                 console.log('[Voice] Playing synthesized speech with voice', voiceId);
             } catch (error) {
                 console.error('[Voice] Speech synthesis error:', error);
             }
         }
 
-        function speakBotResponse(text) {
+        async function speakBotResponse(text) {
             if (isSpeakerMuted) return;
-            synthesizeAndSpeak(text, selectedVoiceId);
+            await synthesizeAndSpeak(text, selectedVoiceId);
         }
 
         function speakMessage(text) {
@@ -1132,8 +1134,8 @@
       };
     </script>
     <script type="module">
-      import { getApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-      import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+      import { getApp } from '/static/js/auth-client.js';
+      import { getAuth, onAuthStateChanged } from '/static/js/auth-client.js';
       try {
         const auth = getAuth(getApp());
         onAuthStateChanged(auth, async (user) => {
