@@ -336,19 +336,19 @@
     <div id="toast" class="toast"></div>
 
     <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { initializeApp } from '/static/js/auth-client.js';
+        import { getAuth, onAuthStateChanged, signOut } from '/static/js/auth-client.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
-            authDomain: "menti-7b8a1.firebaseapp.com",
-            projectId: "menti-7b8a1",
-            storageBucket: "menti-7b8a1.firebasestorage.app",
+        const authConfig = {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
             messagingSenderId: "164612023817",
             appId: "1:164612023817:web:c0437146e86951377f3ad8"
         };
 
-        const app = initializeApp(firebaseConfig);
+        const app = initializeApp(authConfig);
         const auth = getAuth(app);
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
@@ -707,8 +707,8 @@
       };
     </script>
     <script type="module">
-      import { getApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-      import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+      import { getApp } from '/static/js/auth-client.js';
+      import { getAuth, onAuthStateChanged } from '/static/js/auth-client.js';
       try {
         const auth = getAuth(getApp());
         onAuthStateChanged(auth, async (user) => {
@@ -719,6 +719,7 @@
       } catch (e) {}
     </script>
 <script src="/static/js/background-music.js"></script>
+<script>document.addEventListener('DOMContentLoaded',()=>{const m=document.querySelector('.profile-dropdown'),p=m?.querySelector('a[href="/profile"]'),c=m?.querySelector('a[href="/counseling-appointments"]'),d=m?.querySelector('.profile-dropdown-divider');if(m&&p&&c&&d){d.before(c);d.before(p)}});</script>
 </body>
 <script src="/static/js/sidebar-persistence.js"></script>
 </html>
