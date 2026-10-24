@@ -240,6 +240,7 @@
             width: 100%;
             text-align: left;
             font-family: inherit;
+            text-decoration: none;
         }
 
         .nav-item:hover {
@@ -840,100 +841,100 @@
     <nav class="sidebar">
         <div class="sidebar-section-label">Main</div>
 
-        <button class="nav-item active" data-section="overview" onclick="switchSection('overview', this)">
+        <a class="nav-item{% if active_section == 'overview' %} active{% endif %}" data-section="overview" href="/admin/dashboard">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
             </svg>
             Overview
-        </button>
+        </a>
 
-        <button class="nav-item" data-section="users" onclick="switchSection('users', this)">
+        <a class="nav-item{% if active_section == 'users' %} active{% endif %}" data-section="users" href="/admin/users/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
             Users
-        </button>
+        </a>
 
-        <button class="nav-item" data-section="assessments" onclick="switchSection('assessments', this)">
+        <a class="nav-item{% if active_section == 'assessments' %} active{% endif %}" data-section="assessments" href="/admin/user-assessment/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
             User Assessment
-        </button>
+        </a>
 
-        <button class="nav-item" data-section="providers" onclick="switchSection('providers', this)">
+        <a class="nav-item{% if active_section == 'providers' %} active{% endif %}" data-section="providers" href="/admin/providers/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0"/><path d="M19 8v6M16 11h6"/></svg>
             Providers
-        </button>
+        </a>
 
         <div class="sidebar-section-label">Analytics</div>
 
-        <button class="nav-item" data-section="assessment-analytics" onclick="switchSection('assessment-analytics', this)">
+        <a class="nav-item{% if active_section == 'assessment-analytics' %} active{% endif %}" data-section="assessment-analytics" href="/admin/psychological-assessment/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M4 19V5M4 19h16"/><path d="m7 15 3-4 3 2 5-7"/>
             </svg>
             Psychological Assessment
-        </button>
+        </a>
 
-        <button class="nav-item" data-section="emotions" onclick="switchSection('emotions', this)">
+        <a class="nav-item{% if active_section == 'emotions' %} active{% endif %}" data-section="emotions" href="/admin/emotion-trends/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
             </svg>
             Emotion Trends
-        </button>
+        </a>
 
-        <button class="nav-item" data-section="risk" onclick="switchSection('risk', this)">
+        <a class="nav-item{% if active_section == 'risk' %} active{% endif %}" data-section="risk" href="/admin/risk-alerts/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
                 <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
             Risk Alerts
-            <span class="nav-badge" id="riskBadge">...</span>
-        </button>
+            <span class="nav-badge" id="riskBadge">0</span>
+        </a>
 
-        <button class="nav-item" data-section="crisis" onclick="switchSection('crisis', this)">
+        <a class="nav-item{% if active_section == 'crisis' %} active{% endif %}" data-section="crisis" href="/admin/crisis-alerts/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="12" y1="8" x2="12" y2="12"/>
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
             Crisis Alerts
-            <span class="nav-badge" id="crisisBadge" style="display:none;background:#B71C1C;">0</span>
-        </button>
+            <span class="nav-badge" id="crisisBadge" style="background:#B71C1C;">0</span>
+        </a>
 
         <div class="sidebar-section-label">System</div>
 
-        <button class="nav-item" data-section="activity" onclick="switchSection('activity', this)">
+        <a class="nav-item{% if active_section == 'activity' %} active{% endif %}" data-section="activity" href="/admin/activity-log/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"/>
                 <polyline points="12 6 12 12 16 14"/>
             </svg>
             Activity Log
-        </button>
+        </a>
 
-        <button class="nav-item" data-section="backups" onclick="switchSection('backups', this)">
+        <a class="nav-item{% if active_section == 'backups' %} active{% endif %}" data-section="backups" href="/admin/backups/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
             Backups
-        </button>
+        </a>
 
-        <button class="nav-item" data-section="admins" onclick="switchSection('admins', this)">
+        <a class="nav-item{% if active_section == 'admins' %} active{% endif %}" data-section="admins" href="/admin/admin-accounts/">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
             Admin Accounts
-        </button>
+        </a>
     </nav>
 
     <!-- ============================================================ MAIN CONTENT -->
     <main class="main">
 
         <!-- ========================= OVERVIEW SECTION -->
-        <div class="section active" id="section-overview">
+        <div class="section{% if active_section == 'overview' %} active{% endif %}" id="section-overview">
             <div class="page-header">
                 <h2>Overview</h2>
                 <p>System-wide statistics and key metrics at a glance</p>
@@ -1074,7 +1075,7 @@
         </div>
 
         <!-- ========================= USERS SECTION -->
-        <div class="section" id="section-users">
+        <div class="section{% if active_section == 'users' %} active{% endif %}" id="section-users">
             <div class="page-header">
                 <h2>User Management</h2>
                 <p>All users sorted newest-first — filter by account type</p>
@@ -1122,7 +1123,7 @@
         </div>
 
         <!-- ========================= USER ASSESSMENT SECTION -->
-        <div class="section" id="section-assessments">
+        <div class="section{% if active_section == 'assessments' %} active{% endif %}" id="section-assessments">
             <div class="page-header"><h2>User Assessment</h2><p>Psychological well-being assessment results and safety indicators</p></div>
             <div class="table-card">
                 <div class="table-card-header"><h3>Assessment History</h3><button onclick="loadAssessments()" style="font-size:12px;padding:8px 13px;border:1px solid #D0DAD2;border-radius:8px;background:#fff;color:#2C5E31;cursor:pointer;font-family:inherit;font-weight:600;">Refresh</button></div>
@@ -1132,7 +1133,7 @@
         </div>
 
         <!-- ========================= PSYCHOLOGICAL ASSESSMENT ANALYTICS SECTION -->
-        <div class="section" id="section-assessment-analytics">
+        <div class="section{% if active_section == 'assessment-analytics' %} active{% endif %}" id="section-assessment-analytics">
             <div class="page-header"><h2>Psychological Assessment Analytics</h2><p>Aggregated and anonymized well-being trends across completed assessments</p></div>
             <div class="table-card" style="margin-bottom:24px;padding:18px 20px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
@@ -1160,7 +1161,7 @@
         </div>
 
         <!-- ========================= EMOTIONS SECTION -->
-        <div class="section" id="section-providers">
+        <div class="section{% if active_section == 'providers' %} active{% endif %}" id="section-providers">
             <style>
                 .provider-row { cursor:pointer; transition:background .15s; }
                 .provider-row:hover { background:#F6FAF6; }
@@ -1207,7 +1208,7 @@
             <div class="provider-modal-card" style="max-width:470px"><div class="provider-modal-head"><div><h3>Change provider role</h3><p>Choose the professional role for this provider.</p></div><button class="provider-modal-close" onclick="closeRoleChangeModal()" aria-label="Close">&times;</button></div><div class="provider-modal-body"><label for="providerRoleSelect" style="display:block;margin-bottom:8px;color:#506055;font-size:12px;font-weight:700;">PROVIDER ROLE</label><select id="providerRoleSelect" class="rejection-textarea" style="min-height:0;resize:none;height:45px;padding:0 12px;"><option value="psychiatrist">Psychiatrist</option><option value="psychologist">Psychologist</option></select><div class="rejection-modal-actions"><button class="admin-modal-btn admin-modal-cancel" onclick="closeRoleChangeModal()">Cancel</button><button class="admin-modal-btn admin-modal-confirm" onclick="submitProviderRoleChange()">Save role</button></div></div></div>
         </div>
 
-        <div class="section" id="section-emotions">
+        <div class="section{% if active_section == 'emotions' %} active{% endif %}" id="section-emotions">
             <div class="page-header">
                 <h2>Emotion Analytics</h2>
                 <p>Emotional trend data over time across all users</p>
@@ -1330,7 +1331,7 @@
         </div>
 
         <!-- ========================= RISK ALERTS SECTION -->
-        <div class="section" id="section-risk">
+        <div class="section{% if active_section == 'risk' %} active{% endif %}" id="section-risk">
             <div class="page-header">
                 <h2>Risk Alerts</h2>
                 <p>Users showing patterns of high negative emotional states in the last 7 days</p>
@@ -1434,7 +1435,7 @@
         </div>
 
         <!-- ========================= CRISIS ALERTS SECTION -->
-        <div class="section" id="section-crisis">
+        <div class="section{% if active_section == 'crisis' %} active{% endif %}" id="section-crisis">
             <div class="page-header">
                 <h2>🚨 Crisis Alerts</h2>
                 <p>Real-time detection of crisis signals — self-harm, suicide, homicide, medical emergencies, and abuse</p>
@@ -1539,7 +1540,7 @@
         </div>
 
         <!-- ========================= ACTIVITY SECTION -->
-        <div class="section" id="section-activity">
+        <div class="section{% if active_section == 'activity' %} active{% endif %}" id="section-activity">
             <div class="page-header">
                 <h2>Activity Log</h2>
                 <p>Real-time log of all user interactions across the system</p>
@@ -1570,7 +1571,7 @@
         </div>
 
         <!-- ========================= BACKUPS SECTION -->
-        <div class="section" id="section-backups">
+        <div class="section{% if active_section == 'backups' %} active{% endif %}" id="section-backups">
             <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
                 <div>
                     <h2>Database Backups</h2>
@@ -1624,7 +1625,7 @@
         </div>
 
         <!-- ========================= ADMINS SECTION -->
-        <div class="section" id="section-admins">
+        <div class="section{% if active_section == 'admins' %} active{% endif %}" id="section-admins">
             <div class="page-header">
                 <h2>Admin Accounts</h2>
                 <p>Manage who has access to this admin dashboard</p>
@@ -1637,11 +1638,11 @@
                     <div class="admin-form-row">
                         <div class="form-group">
                             <label>EMAIL ADDRESS</label>
-                            <input type="email" id="newAdminEmail" class="form-input" placeholder="admin@example.com">
+                            <input type="email" id="newAdminEmail" class="form-input" placeholder="admin@example.com" autocomplete="username">
                         </div>
                         <div class="form-group">
-                            <label>PASSWORD (min 8 characters)</label>
-                            <input type="password" id="newAdminPassword" class="form-input" placeholder="••••••••">
+                            <label>PASSWORD</label>
+                            <input type="password" id="newAdminPassword" class="form-input" placeholder="At least 8 characters" minlength="8" autocomplete="new-password">
                         </div>
                         <button type="button" class="btn-create-admin" id="createAdminBtn" onclick="createAdmin()">Add Admin</button>
                     </div>
@@ -1833,7 +1834,7 @@ let allUsers = [];
 let allActivity = [];
 let backupHistory = [];
 let charts = {};
-// In-memory Maps — kept in sync by Firestore onSnapshot listeners
+// In-memory Maps — kept in sync by MySQL onSnapshot listeners
 const _logsMap = new Map();   // docId -> emotion_log data
 const _convsMap = new Map();  // docId -> conversation data
 const _crisisMap = new Map(); // docId -> crisis_alert data
@@ -2009,6 +2010,8 @@ function emotionEmoji(e) {
 
 // ============================================================ SECTION SWITCHING
 let _assessmentData = [];
+let _riskApiData = null;
+let _activityApiData = [];
 async function loadAssessments() {
     const body = document.getElementById('assessmentTableBody');
     if (!body) return;
@@ -2072,7 +2075,7 @@ function switchSection(name, el) {
     document.getElementById('section-' + name).classList.add('active');
     el.classList.add('active');
 
-    // Render from in-memory state (populated by Firestore listeners)
+    // Render from in-memory state (populated by MySQL listeners)
     if (name === 'users') loadUsers();
     if (name === 'emotions') renderEmotionsFromState();
     if (name === 'risk') renderRiskFromState();
@@ -2132,7 +2135,7 @@ function computeAndUpdateStats() {
     for (const [,c] of _convsMap) {
         if (c.isAnonymous && c.userId) anonUids.add(c.userId);
     }
-    // Also count Firebase Auth anonymous accounts loaded into _userCache
+    // Also count MySQL Auth anonymous accounts loaded into _userCache
     for (const [uid, u] of Object.entries(window._userCache || {})) {
         if (u.isAnonymous) anonUids.add(uid);
     }
@@ -2161,7 +2164,7 @@ function computeAndUpdateStats() {
     set('msgTodayChange',  messagesToday + ' today');
 
     const rb = document.getElementById('riskBadge');
-    if (rb) { rb.textContent = riskCount; rb.style.display = riskCount > 0 ? 'inline' : 'none'; }
+    if (rb) { rb.textContent = riskCount; rb.style.display = 'inline'; }
 
     // --- Crisis alerts stats (from _crisisMap) ---
     let crisisTotal = _crisisMap.size;
@@ -2173,7 +2176,7 @@ function computeAndUpdateStats() {
     }
     set('statCrisisAlerts', crisisTotal);
     const cb = document.getElementById('crisisBadge');
-    if (cb) { cb.textContent = crisisTotal; cb.style.display = crisisTotal > 0 ? 'inline' : 'none'; }
+    if (cb) { cb.textContent = crisisTotal; cb.style.display = 'inline'; }
 
     drawEmotionPie(emotionCounts);
     renderMessagesBarFromState();
@@ -2486,7 +2489,12 @@ function renderCrisisFromState() {
         const mode = modeLabels[alert.mode] || cap(alert.mode || '—');
         const snippet = esc(alert.messageSnippet || '—');
         const ec = EMOTION_COLORS[emotion] || { light: '#ECEFF1', text: '#546E7A' };
-        const u = _resolveUser(uid, alert.isAnonymous);
+        const u = alert.userDisplayName ? {
+            name: alert.userDisplayName,
+            email: alert.userEmail || '—',
+            initials: alert.userInitials || 'U',
+            isAnon: Boolean(alert.isAnonymous)
+        } : _resolveUser(uid, alert.isAnonymous);
 
         const tr = document.createElement('tr');
         tr.style.borderLeft = sev === 'HIGH' ? '3px solid #B71C1C' : '3px solid #E65100';
@@ -2631,12 +2639,108 @@ function filterUsers() {
     renderUsersTable(filtered);
 }
 
-// loadEmotions / loadRiskAlerts / loadActivity are now driven by Firestore onSnapshot
-// Use the render*FromState functions defined above. Aliases kept for compatibility:
+async function loadRiskAlerts() {
+    const tbody = document.getElementById('riskTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;color:#68746b;">Loading risk alerts...</td></tr>';
+    try {
+        const response = await fetch('/admin/api/risk-alerts');
+        if (!response.ok) throw new Error('Unable to load risk alerts');
+        _riskApiData = await response.json();
+        renderRiskFromApi();
+    } catch (error) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;color:#B71C1C;">Unable to load risk alerts.</td></tr>';
+        console.error('Risk alerts load error:', error);
+    }
+}
+
+function renderRiskFromApi() {
+    const tbody = document.getElementById('riskTableBody');
+    if (!tbody) return;
+    const alerts = Array.isArray(_riskApiData) ? _riskApiData : [];
+    const high = alerts.filter(item => item.riskLevel === 'High').length;
+    const medium = alerts.filter(item => item.riskLevel !== 'High').length;
+    const today = _todayStr();
+    const activeToday = alerts.filter(item => String(item.lastActive || '').slice(0, 10) === today).length;
+    set('riskCountHigh', high); set('riskCountMedium', medium); set('riskCountToday', activeToday);
+    set('riskCount', `(${alerts.length})`);
+    tbody.innerHTML = '';
+    if (!alerts.length) {
+        tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="icon">✅</div><p>No at-risk users in the last 7 days.</p></div></td></tr>';
+        renderPagControls('riskPagination', 'risk', 0);
+        return;
+    }
+    const ps = _PAGE_SIZE.risk;
+    const pages = Math.max(1, Math.ceil(alerts.length / ps));
+    if (_pagState.risk > pages) _pagState.risk = pages;
+    const pageAlerts = alerts.slice((_pagState.risk - 1) * ps, _pagState.risk * ps);
+    pageAlerts.forEach(item => {
+        const riskClass = item.riskLevel === 'High' ? 'risk-high' : 'risk-medium';
+        const initials = item.initials || (item.displayName || 'U').slice(0, 1).toUpperCase();
+        const anonymous = item.isAnonymous;
+        const row = document.createElement('tr');
+        row.innerHTML = `<td><div class="user-cell"><div class="avatar ${anonymous ? 'anon' : ''}" style="width:32px;height:32px;font-size:12px;">${esc(initials)}</div><div><div class="name">${esc(item.displayName || 'Unknown User')}</div><div class="email">${esc(item.email || '—')}</div></div></div></td><td><span class="badge ${riskClass}">${item.riskLevel === 'High' ? '🔴' : '🟠'} ${esc(item.riskLevel || 'Medium')}</span></td><td><span class="badge emotion-${esc(item.dominantEmotion || 'neutral')}">${emotionEmoji(item.dominantEmotion)} ${esc(item.reason || 'Negative pattern')}</span></td><td><strong style="color:#C62828;">${item.negativeCount ?? 0}</strong></td><td style="font-size:12px;">${esc(item.lastActive || 'Unknown')}</td><td><span class="badge ${anonymous ? 'badge-gray' : 'badge-green'}">${anonymous ? '👻 Guest' : '✅ Registered'}</span></td>`;
+        tbody.appendChild(row);
+    });
+    renderPagControls('riskPagination', 'risk', alerts.length);
+}
+
+async function loadCrisisAlerts() {
+    const tbody = document.getElementById('crisisTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="padding:24px;color:#68746b;">Loading crisis alerts...</td></tr>';
+    try {
+        const response = await fetch('/admin/api/crisis-alerts');
+        if (!response.ok) throw new Error('Unable to load crisis alerts');
+        _crisisMap.clear();
+        (await response.json()).forEach(item => _crisisMap.set(item.id || item._docId || crypto.randomUUID(), item));
+        renderCrisisFromState();
+    } catch (error) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="padding:24px;color:#B71C1C;">Unable to load crisis alerts.</td></tr>';
+        console.error('Crisis alerts load error:', error);
+    }
+}
+
+// Emotions and activity still use their realtime stream; risk and crisis use direct database APIs.
 const loadEmotions    = () => renderEmotionsFromState();
-const loadRiskAlerts  = () => renderRiskFromState();
-const loadCrisisAlerts = () => renderCrisisFromState();
-const loadActivity    = () => renderActivityFromState();
+async function loadActivity() {
+    const tbody = document.getElementById('activityTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;color:#68746b;">Loading activity...</td></tr>';
+    try {
+        const response = await fetch('/admin/api/activity');
+        if (!response.ok) throw new Error('Unable to load activity');
+        _activityApiData = await response.json();
+        _pagState.activity = 1;
+        renderActivityFromApi(_activityApiData);
+    } catch (error) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;color:#B71C1C;">Unable to load activity.</td></tr>';
+        console.error('Activity load error:', error);
+    }
+}
+
+function renderActivityFromApi(items) {
+    const tbody = document.getElementById('activityTableBody');
+    if (!tbody) return;
+    const rows = Array.isArray(items) ? items : [];
+    set('activityCount', `(${rows.length})`);
+    tbody.innerHTML = '';
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="icon">📭</div><p>No activity yet.</p></div></td></tr>';
+        renderPagControls('activityPagination', 'activity', 0);
+        return;
+    }
+    const ps = _PAGE_SIZE.activity;
+    const pages = Math.max(1, Math.ceil(rows.length / ps));
+    if (_pagState.activity > pages) _pagState.activity = pages;
+    rows.slice((_pagState.activity - 1) * ps, _pagState.activity * ps).forEach(item => {
+        const emotion = item.emotion || 'neutral';
+        const ec = EMOTION_COLORS[emotion] || EMOTION_COLORS.neutral;
+        const fallback = _resolveUser(item.fullUserId || item.userId, item.isAnonymous);
+        const u = item.userDisplayName ? { name: item.userDisplayName, email: item.userEmail || '—', initials: item.userInitials || 'U', isAnon: Boolean(item.isAnonymous) } : fallback;
+        const row = document.createElement('tr');
+        row.innerHTML = `<td><div class="user-cell"><div class="avatar ${u.isAnon ? 'anon' : ''}" style="width:30px;height:30px;font-size:11px;">${esc(u.initials)}</div><div><div class="name">${esc(u.name)}</div><div class="email">${esc(u.email)}</div></div></div></td><td><span class="badge" style="background:${ec.light};color:${ec.text};">${emotionEmoji(emotion)} ${cap(emotion)}</span></td><td><span class="badge ${u.isAnon ? 'badge-gray' : 'badge-green'}">${u.isAnon ? '👻 Guest' : '✅ Registered'}</span></td><td style="font-size:12px;color:#28282B;opacity:0.7;">${esc(item.timestamp || '—')}</td>`;
+        tbody.appendChild(row);
+    });
+    renderPagControls('activityPagination', 'activity', rows.length);
+}
 
 // ============================================================ BACKUPS
 function formatBackupSize(bytes) {
@@ -2766,7 +2870,8 @@ function renderPagControls(wrapperId, pageKey, total) {
 function changePage(key, delta) {
     const ps = _PAGE_SIZE[key] || 15;
     let total = 0;
-    if (key === 'overviewActivity' || key === 'activity') total = _logsMap.size;
+    if (key === 'overviewActivity') total = _logsMap.size;
+    else if (key === 'activity') total = (_activityApiData || []).length;
     else if (key === 'crisis') total = _crisisMap.size;
     else if (key === 'users') total = (allUsers || []).length;
     // risk total computed inside render; just clamp to >= 1 here, render handles upper bound
@@ -2775,7 +2880,7 @@ function changePage(key, delta) {
     if (key === 'users')            renderUsersTable(allUsers);
     if (key === 'risk')             renderRiskFromState();
     if (key === 'crisis')           renderCrisisFromState();
-    if (key === 'activity')         renderActivityFromState();
+    if (key === 'activity')         renderActivityFromApi(_activityApiData);
     if (key === 'overviewActivity') renderOverviewActivityFromState();
 }
 function _resolveUser(uid, isAnonymous) {
@@ -3052,9 +3157,34 @@ function skeletonRows(rows, cols) {
     ).join('');
 }
 
+async function loadSidebarBadges() {
+    const riskBadge = document.getElementById('riskBadge');
+    const crisisBadge = document.getElementById('crisisBadge');
+    try {
+        const response = await fetch('/admin/api/sidebar-badges');
+        if (response.status === 401) { window.location.href = '/admin/login'; return; }
+        const counts = await response.json();
+        if (riskBadge) { riskBadge.textContent = counts.riskAlertCount ?? 0; riskBadge.style.display = 'inline'; }
+        if (crisisBadge) { crisisBadge.textContent = counts.crisisAlertCount ?? 0; crisisBadge.style.display = 'inline'; }
+    } catch (error) {
+        if (riskBadge) { riskBadge.textContent = '0'; riskBadge.style.display = 'inline'; }
+        if (crisisBadge) { crisisBadge.textContent = '0'; crisisBadge.style.display = 'inline'; }
+        console.error('Sidebar badge load error:', error);
+    }
+}
+
 // ============================================================ INIT
-// Only fetch registered user count (Firebase Auth) via REST — everything else comes from Firestore listeners
+// Only fetch registered user count (MySQL Auth) via REST — everything else comes from MySQL listeners
+const ADMIN_SECTION = {{ active_section|tojson }};
 (async function init() {
+    loadSidebarBadges();
+    if (ADMIN_SECTION === 'emotions') {
+        try {
+            const uc = await fetch('/admin/api/user-cache');
+            if (uc.ok) window._userCache = await uc.json();
+        } catch(e) { console.error('User cache fetch error:', e); }
+    }
+    if (ADMIN_SECTION !== 'overview') return;
     try {
         const res = await fetch('/admin/api/stats');
         if (res.status === 401) { window.location.href = '/admin/login'; return; }
@@ -3075,13 +3205,19 @@ function skeletonRows(rows, cols) {
             renderCrisisFromState();
         }
     } catch(e) { console.error('User cache fetch error:', e); }
-    // Firestore onSnapshot listeners (added below) will populate everything else
+    // MySQL onSnapshot listeners (added below) will populate everything else
 })();
 </script>
 
-<!-- ================================================================ REALTIME LISTENER (SSE via Flask/Admin SDK — no Firebase client needed) -->
+<!-- ================================================================ REALTIME LISTENER (SSE via Flask/Admin SDK — no MySQL client needed) -->
 <script>
 (function startSSE() {
+    const streamFields = {
+        overview: 'logs=1&convs=1&crisis=1',
+        emotions: 'logs=1',
+    };
+    const streamQuery = streamFields[ADMIN_SECTION];
+    if (!streamQuery) return;
     const dot = document.getElementById('liveDot');
     const ind = document.getElementById('liveIndicator');
     let es = null;
@@ -3096,7 +3232,7 @@ function skeletonRows(rows, cols) {
 
     function connect() {
         if (document.visibilityState === 'hidden' || es) return;
-        es = new EventSource('/admin/api/stream?logs=1&convs=1&crisis=1');
+        es = new EventSource('/admin/api/stream?' + streamQuery);
 
         es.addEventListener('connected', () => {
             setLive(true);
@@ -3212,7 +3348,7 @@ async function loadAdmins() {
                         <div class="avatar" style="background:linear-gradient(135deg,#2C5E31,#3A7A40);">${(a.email[0] || '?').toUpperCase()}</div>
                         <div>
                             <div class="name">${escHtml(a.email)}</div>
-                            ${a.isPrimary ? '<div class="email">Primary (env-var)</div>' : '<div class="email">Firestore admin</div>'}
+                            ${a.isPrimary ? '<div class="email">Primary Admin</div>' : '<div class="email">Additional Admin</div>'}
                         </div>
                     </div>
                 </td>
@@ -3231,7 +3367,7 @@ async function createAdmin() {
     const email = document.getElementById('newAdminEmail').value.trim();
     const password = document.getElementById('newAdminPassword').value;
     const btn = document.getElementById('createAdminBtn');
-    if (!email || !password) { showToast('Email and password are required.'); return; }
+    if (!email) { showToast('Email is required.'); return; }
     if (password.length < 8) { showToast('Password must be at least 8 characters.'); return; }
     btn.disabled = true;
     btn.textContent = 'Adding...';
@@ -3245,7 +3381,6 @@ async function createAdmin() {
         if (data.success) {
             showToast('✅ Admin added: ' + data.email);
             document.getElementById('newAdminEmail').value = '';
-            document.getElementById('newAdminPassword').value = '';
             loadAdmins();
         } else {
             showToast('❌ ' + (data.error || 'Failed to add admin'));
@@ -3598,6 +3733,18 @@ function renderUserRecentActivity(recent) {
         `;
     }).join('');
 }
+</script>
+<script>
+// These sections have no realtime stream; load their details only after this URL is opened.
+if (ADMIN_SECTION === 'users') loadUsers();
+if (ADMIN_SECTION === 'assessments') loadAssessments();
+if (ADMIN_SECTION === 'assessment-analytics') loadAssessmentAnalytics();
+if (ADMIN_SECTION === 'providers') loadProviders('');
+if (ADMIN_SECTION === 'risk') loadRiskAlerts();
+if (ADMIN_SECTION === 'crisis') loadCrisisAlerts();
+if (ADMIN_SECTION === 'activity') loadActivity();
+if (ADMIN_SECTION === 'backups') loadBackups();
+if (ADMIN_SECTION === 'admins') loadAdmins();
 </script>
 
 </body>
