@@ -1,25 +1,26 @@
 """
 Menti Chatbot - Main Flask Application
-Emotional Support Chatbot with Firebase Authentication and OpenAI Integration
+Emotional Support Chatbot with MySQL Authentication and OpenAI Integration
 """
 
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for, Response
-from flask_cors import CORS
 from functools import wraps
-import os, json, queue, threading, sys
+import os, json, queue, threading, sys, uuid, re
 from dotenv import load_dotenv
 try:
     from openai import OpenAI
 except ImportError:  # Keep the app bootable and return a safe fallback until dependencies are installed.
     OpenAI = None
-import firebase_admin
-from firebase_admin import credentials, firestore, auth as firebase_auth
-from google.cloud.firestore_v1.base_query import FieldFilter
+from authlib.integrations.flask_client import OAuth
+from database import (Account, DELETE_FIELD, MySQLAuthCompat, MySQLDocumentStore, create_account,
+                      current_account, db as mysql_db, promote_initial_admin)
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import hashlib
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
+from werkzeug.middleware.proxy_fix import ProxyFix
+from flask.sessions import SecureCookieSessionInterface
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -50,12 +51,63 @@ def _debug_ai_log(label, text):
         compact = compact[:900] + '...'
     print(f"[AI-DEBUG] {label}: {compact}")
 
+
+class PortalSessionInterface(SecureCookieSessionInterface):
+    """Keep user, admin, and provider authentication in separate cookies."""
+
+    COOKIE_NAMES = {
+        'user': 'menti_user_session',
+        'admin': 'menti_admin_session',
+        'provider': 'menti_provider_session',
+    }
+
+    @classmethod
+    def portal_for_request(cls, path):
+        if path == '/admin' or path.startswith('/admin/'):
+            return 'admin'
+        if path == '/providers' or path.startswith('/providers/'):
+            return 'provider'
+        return 'user'
+
+    def get_cookie_name(self, app):
+        portal = self.portal_for_request(request.path)
+        if request.path == '/auth/google' and request.args.get('portal') == 'provider':
+            portal = 'provider'
+        # Video rooms and their API calls are shared between portals. The
+        # requested role tells us which independent session cookie to load.
+        requested_role = request.args.get('role', '').strip().lower()
+        if requested_role == 'provider' and (
+            request.path.startswith('/video/') or request.path.startswith('/api/video/')
+        ):
+            portal = 'provider'
+        return self.COOKIE_NAMES[portal]
+
 # Initialize Flask app
 app = Flask(__name__, 
             static_folder='assets',
             static_url_path='/static')
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-CORS(app)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-this-before-deployment')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    'DATABASE_URL', 'mysql+pymysql://root:@127.0.0.1:3306/menti_chatbot?charset=utf8mb4')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = _is_truthy_env(os.getenv('SESSION_COOKIE_SECURE', 'false'))
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
+app.session_interface = PortalSessionInterface()
+mysql_db.init_app(app)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+oauth = OAuth(app)
+oauth.register(
+    name='google', client_id=os.getenv('GOOGLE_CLIENT_ID'),
+    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'},
+)
+account_auth = MySQLAuthCompat()
+db = MySQLDocumentStore()
+# The app serves its pages and API from one origin; session cookies stay same-origin.
 
 
 @app.route('/favicon.ico')
@@ -101,18 +153,16 @@ OFFLINE_REPLY = "Menti's server is currently offline. Please try again later."
 
 # ==================== ADMIN CONFIGURATION ====================
 
-# Admin credentials - override with environment variables
-ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin@menti.com')
-_raw_admin_password = os.getenv('ADMIN_PASSWORD', 'Admin123!')
-# Store as SHA-256 hash for comparison
-ADMIN_PASSWORD_HASH = hashlib.sha256(_raw_admin_password.encode()).hexdigest()
+# Initial administrator is granted by verified Google email.
+ADMIN_USERNAME = os.getenv('ADMIN_EMAIL', '').strip().lower()
 
 
 def admin_required(f):
     """Decorator to protect admin routes"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get('is_admin'):
+        account = current_account()
+        if not account or account.role != 'admin':
             if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'error': 'Unauthorized'}), 401
             return redirect('/admin/login')
@@ -126,46 +176,12 @@ MANILA_TZ = ZoneInfo('Asia/Manila')
 APPOINTMENT_STATUSES = {'pending', 'approved', 'declined', 'cancelled', 'completed', 'no_show'}
 SESSION_DURATIONS = {30, 45, 60, 90, 120}
 
-# Firestore budget guardrails for non-critical analytics endpoints.
-FIRESTORE_DAILY_QUERY_LIMIT = max(1000, int(os.getenv('FIRESTORE_DAILY_QUERY_LIMIT', '45000') or 45000))
-FIRESTORE_NONCRITICAL_SOFT_LIMIT_RATIO = min(0.99, max(0.10, float(os.getenv('FIRESTORE_NONCRITICAL_SOFT_LIMIT_RATIO', '0.85') or 0.85)))
 ADMIN_CACHE_TTL_SECONDS = max(10, int(os.getenv('ADMIN_CACHE_TTL_SECONDS', '60') or 60))
-
-_fs_budget_lock = threading.Lock()
-_fs_budget_state = {'date': '', 'reads': 0}
 _admin_cache = {}
 
 
 def _manila_today_key():
     return datetime.now(MANILA_TZ).strftime('%Y-%m-%d')
-
-
-def _record_firestore_reads(units=1):
-    units = max(0, int(units or 0))
-    if units == 0:
-        return
-    with _fs_budget_lock:
-        today = _manila_today_key()
-        if _fs_budget_state['date'] != today:
-            _fs_budget_state['date'] = today
-            _fs_budget_state['reads'] = 0
-        _fs_budget_state['reads'] += units
-
-
-def _budget_snapshot():
-    with _fs_budget_lock:
-        today = _manila_today_key()
-        if _fs_budget_state['date'] != today:
-            _fs_budget_state['date'] = today
-            _fs_budget_state['reads'] = 0
-        reads = _fs_budget_state['reads']
-    ratio = (reads / FIRESTORE_DAILY_QUERY_LIMIT) if FIRESTORE_DAILY_QUERY_LIMIT else 0
-    return {'date': today, 'reads': reads, 'limit': FIRESTORE_DAILY_QUERY_LIMIT, 'ratio': ratio}
-
-
-def _noncritical_firestore_allowed():
-    snap = _budget_snapshot()
-    return snap['ratio'] < FIRESTORE_NONCRITICAL_SOFT_LIMIT_RATIO
 
 
 def _admin_cache_get(key, ttl_seconds=None):
@@ -188,16 +204,7 @@ def _admin_cache_or_budget_block(cache_key, ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
     fresh = _admin_cache_get(cache_key, ttl_seconds=ttl_seconds)
     if fresh is not None:
         return jsonify(fresh)
-    if _noncritical_firestore_allowed():
-        return None
-    stale = _admin_cache_get(cache_key, ttl_seconds=None)
-    if stale is not None:
-        return jsonify(stale)
-    snap = _budget_snapshot()
-    return jsonify({
-        'error': 'Non-critical analytics temporarily paused to protect Firestore daily quota.',
-        'firestoreBudget': snap,
-    }), 503
+    return None
 
 
 def _now_utc():
@@ -219,14 +226,14 @@ def _parse_iso(value):
 
 
 def _current_user_uid():
-    """Verify the Firebase bearer token used by the regular user portal."""
-    decoded = _verify_provider_token()
-    return decoded.get('uid') if decoded else None
+    """Return the authenticated MySQL account id for the current session."""
+    account = current_account()
+    return account.id if account and account.active else None
 
 
 def _where_eq(query, field, value):
-    """Firestore equality helper using keyword filter to avoid positional-arg warnings."""
-    return query.where(filter=FieldFilter(field, '==', value))
+    """Equality helper retained while application endpoints migrate incrementally."""
+    return query.where(field, '==', value)
 
 
 def _provider_name(uid):
@@ -235,6 +242,15 @@ def _provider_name(uid):
         data = snap.to_dict() or {}
         return data.get('displayName') or data.get('email') or 'Provider'
     return 'Provider'
+
+
+def _conversation_belongs_to_session(conversation_id):
+    snap = db.collection('conversations').document(conversation_id).get()
+    if not snap.exists:
+        return False
+    owner_id = (snap.to_dict() or {}).get('userId')
+    session_id = _current_user_uid() or session.get('guest_id')
+    return bool(session_id and str(owner_id) == str(session_id))
 
 
 def _rtc_ice_servers():
@@ -293,27 +309,17 @@ def _slot_is_available(provider_id, start, end, config):
 
 
 def _verify_provider_token():
-    """Verify the Firebase ID token supplied by the provider frontend."""
-    auth_header = request.headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
+    """Return the authenticated account claims from the signed Flask session."""
+    account = current_account()
+    if not account or not account.active:
         return None
-    try:
-        return firebase_auth.verify_id_token(auth_header[7:].strip())
-    except Exception as exc:
-        print(f'[provider] Firebase token verification failed: {exc}')
-        return None
+    return {'uid': account.id, 'sub': account.id, 'email': account.email,
+            'name': account.display_name, 'picture': account.photo_url}
 
 
-def _verify_firebase_id_token(raw_token):
-    """Verify a raw Firebase ID token and return decoded claims."""
-    token = str(raw_token or '').strip()
-    if not token:
-        return None
-    try:
-        return firebase_auth.verify_id_token(token)
-    except Exception as exc:
-        print(f'[auth] Firebase token verification failed: {exc}')
-        return None
+def _verify_session_identity(raw_token):
+    """Compatibility name for legacy callers; auth is now cookie-session based."""
+    return _verify_provider_token()
 
 
 def provider_session_required(f):
@@ -342,82 +348,256 @@ def provider_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Initialize Firebase Admin SDK
-try:
-    cred_path = os.getenv('FIREBASE_CREDENTIALS_PATH', 'firebase-credentials.json')
-    if os.path.exists(cred_path):
-        cred = credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print("✅ Firebase initialized successfully")
-    else:
-        print("⚠️  Firebase credentials not found. Firestore storage disabled.")
-        db = None
-except Exception as e:
-    print(f"⚠️  Firebase initialization error: {e}")
-    db = None
-
-
 # ==================== ROUTES ====================
+
+def _establish_account_session(account):
+    session.clear()
+    session['account_id'] = account.id
+    session['user_id'] = account.id
+    session['email'] = account.email
+    session['display_name'] = account.display_name
+    session['photo_url'] = account.photo_url or ''
+    session['role'] = account.role
+    session['is_admin'] = account.role == 'admin'
+    provider = db.collection('providers').document(account.id).get()
+    if provider.exists:
+        data = provider.to_dict() or {}
+        session.update({'is_provider': True, 'provider_uid': account.id,
+                        'provider_email': account.email, 'provider_role': data.get('role')})
+    session.permanent = True
+
+
+@app.before_request
+def enforce_session_ownership():
+    """Do not let browser supplied identifiers access another account's records."""
+    scoped_prefixes = ('/user/', '/conversations', '/progress/', '/personalized-plan/', '/journal/')
+    is_scoped = request.path.startswith(scoped_prefixes)
+    if not is_scoped and request.path not in ('/chat', '/api/chat/analyze', '/api/chat/respond', '/clear-history', '/logout'):
+        return None
+    own_id = _current_user_uid() or session.get('guest_id')
+    path_id = (request.view_args or {}).get('user_id') if request.view_args else None
+    payload = request.get_json(silent=True) or {}
+    requested_id = (payload.get('user_id') if isinstance(payload, dict) else None) or request.args.get('user_id')
+    if path_id and own_id and str(path_id) != str(own_id):
+        return jsonify({'error': 'You may only access your own account data'}), 403
+    if requested_id and own_id and str(requested_id) not in (str(own_id), 'anonymous'):
+        return jsonify({'error': 'You may only access your own account data'}), 403
+    if (path_id or requested_id) and not own_id:
+        return jsonify({'error': 'Authentication required'}), 401
+    return None
+
+
+@app.route('/auth/session')
+def auth_session():
+    account = current_account()
+    if session.get('is_guest') and session.get('guest_id'):
+        return jsonify({'authenticated': True, 'user': {
+            'uid': session['guest_id'], 'isAnonymous': True, 'email': '',
+            'displayName': 'Guest', 'photoURL': '', 'role': 'guest',
+        }})
+    if not account or not account.active:
+        return jsonify({'authenticated': False}), 401
+    profile = db.collection('user_profiles').document(account.id).get() if db else None
+    profile_data = profile.to_dict() if profile and profile.exists else {}
+    # The uploaded profile photo is canonical; the account photo is only a fallback.
+    profile_photo_url = profile_data.get('photoURL') or account.photo_url or ''
+    provider = db.collection('providers').document(account.id).get()
+    provider_data = provider.to_dict() if provider.exists else None
+    return jsonify({'authenticated': True, 'user': {
+        'uid': account.id, 'email': account.email, 'displayName': account.display_name,
+        'photoURL': profile_photo_url, 'emailVerified': account.email_verified,
+        'role': account.role,
+        'is_provider': bool(provider_data),
+        'provider_status': (provider_data or {}).get('status'),
+    }})
+
+
+@app.route('/auth/profile', methods=['PUT'])
+def auth_update_profile():
+    account = current_account()
+    if not account:
+        return jsonify({'error': 'Authentication required'}), 401
+    payload = request.get_json(silent=True) or {}
+    if payload.get('displayName'):
+        account.display_name = str(payload['displayName']).strip()[:255]
+    if payload.get('photoURL'):
+        account.photo_url = str(payload['photoURL']).strip()
+    mysql_db.session.commit()
+    session['display_name'] = account.display_name
+    session['photo_url'] = account.photo_url or ''
+    return jsonify({'success': True})
+
+
+@app.route('/auth/signup', methods=['POST'])
+def auth_signup():
+    payload = request.get_json(silent=True) or request.form
+    first = str(payload.get('firstName', '')).strip()
+    middle = str(payload.get('middleName', '')).strip()
+    last = str(payload.get('lastName', '')).strip()
+    email = str(payload.get('email', '')).strip().lower()
+    password = str(payload.get('password', ''))
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(password) < 8:
+        return jsonify({'success': False, 'error': 'Enter a valid email and a password of at least 8 characters.'}), 400
+    try:
+        account = create_account(email, password, ' '.join(x for x in (first, middle, last) if x))
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 409
+    return jsonify({'success': True, 'message': 'Account created. Please log in.'}), 201
+
+
+@app.route('/auth/login', methods=['POST'])
+def auth_login():
+    payload = request.get_json(silent=True) or request.form
+    account = Account.query.filter_by(email=str(payload.get('email', '')).strip().lower()).first()
+    if not account or not account.active or not account.check_password(str(payload.get('password', ''))):
+        return jsonify({'success': False, 'error': 'Email or password is incorrect.'}), 401
+    # Imported Firebase/legacy hashes are upgraded on the first successful
+    # login; commit before the response so the stronger hash is retained.
+    mysql_db.session.commit()
+    _establish_account_session(account)
+    return jsonify({'success': True, 'redirect': '/chat-page'})
+
+
+@app.route('/auth/google')
+def auth_google():
+    if not os.getenv('GOOGLE_CLIENT_ID') or not os.getenv('GOOGLE_CLIENT_SECRET'):
+        return 'Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.', 503
+    if request.args.get('portal') == 'provider':
+        return redirect('/providers/login?error=provider-email-only')
+    session['auth_next'] = request.args.get('next', '')
+    if request.args.get('portal') == 'provider':
+        callback = (os.getenv('GOOGLE_PROVIDER_REDIRECT_URI')
+                    or url_for('provider_google_callback', _external=True))
+    else:
+        callback = os.getenv('GOOGLE_REDIRECT_URI') or url_for('auth_google_callback', _external=True)
+    return oauth.google.authorize_redirect(callback)
+
+
+@app.route('/auth/google/callback')
+def auth_google_callback():
+    return _handle_google_callback()
+
+
+@app.route('/providers/auth/google/callback')
+def provider_google_callback():
+    return _handle_google_callback()
+
+
+def _handle_google_callback():
+    try:
+        token = oauth.google.authorize_access_token()
+        info = token.get('userinfo') or oauth.google.parse_id_token(token)
+        email = str((info or {}).get('email', '')).strip().lower()
+        if not email or not (info or {}).get('email_verified', False):
+            return 'Google did not return a verified email address.', 400
+        target = session.get('auth_next', '')
+        account = create_account(email, display_name=(info.get('name') or email.split('@')[0]),
+                                 google_sub=info.get('sub'), photo_url=info.get('picture'),
+                                 email_verified=True)
+        account = promote_initial_admin(account, os.getenv('ADMIN_EMAIL', ''))
+        _establish_account_session(account)
+        if not target.startswith('/') or target.startswith('//'):
+            target = '/admin/dashboard' if account.role == 'admin' else '/chat-page'
+        return redirect(target)
+    except Exception as exc:
+        print(f'[auth] Google OAuth failed: {exc}')
+        return redirect('/login?error=google')
+
+
+@app.route('/auth/guest', methods=['POST'])
+def auth_guest():
+    old_guest_id = session.get('guest_id')
+    if old_guest_id:
+        _cleanup_guest_conversations(old_guest_id)
+    session.clear()
+    guest_id = session.setdefault('guest_id', str(uuid.uuid4()))
+    session['user_id'] = guest_id
+    session['is_guest'] = True
+    session.permanent = False
+    return jsonify({'success': True, 'redirect': '/chat-page', 'user': {'uid': guest_id, 'isAnonymous': True}})
+
+
+@app.route('/auth/logout', methods=['POST'])
+def auth_logout():
+    guest_id = session.get('guest_id')
+    if guest_id:
+        _cleanup_guest_conversations(guest_id)
+    session.clear()
+    return jsonify({'success': True})
+
+
+def _cleanup_guest_conversations(guest_id):
+    try:
+        for conversation in db.collection('conversations').where('userId', '==', guest_id).stream():
+            if (conversation.to_dict() or {}).get('isAnonymous'):
+                conversation.reference.delete()
+        conversation_history.pop(guest_id, None)
+    except Exception as exc:
+        print(f'[guest] cleanup failed: {exc}')
+
 
 # ==================== ADMIN ROUTES ====================
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    """Admin login page and authentication"""
+    """Authenticate administrators with their MySQL email and password."""
     if request.method == 'GET':
         if session.get('is_admin'):
             return redirect('/admin/dashboard')
         return render_template('admin_login.html')
 
-    # POST - handle login
-    data = request.get_json() if request.is_json else request.form
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
+    payload = request.get_json(silent=True) or request.form
+    email = str(payload.get('email') or payload.get('username') or '').strip().lower()
+    password = str(payload.get('password') or '')
+    account = Account.query.filter_by(email=email).first() if email else None
 
-    # Hash the submitted password and compare
-    submitted_hash = hashlib.sha256(password.encode()).hexdigest()
+    if not account or not account.active or account.role != 'admin' or not account.check_password(password):
+        return jsonify({'success': False, 'error': 'Email or password is incorrect.'}), 401
 
-    # Check primary env-var admin first
-    if username.lower() == ADMIN_USERNAME.lower() and submitted_hash == ADMIN_PASSWORD_HASH:
-        session['is_admin'] = True
-        session['admin_username'] = username
-        session.permanent = True
-        print(f'✅ Admin login successful (primary): {username}')
-        return jsonify({'success': True, 'redirect': '/admin/dashboard'})
-
-    # Check additional admins stored in Firestore
-    if db:
-        try:
-            docs = db.collection('admins').where('email', '==', username.lower()).limit(1).stream()
-            for doc in docs:
-                data = doc.to_dict()
-                if data.get('password_hash') == submitted_hash:
-                    session['is_admin'] = True
-                    session['admin_username'] = username.lower()
-                    session.permanent = True
-                    print(f'✅ Admin login successful (Firestore): {username}')
-                    return jsonify({'success': True, 'redirect': '/admin/dashboard'})
-        except Exception as e:
-            print(f'[admin] Firestore admin lookup error: {e}')
-
-    print(f'❌ Admin login failed for username: {username}')
-    return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+    # Imported legacy password hashes are upgraded by check_password().
+    mysql_db.session.commit()
+    _establish_account_session(account)
+    return jsonify({'success': True, 'redirect': '/admin/dashboard'})
 
 
 @app.route('/admin/logout', methods=['POST'])
 def admin_logout():
-    """Admin logout"""
-    session.pop('is_admin', None)
-    session.pop('admin_username', None)
+    """End the authenticated account session."""
+    session.clear()
     return jsonify({'success': True})
 
 
 @app.route('/admin/dashboard')
+@app.route('/admin/users/')
+@app.route('/admin/user-assessment/')
+@app.route('/admin/providers/')
+@app.route('/admin/psychological-assessment/')
+@app.route('/admin/emotion-trends/')
+@app.route('/admin/risk-alerts/')
+@app.route('/admin/crisis-alerts/')
+@app.route('/admin/activity-log/')
+@app.route('/admin/backups/')
+@app.route('/admin/admin-accounts/')
 @admin_required
 def admin_dashboard():
-    """Admin dashboard page"""
-    return render_template('admin_dashboard.html', admin_username=session.get('admin_username', 'Admin'))
+    """Render one admin section while keeping the shared admin shell."""
+    section_by_path = {
+        '/admin/dashboard': 'overview',
+        '/admin/users/': 'users',
+        '/admin/user-assessment/': 'assessments',
+        '/admin/providers/': 'providers',
+        '/admin/psychological-assessment/': 'assessment-analytics',
+        '/admin/emotion-trends/': 'emotions',
+        '/admin/risk-alerts/': 'risk',
+        '/admin/crisis-alerts/': 'crisis',
+        '/admin/activity-log/': 'activity',
+        '/admin/backups/': 'backups',
+        '/admin/admin-accounts/': 'admins',
+    }
+    active_section = section_by_path.get(request.path, 'overview')
+    return render_template('admin_dashboard.html',
+                           admin_username=session.get('email', 'Admin'),
+                           active_section=active_section)
 
 
 # ==================== PROVIDER AUTHENTICATION ====================
@@ -450,6 +630,28 @@ def provider_login():
     return render_template('provider_login.html')
 
 
+@app.route('/providers/auth/login', methods=['POST'])
+def provider_auth_login():
+    """Authenticate a provider directly into the provider-only session."""
+    payload = request.get_json(silent=True) or request.form
+    email = str(payload.get('email', '')).strip().lower()
+    password = str(payload.get('password', ''))
+    account = Account.query.filter_by(email=email).first() if email else None
+    provider = db.collection('providers').document(account.id).get() if account and db else None
+    if (not account or not account.active or not provider or not provider.exists
+            or not account.check_password(password)):
+        return jsonify({'success': False, 'error': 'Email or password is incorrect.'}), 401
+
+    mysql_db.session.commit()
+    _establish_account_session(account)
+    data = provider.to_dict() or {}
+    status = data.get('status', 'pending')
+    return jsonify({
+        'success': True,
+        'redirect': '/providers/dashboard' if status == 'approved' else '/providers/status',
+    })
+
+
 @app.route('/providers/signup')
 def provider_signup():
     return render_template('provider_signup.html')
@@ -457,7 +659,7 @@ def provider_signup():
 
 @app.route('/providers/authenticate', methods=['POST'])
 def provider_authenticate():
-    """Exchange a Firebase login for a provider session and return provider status."""
+    """Establish provider context for the authenticated MySQL account."""
     decoded = _verify_provider_token()
     if not decoded:
         return jsonify({'success': False, 'error': 'Invalid authentication token'}), 401
@@ -469,7 +671,6 @@ def provider_authenticate():
         return jsonify({'success': False, 'error': 'No provider application found for this account. Please sign up as a provider first.'}), 403
     data = snap.to_dict() or {}
     status = data.get('status', 'pending')
-    session.clear()
     session.update({
         'is_provider': True,
         'provider_uid': decoded['uid'],
@@ -482,7 +683,7 @@ def provider_authenticate():
 
 @app.route('/providers/register', methods=['POST'])
 def provider_register():
-    """Create or update a provider application after Firebase signup."""
+    """Create or update a provider application for the signed-in account."""
     decoded = _verify_provider_token()
     if not decoded:
         return jsonify({'success': False, 'error': 'Invalid authentication token'}), 401
@@ -518,6 +719,8 @@ def provider_register():
         'rejectedAt': None,
     }
     ref.set(record, merge=True)
+    session.update({'is_provider': True, 'provider_uid': decoded['uid'],
+                    'provider_email': record['email'], 'provider_role': role, 'role': 'provider'})
     return jsonify({'success': True, 'provider': _provider_payload(decoded['uid'], record), 'redirect': '/providers/status'})
 
 
@@ -640,7 +843,7 @@ def assessment_api():
     result = _assessment_result(answers, payload.get('crisisAnswers'))
     result['userId'] = uid
     try:
-        user = firebase_auth.get_user(uid)
+        user = account_auth.get_user(uid)
         result['userEmail'] = user.email or ''
         result['userName'] = user.display_name or user.email or uid
     except Exception:
@@ -811,7 +1014,7 @@ def provider_appointments_api():
         user_email = str(payload.get('userEmail', '')).strip().lower()
         if not user_id and user_email:
             try:
-                user_id = firebase_auth.get_user_by_email(user_email).uid
+                user_id = account_auth.get_user_by_email(user_email).uid
             except Exception:
                 return jsonify({'error': 'No registered user was found for that email'}), 404
         start, end = _parse_iso(payload.get('start')), _parse_iso(payload.get('end'))
@@ -1096,19 +1299,17 @@ def video_signal_api(appointment_id):
     ref = db.collection('video_signals').document(appointment_id)
     if request.method == 'GET':
         signal_snap = ref.get()
-        _record_firestore_reads(1)
         signal = signal_snap.to_dict() if signal_snap.exists else {}
         return jsonify(signal or {})
     payload = request.get_json() or {}
     existing_snap = ref.get()
-    _record_firestore_reads(1)
     existing = existing_snap.to_dict() if existing_snap.exists else {}
     updates = {'updatedAt': _iso_now(), 'active': True}
 
     if payload.get('offer') and role == 'provider':
         updates['offer'] = payload['offer']
         # Reset previous call state when a new offer starts.
-        updates['answer'] = firestore.DELETE_FIELD
+        updates['answer'] = DELETE_FIELD
         updates['providerCandidates'] = []
         updates['userCandidates'] = []
         updates['userDeclined'] = False
@@ -1188,12 +1389,10 @@ def get_call_status(appointment_id):
 
     # Get signal status
     signal_ref = db.collection('video_signals').document(appointment_id).get()
-    _record_firestore_reads(1)
     signal = signal_ref.to_dict() if signal_ref.exists else {}
 
-    # Get call history (avoid order_by to skip requiring a composite Firestore index; sort in Python)
+    # Get call history (avoid order_by to skip requiring a composite MySQL index; sort in Python)
     history_docs = list(db.collection('call_history').where('appointmentId', '==', appointment_id).stream())
-    _record_firestore_reads(len(history_docs))
     history_items = [doc.to_dict() or {} for doc in history_docs]
     history_items.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
     latest_event = history_items[0] if history_items else {}
@@ -1215,6 +1414,13 @@ def get_call_status(appointment_id):
         'endedBy': signal.get('endedBy'),
         'lastUpdate': signal.get('updatedAt')
     })
+
+
+@app.route('/providers/api/video/<appointment_id>/status', methods=['GET', 'POST'])
+@provider_required
+def provider_call_status(appointment_id):
+    """Provider-scoped alias so status checks use the provider session cookie."""
+    return get_call_status(appointment_id)
 
 
 def _signal_to_status_payload(appointment_id, signal):
@@ -1248,7 +1454,7 @@ def provider_video_status_stream():
     """Realtime provider call status updates over SSE to avoid endpoint polling."""
     if not db:
         def no_db():
-            yield 'event: error\ndata: {"msg": "Firestore not available"}\n\n'
+            yield 'event: error\ndata: {"msg": "MySQL not available"}\n\n'
         return Response(no_db(), mimetype='text/event-stream')
 
     provider_uid = session['provider_uid']
@@ -1321,18 +1527,18 @@ def provider_video_status_stream():
 
 @app.route('/api/video/incoming-stream')
 def user_video_incoming_stream():
-    """Realtime user call updates over SSE using server-side Firestore listeners."""
+    """Realtime user call updates over SSE using server-side MySQL listeners."""
     uid = _current_user_uid()
     if not uid:
         query_token = request.args.get('token', '')
-        claims = _verify_firebase_id_token(query_token)
+        claims = _verify_session_identity(query_token)
         uid = claims.get('uid') if claims else None
     if not uid:
         return jsonify({'error': 'Authentication required'}), 401
 
     if not db:
         def no_db():
-            yield 'event: error\ndata: {"msg": "Firestore not available"}\n\n'
+            yield 'event: error\ndata: {"msg": "MySQL not available"}\n\n'
         return Response(no_db(), mimetype='text/event-stream')
 
     client_q = queue.SimpleQueue()
@@ -1470,9 +1676,9 @@ def video_call_room(room_token):
     # Determine user role
     provider_uid = session.get('provider_uid') if session.get('is_provider') else None
     # A newly opened call tab cannot send an Authorization header on its
-    # initial document request. Accept the Firebase token passed by the
+    # initial document request. Accept the MySQL token passed by the
     # authenticated caller so the room can be rendered directly.
-    token_claims = _verify_firebase_id_token(request.args.get('token'))
+    token_claims = _verify_session_identity(request.args.get('token'))
     user_uid = _current_user_uid() or (token_claims.get('uid') if token_claims else None)
     
     if not (provider_uid or user_uid):
@@ -1610,20 +1816,33 @@ def provider_resubmit():
     decoded = _verify_provider_token()
     if not decoded or not db:
         return jsonify({'error': 'Authentication or database unavailable'}), 401
-    snap = db.collection('providers').document(decoded['uid']).get()
-    if not snap.exists or (snap.to_dict() or {}).get('status') != 'rejected':
+    ref = db.collection('providers').document(decoded['uid'])
+    snap = ref.get()
+    old = snap.to_dict() if snap.exists else {}
+    if old.get('status') != 'rejected':
         return jsonify({'error': 'Only rejected applications can be resubmitted'}), 409
     payload = request.get_json() or {}
-    payload['status'] = 'pending'
-    # Reuse registration validation and update path without creating a second record.
-    with app.test_request_context('/providers/register', method='POST', json=payload, headers={'Authorization': request.headers.get('Authorization', '')}):
-        return provider_register()
+    role = str(payload.get('role', '')).strip().lower()
+    first = str(payload.get('firstName', '')).strip()
+    last = str(payload.get('lastName', '')).strip()
+    license_number = str(payload.get('licenseNumber', '')).strip()
+    if role not in PROVIDER_ROLES or not first or not last or not license_number:
+        return jsonify({'error': 'Complete all required provider fields'}), 400
+    now = datetime.now().isoformat()
+    record = {**old, 'email': decoded.get('email', old.get('email', '')).lower(),
+              'firstName': first, 'middleName': str(payload.get('middleName', '')).strip(),
+              'lastName': last, 'displayName': ' '.join(x for x in [first, str(payload.get('middleName', '')).strip(), last] if x),
+              'role': role, 'licenseNumber': license_number, 'status': 'pending',
+              'updatedAt': now, 'rejectionReason': '', 'rejectedAt': None}
+    ref.set(record)
+    session.update({'is_provider': True, 'provider_uid': decoded['uid'],
+                    'provider_email': record['email'], 'provider_role': role, 'role': 'provider'})
+    return jsonify({'success': True, 'provider': _provider_payload(decoded['uid'], record), 'redirect': '/providers/status'})
 
 
 @app.route('/providers/logout', methods=['POST'])
 def provider_logout():
-    for key in ('is_provider', 'provider_uid', 'provider_email', 'provider_role'):
-        session.pop(key, None)
+    session.clear()
     return jsonify({'success': True})
 
 
@@ -1682,13 +1901,12 @@ def admin_api_provider_update(uid):
 # ==================== ADMIN HELPER ====================
 
 def _fetch_all_emotion_logs():
-    """Fetch all emotion_logs documents from Firestore into a list of dicts.
+    """Fetch all emotion_logs documents from MySQL into a list of dicts.
     Returns [] if db not available or on error."""
     if not db:
         return []
     try:
         docs = list(db.collection('emotion_logs').stream())
-        _record_firestore_reads(len(docs))
         return [doc.to_dict() for doc in docs]
     except Exception as e:
         print(f'[admin] Error fetching emotion_logs: {e}')
@@ -1701,7 +1919,6 @@ def _fetch_all_conversations_meta():
         return []
     try:
         docs = list(db.collection('conversations').stream())
-        _record_firestore_reads(len(docs))
         return [doc.to_dict() for doc in docs]
     except Exception as e:
         print(f'[admin] Error fetching conversations: {e}')
@@ -1709,36 +1926,36 @@ def _fetch_all_conversations_meta():
 
 
 def _list_all_auth_users():
-    """Return list of Firebase Auth UserRecord objects. Empty list on error."""
+    """Return list of MySQL Auth UserRecord objects. Empty list on error."""
     users = []
     try:
-        page = firebase_auth.list_users()
+        page = account_auth.list_users()
         while page:
             users.extend(page.users)
             page = page.get_next_page()
     except Exception as e:
-        print(f'[admin] Error listing Firebase Auth users: {e}')
+        print(f'[admin] Error listing MySQL Auth users: {e}')
     return users
 
 
 def _is_anonymous_auth_user(user):
-    """True if Firebase Auth user is anonymous (no linked providers)."""
-    return len(getattr(user, 'provider_data', [])) == 0
+    """The new account system does not persist anonymous accounts."""
+    return False
 
 
 def _get_admin_emails():
-    """Return a set of all admin emails (env-var admin + Firestore admins collection)."""
-    emails = {ADMIN_USERNAME.lower()}
+    """Return a set of all admin emails (env-var admin + MySQL admins collection)."""
+    emails = {ADMIN_USERNAME} if ADMIN_USERNAME else set()
     if db:
         try:
             docs = list(db.collection('admins').stream())
-            _record_firestore_reads(len(docs))
             for doc in docs:
                 data = doc.to_dict()
                 if data.get('email'):
                     emails.add(data['email'].lower())
         except Exception as e:
             print(f'[admin] Error fetching admin list: {e}')
+    emails.update(account.email.lower() for account in Account.query.filter_by(role='admin').all())
     return emails
 
 
@@ -1804,7 +2021,7 @@ def admin_api_stats():
         today_str = datetime.now().strftime('%Y-%m-%d')
         seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
 
-        # ---- 1. Firebase Auth user counts ----
+        # ---- 1. MySQL Auth user counts ----
         auth_users = _list_all_auth_users()
         registered_users = [u for u in auth_users if not _is_anonymous_auth_user(u)]
         stats = {
@@ -1833,7 +2050,7 @@ def admin_api_stats():
         # ---- 3. Conversation count + anonymous distinct users ----
         convs = _fetch_all_conversations_meta()
         stats['totalConversations'] = len(convs)
-        # Count anonymous users from Firebase Auth directly (most accurate source)
+        # Count anonymous users from MySQL Auth directly (most accurate source)
         anon_user_ids = set(u.uid for u in auth_users if _is_anonymous_auth_user(u))
         # Also union in any anonymous users found only in conversations (edge cases)
         for c in convs:
@@ -1872,6 +2089,36 @@ def admin_api_stats():
         import traceback; traceback.print_exc()
         print(f'Error in admin_api_stats: {e}')
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/sidebar-badges')
+@admin_required
+def admin_api_sidebar_badges():
+    """Return the sidebar alert counts for every admin page."""
+    cache_key = 'admin:sidebar-badges'
+    cached = _admin_cache_get(cache_key, ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if cached is not None:
+        return jsonify(cached)
+    try:
+        seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        negative_counts = {}
+        for log in _fetch_all_emotion_logs():
+            if (log.get('userId') and log.get('date', '') >= seven_days_ago
+                    and log.get('emotion') in {'sad', 'anxious', 'stressed', 'angry', 'tired', 'numb'}):
+                negative_counts[log['userId']] = negative_counts.get(log['userId'], 0) + 1
+        # Count users with at least five negative messages, matching the Risk Alerts page.
+        risk_count = sum(1 for count in negative_counts.values() if count >= 5)
+
+        crisis_count = 0
+        if db:
+            crisis_count = sum(1 for _ in db.collection('crisis_alerts').stream())
+
+        payload = {'riskAlertCount': risk_count, 'crisisAlertCount': crisis_count}
+        _admin_cache_set(cache_key, payload)
+        return jsonify(payload)
+    except Exception as e:
+        print(f'Error in admin_api_sidebar_badges: {e}')
+        return jsonify({'riskAlertCount': 0, 'crisisAlertCount': 0}), 200
 
 
 @app.route('/admin/api/users')
@@ -1921,7 +2168,7 @@ def admin_api_users():
 
         users_list = []
 
-        # ---- REGISTERED users (Firebase Auth with provider_data) ----
+        # ---- REGISTERED users (MySQL Auth with provider_data) ----
         if user_type in ('all', 'registered'):
             auth_users = _list_all_auth_users()
             admin_emails = _get_admin_emails()
@@ -1962,9 +2209,9 @@ def admin_api_users():
                 })
 
         # ---- ANONYMOUS users ----
-        # Sources: Firebase Auth anonymous accounts + conversations collection + emotion_logs
+        # Sources: MySQL Auth anonymous accounts + conversations collection + emotion_logs
         if user_type in ('all', 'anonymous'):
-            # 1. Pull directly from Firebase Auth (signInAnonymously users)
+            # 1. Pull directly from MySQL Auth (signInAnonymously users)
             auth_users_all = _list_all_auth_users()
             anon_meta = {}  # uid -> ISO creation date string
             for user in auth_users_all:
@@ -2067,9 +2314,9 @@ def admin_api_emotions():
 @admin_required
 def admin_api_risk_alerts():
     """Return at-risk users — 5+ negative messages in last 7 days."""
-    guarded = _admin_cache_or_budget_block('admin:risk-alerts', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
-    if guarded is not None:
-        return guarded
+    cached = _admin_cache_get('admin:risk-alerts', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if cached is not None:
+        return jsonify(cached)
     try:
         from collections import Counter
         seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
@@ -2114,7 +2361,7 @@ def admin_api_risk_alerts():
             email = '—'
             if not data['isAnonymous']:
                 try:
-                    auth_user = firebase_auth.get_user(uid)
+                    auth_user = account_auth.get_user(uid)
                     # Skip all admin accounts
                     admin_emails = _get_admin_emails()
                     if auth_user.email and auth_user.email.lower() in admin_emails:
@@ -2151,15 +2398,63 @@ def admin_api_risk_alerts():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/admin/api/crisis-alerts')
+@admin_required
+def admin_api_crisis_alerts():
+    """Return crisis alerts directly from the database for the admin page."""
+    cache_key = 'admin:crisis-alerts:v2'
+    cached = _admin_cache_get(cache_key, ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if cached is not None:
+        return jsonify(cached)
+    try:
+        alerts = []
+        users_by_id = {user.uid: user for user in _list_all_auth_users()}
+        admin_emails = _get_admin_emails()
+        if db:
+            for doc in db.collection('crisis_alerts').stream():
+                item = doc.to_dict() or {}
+                item['id'] = doc.id
+                uid = str(item.get('userId') or '')
+                auth_user = users_by_id.get(uid)
+                if auth_user and (not auth_user.email or auth_user.email.lower() not in admin_emails):
+                    display_name = auth_user.display_name or auth_user.email or 'User'
+                    item['userDisplayName'] = mask_username(display_name)
+                    item['userEmail'] = mask_email(auth_user.email or '—')
+                    item['userInitials'] = ''.join(part[0] for part in item['userDisplayName'].split()[:2]).upper() or 'U'
+                elif item.get('isAnonymous'):
+                    item['userDisplayName'] = 'Anonymous User'
+                    item['userEmail'] = 'Anonymous'
+                    item['userInitials'] = '?'
+                elif uid:
+                    # Historical/imported alerts may contain a test-case or legacy ID,
+                    # not an account ID. Keep that identity useful instead of showing Unknown User.
+                    is_test_id = uid.startswith(('matrix_', 'test_', 'verify_', 'check2_'))
+                    item['userDisplayName'] = 'Test User' if is_test_id else f'User {uid[:8]}'
+                    item['userEmail'] = uid if is_test_id else '—'
+                    item['userInitials'] = 'T' if is_test_id else 'U'
+                for key, value in list(item.items()):
+                    if hasattr(value, 'isoformat'):
+                        item[key] = value.isoformat()
+                alerts.append(item)
+        alerts.sort(key=lambda item: str(item.get('timestamp') or ''), reverse=True)
+        _admin_cache_set(cache_key, alerts)
+        return jsonify(alerts)
+    except Exception as e:
+        print(f'Error in admin_api_crisis_alerts: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/admin/api/activity')
 @admin_required
 def admin_api_activity():
     """Return recent activity — latest 100 emotion log entries, newest first."""
-    guarded = _admin_cache_or_budget_block('admin:activity', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
-    if guarded is not None:
-        return guarded
+    cached = _admin_cache_get('admin:activity', ttl_seconds=ADMIN_CACHE_TTL_SECONDS)
+    if cached is not None:
+        return jsonify(cached)
     try:
         logs = _fetch_all_emotion_logs()
+        users_by_id = {user.uid: user for user in _list_all_auth_users()}
+        admin_emails = _get_admin_emails()
         # Sort by timestamp descending in Python
         logs.sort(key=lambda l: l.get('timestamp', ''), reverse=True)
         logs = logs[:100]
@@ -2168,7 +2463,7 @@ def admin_api_activity():
         for log in logs:
             uid = log.get('userId', '')
             ts = log.get('timestamp', '')
-            activity.append({
+            item = {
                 'userId': (uid[:14] + '...') if len(uid) > 14 else uid,
                 'fullUserId': uid,
                 'emotion': log.get('emotion', 'neutral'),
@@ -2176,7 +2471,22 @@ def admin_api_activity():
                 'isAnonymous': log.get('isAnonymous', False),
                 'conversationId': log.get('conversationId', ''),
                 'date': log.get('date', '')
-            })
+            }
+            auth_user = users_by_id.get(uid)
+            if auth_user and (not auth_user.email or auth_user.email.lower() not in admin_emails):
+                item['userDisplayName'] = mask_username(auth_user.display_name or auth_user.email or 'User')
+                item['userEmail'] = mask_email(auth_user.email or '—')
+                item['userInitials'] = ''.join(part[0] for part in item['userDisplayName'].split()[:2]).upper() or 'U'
+            elif item['isAnonymous']:
+                item['userDisplayName'] = 'Anonymous User'
+                item['userEmail'] = 'Anonymous'
+                item['userInitials'] = '?'
+            elif uid:
+                is_test_id = uid.startswith(('matrix_', 'test_', 'verify_', 'check2_'))
+                item['userDisplayName'] = 'Test User' if is_test_id else f'User {uid[:8]}'
+                item['userEmail'] = uid if is_test_id else '—'
+                item['userInitials'] = 'T' if is_test_id else 'U'
+            activity.append(item)
         _admin_cache_set('admin:activity', activity)
         return jsonify(activity)
     except Exception as e:
@@ -2216,9 +2526,9 @@ def admin_api_user_details(uid):
             'totalMessages': len(user_logs)
         }
         
-        # Try to get user from Firebase Auth
+        # Try to get user from MySQL Auth
         try:
-            auth_user = firebase_auth.get_user(uid)
+            auth_user = account_auth.get_user(uid)
             admin_emails = _get_admin_emails()
             
             if not (auth_user.email and auth_user.email.lower() in admin_emails):
@@ -2343,7 +2653,7 @@ def admin_api_user_cache():
         auth_users_all = _list_all_auth_users()
         for user in auth_users_all:
             if _is_anonymous_auth_user(user):
-                # Anonymous Firebase Auth user
+                # Anonymous MySQL Auth user
                 short_uid = user.uid[:16] + ('...' if len(user.uid) > 16 else '')
                 cache[user.uid] = {
                     'name': 'Anonymous User',
@@ -2388,7 +2698,7 @@ def admin_api_user_cache():
 @app.route('/admin/api/admins', methods=['GET'])
 @admin_required
 def admin_api_admins_list():
-    """List all admin accounts (primary env admin + Firestore admins)."""
+    """List all admin accounts (primary env admin + MySQL admins)."""
     admins = [{'email': ADMIN_USERNAME, 'isPrimary': True, 'createdAt': 'System', 'createdBy': '—'}]
     if db:
         try:
@@ -2403,34 +2713,39 @@ def admin_api_admins_list():
                 })
         except Exception as e:
             print(f'[admin] Error listing admins: {e}')
+    known = {str(item.get('email', '')).lower() for item in admins}
+    admins.extend({'id': account.id, 'email': account.email, 'isPrimary': account.email == ADMIN_USERNAME,
+                   'createdAt': account.created_at.isoformat(), 'createdBy': 'Google OAuth'}
+                  for account in Account.query.filter_by(role='admin').all()
+                  if account.email.lower() not in known)
     return jsonify(admins)
 
 
 @app.route('/admin/api/admins', methods=['POST'])
 @admin_required
 def admin_api_admins_create():
-    """Create a new admin account and store in Firestore admins collection."""
-    if not db:
-        return jsonify({'error': 'Firestore not available'}), 503
+    """Create a new admin account and store in MySQL admins collection."""
     data = request.get_json() or {}
     email = data.get('email', '').strip().lower()
-    password = data.get('password', '')
-    if not email or not password:
-        return jsonify({'error': 'Email and password are required'}), 400
+    password = str(data.get('password') or '')
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        return jsonify({'error': 'A valid email is required'}), 400
     if len(password) < 8:
         return jsonify({'error': 'Password must be at least 8 characters'}), 400
     # Check if already an admin
     if email in _get_admin_emails():
         return jsonify({'error': 'An admin with this email already exists'}), 409
     try:
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        db.collection('admins').add({
-            'email': email,
-            'password_hash': password_hash,
-            'created_at': datetime.now().isoformat(),
-            'created_by': session.get('admin_username', 'unknown')
-        })
-        return jsonify({'success': True, 'email': email})
+        account = Account.query.filter_by(email=email).first()
+        if not account:
+            account = create_account(email, password, display_name=email.split('@')[0])
+        elif account.password_hash:
+            return jsonify({'error': 'An account with this email already exists'}), 409
+        else:
+            account.set_password(password)
+        account.role = 'admin'
+        mysql_db.session.commit()
+        return jsonify({'success': True, 'email': email, 'id': account.id})
     except Exception as e:
         print(f'[admin] Error creating admin: {e}')
         return jsonify({'error': str(e)}), 500
@@ -2439,18 +2754,17 @@ def admin_api_admins_create():
 @app.route('/admin/api/admins/<doc_id>', methods=['DELETE'])
 @admin_required
 def admin_api_admins_delete(doc_id):
-    """Delete an admin from the Firestore admins collection (cannot delete primary env admin)."""
-    if not db:
-        return jsonify({'error': 'Firestore not available'}), 503
+    """Delete an admin from the MySQL admins collection (cannot delete primary env admin)."""
+    account = mysql_db.session.get(Account, doc_id)
+    if not account:
+        return jsonify({'error': 'Admin not found'}), 404
+    if account.email == ADMIN_USERNAME:
+        return jsonify({'error': 'Cannot revoke the configured primary admin'}), 403
+    if account.id == session.get('account_id'):
+        return jsonify({'error': 'You cannot revoke your own admin access'}), 403
     try:
-        doc_ref = db.collection('admins').document(doc_id)
-        doc = doc_ref.get()
-        if not doc.exists:
-            return jsonify({'error': 'Admin not found'}), 404
-        email = doc.to_dict().get('email', '')
-        if email.lower() == ADMIN_USERNAME.lower():
-            return jsonify({'error': 'Cannot delete the primary admin account'}), 403
-        doc_ref.delete()
+        account.role = 'user'
+        mysql_db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
         print(f'[admin] Error deleting admin: {e}')
@@ -2489,12 +2803,12 @@ def admin_api_messages_per_day():
 @app.route('/admin/api/stream')
 @admin_required
 def admin_api_stream():
-    """Server-Sent Events stream — uses Firebase Admin SDK (bypasses Firestore rules).
-    Per-client Firestore on_snapshot listeners are created and torn down with the connection.
+    """Server-Sent Events stream — uses MySQL Admin SDK (bypasses MySQL rules).
+    Per-client MySQL on_snapshot listeners are created and torn down with the connection.
     """
     if not db:
         def no_db():
-            yield 'event: error\ndata: {"msg": "Firestore not available"}\n\n'
+            yield 'event: error\ndata: {"msg": "MySQL not available"}\n\n'
         return Response(no_db(), mimetype='text/event-stream')
 
     client_q = queue.SimpleQueue()
@@ -2505,7 +2819,7 @@ def admin_api_stream():
         d['_docId'] = doc.id
         if change_type:
             d['_changeType'] = change_type
-        # Make Firestore timestamps JSON-serialisable
+        # Make MySQL timestamps JSON-serialisable
         for k, v in list(d.items()):
             if hasattr(v, 'isoformat'):
                 d[k] = v.isoformat()
@@ -2642,7 +2956,7 @@ def chat():
     - Maintains conversation history
     - Runs OpenAI structured mood and safety analysis
     - Generates supportive response with context
-    - Stores chat in Firestore ONLY for logged-in users (not guest mode)
+    - Stores chat in MySQL ONLY for logged-in users (not guest mode)
     - Returns emotion and bot reply
     """
     try:
@@ -2749,7 +3063,7 @@ def chat():
             conversation_history[user_id] = conversation_history[user_id][-12:]
             print(f"✂️ Trimmed conversation history to last 12 messages")
         
-        # Step 5: Store chat in Firestore for BOTH guest and logged-in users
+        # Step 5: Store chat in MySQL for BOTH guest and logged-in users
         # Guest data will be deleted on logout, logged-in data persists
         if db:
             try:
@@ -2784,7 +3098,7 @@ def health():
 def clear_history():
     """
     Clear conversation history for a user
-    For guest users: Also delete all their chats from Firestore
+    For guest users: Also delete all their chats from MySQL
     For logged-in users: Only clear in-memory history (keep database records)
     """
     try:
@@ -2797,7 +3111,7 @@ def clear_history():
             conversation_history[user_id] = []
             print(f"🗑️ In-memory history cleared for user: {user_id}")
         
-        # For guest users: DELETE all their chats from Firestore
+        # For guest users: DELETE all their chats from MySQL
         if is_guest and db:
             try:
                 # Delete all conversations where userId = current user AND isAnonymous = true
@@ -2823,13 +3137,13 @@ def clear_history():
                     conv_doc.reference.delete()
                     deleted_count += 1
                 
-                print(f"🗑️ Deleted {deleted_count} guest conversation(s) from Firestore for user: {user_id}")
+                print(f"🗑️ Deleted {deleted_count} guest conversation(s) from MySQL for user: {user_id}")
                 return jsonify({
                     'message': 'Guest conversation history cleared from memory and database',
                     'deleted_conversations': deleted_count
                 })
             except Exception as e:
-                print(f"❌ Error deleting guest conversations from Firestore: {e}")
+                print(f"❌ Error deleting guest conversations from MySQL: {e}")
                 return jsonify({'message': 'History cleared from memory, but error deleting from database'}), 500
         
         return jsonify({'message': 'Conversation history cleared from memory'})
@@ -2841,9 +3155,9 @@ def clear_history():
 
 # ==================== HELPER FUNCTIONS ====================
 
-def _fetch_conversation_messages_from_firestore(conversation_id, n=6):
+def _fetch_conversation_messages_from_mysql(conversation_id, n=6):
     """
-    Fetch the last n user and n bot messages from a specific conversation in Firestore.
+    Fetch the last n user and n bot messages from a specific conversation in MySQL.
     Returns: (user_msgs, assistant_msgs) - lists of message strings
     """
     user_msgs = []
@@ -2884,7 +3198,7 @@ def _fetch_conversation_messages_from_firestore(conversation_id, n=6):
         assistant_msgs = assistant_msgs[-n:]
         
     except Exception as e:
-        print(f"⚠️ Error fetching conversation messages from Firestore: {e}")
+        print(f"⚠️ Error fetching conversation messages from MySQL: {e}")
     
     return user_msgs, assistant_msgs
 
@@ -2905,16 +3219,16 @@ def _last_n_role_messages(user_id, role, n=6):
 
 def _format_context_for_analysis(conversation_id=None, user_id=None):
     """Build compact role-separated context (last 6 user + last 6 assistant).
-    Priority: Use Firestore if conversation_id provided, fallback to in-memory history.
+    Priority: Use MySQL if conversation_id provided, fallback to in-memory history.
     """
     user_msgs = []
     assistant_msgs = []
     
-    # Try to fetch from Firestore first (preferred for conversation-specific history)
+    # Try to fetch from MySQL first (preferred for conversation-specific history)
     if conversation_id:
-        user_msgs, assistant_msgs = _fetch_conversation_messages_from_firestore(conversation_id, n=6)
+        user_msgs, assistant_msgs = _fetch_conversation_messages_from_mysql(conversation_id, n=6)
     
-    # Fallback to in-memory history if no Firestore data or no conversation_id
+    # Fallback to in-memory history if no MySQL data or no conversation_id
     if not user_msgs and user_id:
         user_msgs = _last_n_role_messages(user_id, 'user', n=6)
     if not assistant_msgs and user_id:
@@ -3069,7 +3383,7 @@ def _format_crisis_hotlines(response_length='short', crisis_type='none'):
 
 
 def log_crisis_alert(user_id, message, crisis_type, severity, emotion, mode, is_anonymous=False):
-    """Write a crisis alert to Firestore crisis_alerts collection."""
+    """Write a crisis alert to MySQL crisis_alerts collection."""
     if not db:
         return
     try:
@@ -3113,7 +3427,7 @@ def log_emotion(user_id, emotion, conversation_id, is_anonymous=False):
 
 def store_chat_message(user_id, user_message, bot_reply, emotion, conversation_id=None, is_anonymous=False):
     """
-    Store chat message in Firestore
+    Store chat message in MySQL
     Structure: /conversations/{conversationID}/messages/{messageID}
     Uses camelCase for consistency with new database design
     """
@@ -3167,7 +3481,7 @@ def store_chat_message(user_id, user_message, bot_reply, emotion, conversation_i
         print(f"✅ Chat stored for user: {user_id}")
     
     except Exception as e:
-        print(f"Error storing chat in Firestore: {e}")
+        print(f"Error storing chat in MySQL: {e}")
         raise
 
 
@@ -3189,11 +3503,11 @@ def manage_conversations():
             print(f"🔍 Querying conversations: userId={user_id}, isGuest={is_guest}, isArchived={is_archived}")
             
             # Query by user only, then filter in Python. The previous query
-            # required a Firestore composite index and excluded older records
+            # required a MySQL composite index and excluded older records
             # where isAnonymous/isArchived had never been written.
             conversations_ref = _where_eq(db.collection('conversations'), 'userId', user_id)
             conversations = []
-            # Do not let a Firestore transport/index problem hang the Flask
+            # Do not let a MySQL transport/index problem hang the Flask
             # request forever. The client can then show a recoverable error.
             for doc in conversations_ref.stream(timeout=15):
                 conv_data = doc.to_dict()
@@ -3264,6 +3578,8 @@ def update_conversation(conversation_id):
     """Update or delete a conversation"""
     if not db:
         return jsonify({'error': 'Database not available'}), 500
+    if not _conversation_belongs_to_session(conversation_id):
+        return jsonify({'error': 'Conversation not found'}), 404
     
     if request.method == 'PUT':
         data = request.json
@@ -3300,6 +3616,8 @@ def archive_conversation(conversation_id):
     """Archive or unarchive a conversation"""
     if not db:
         return jsonify({'error': 'Database not available'}), 500
+    if not _conversation_belongs_to_session(conversation_id):
+        return jsonify({'error': 'Conversation not found'}), 404
     
     data = request.json
     is_archived = data.get('is_archived', False)
@@ -3322,6 +3640,8 @@ def get_conversation_messages(conversation_id):
     """Get all messages in a conversation"""
     if not db:
         return jsonify([])
+    if not _conversation_belongs_to_session(conversation_id):
+        return jsonify({'error': 'Conversation not found'}), 404
     
     try:
         messages_ref = db.collection('conversations').document(conversation_id)\
@@ -3356,7 +3676,7 @@ def logout():
             conversation_history[user_id] = []
             print(f"🗑️ In-memory history cleared for user: {user_id}")
         
-        # For guest users: DELETE all conversations from Firestore
+        # For guest users: DELETE all conversations from MySQL
         if is_guest and db and user_id:
             try:
                 # Query all guest conversations
@@ -4953,15 +5273,15 @@ def profile_page():
 
 @app.route('/user/profile/<user_id>', methods=['GET'])
 def get_user_profile(user_id):
-    """Return profile data stored in Firestore for a user."""
+    """Return profile data stored in MySQL for a user."""
     if not db:
         return jsonify({'error': 'Database not available'}), 500
     try:
         doc = db.collection('user_profiles').document(user_id).get()
         profile = doc.to_dict() if doc.exists else {}
-        # Merge Firebase Auth data
+        # Merge MySQL Auth data
         try:
-            auth_user = firebase_auth.get_user(user_id)
+            auth_user = account_auth.get_user(user_id)
             profile['displayName'] = profile.get('displayName') or auth_user.display_name or ''
             profile['email'] = auth_user.email or ''
             profile['photoURL'] = profile.get('photoURL') or auth_user.photo_url or ''
@@ -4975,7 +5295,7 @@ def get_user_profile(user_id):
 
 @app.route('/user/profile/<user_id>', methods=['PUT'])
 def update_user_profile(user_id):
-    """Update profile fields stored in Firestore (displayName, birthday, photoURL)."""
+    """Update profile fields stored in MySQL (displayName, birthday, photoURL)."""
     if not db:
         return jsonify({'error': 'Database not available'}), 500
     data = request.get_json() or {}
@@ -4992,15 +5312,15 @@ def update_user_profile(user_id):
         updates['updatedAt'] = datetime.now().isoformat()
         db.collection('user_profiles').document(user_id).set(updates, merge=True)
 
-        # Also update Firebase Auth display name if provided
+        # Also update MySQL Auth display name if provided
         if 'displayName' in updates:
             try:
-                firebase_auth.update_user(user_id, display_name=updates['displayName'])
+                account_auth.update_user(user_id, display_name=updates['displayName'])
             except Exception as e:
                 print(f'[profile] Auth display name update error: {e}')
         if 'photoURL' in updates and updates['photoURL'].startswith(('http://', 'https://')):
             try:
-                firebase_auth.update_user(user_id, photo_url=updates['photoURL'])
+                account_auth.update_user(user_id, photo_url=updates['photoURL'])
             except Exception as e:
                 print(f'[profile] Auth photo URL update error: {e}')
 
@@ -5069,7 +5389,7 @@ BACKUP_DOWNLOAD_PATH = os.getenv('BACKUP_DOWNLOAD_PATH', '')  # Optional local p
 
 
 def _collect_full_backup():
-    """Collect all Firestore collections into a dict for backup."""
+    """Collect all MySQL collections into a dict for backup."""
     if not db:
         return {}
     backup = {'exportedAt': datetime.now().isoformat(), 'collections': {}}
@@ -5080,7 +5400,7 @@ def _collect_full_backup():
             for doc in db.collection(col_name).stream():
                 d = doc.to_dict() or {}
                 d['_docId'] = doc.id
-                # Serialize any Firestore timestamps
+                # Serialize any MySQL timestamps
                 for k, v in list(d.items()):
                     if hasattr(v, 'isoformat'):
                         d[k] = v.isoformat()
@@ -5092,7 +5412,7 @@ def _collect_full_backup():
 
 
 def _record_backup_history(triggered_by='scheduler', backup_size=0):
-    """Write a backup history entry to Firestore."""
+    """Write a backup history entry to MySQL."""
     if not db:
         return
     try:
@@ -5177,11 +5497,16 @@ def _run_counseling_reminders():
         lock.release()
 
 
+def _run_counseling_reminders_with_context():
+    with app.app_context():
+        _run_counseling_reminders()
+
+
 # Start APScheduler — runs nightly backup at 23:59
 _scheduler = BackgroundScheduler(timezone='UTC')
 _scheduler.add_job(_run_scheduled_backup, 'cron', hour=23, minute=59, id='nightly_backup')
 _scheduler.add_job(
-    _run_counseling_reminders,
+    _run_counseling_reminders_with_context,
     'interval',
     minutes=1,
     id='counseling_reminders',
@@ -5547,5 +5872,5 @@ def api_chat_respond():
 if __name__ == '__main__':
     print("🚀 Starting Menti Chatbot Server...")
     print(f"🤖 OpenAI: {'✅ Configured' if os.getenv('OPENAI_API_KEY') else '❌ Missing'}")
-    print(f"🔥 Firebase: {'✅ Connected' if db else '⚠️  Not connected'}")
+    print(f"🔥 MySQL: {'✅ Connected' if db else '⚠️  Not connected'}")
     app.run(debug=True, host='0.0.0.0', port=5000)
