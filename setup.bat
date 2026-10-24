@@ -22,8 +22,13 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/3] Running setup verification test...
-python test_setup.py
+echo [2/3] Creating MySQL tables and seeding the configured administrator...
+python seed_database.py
+if errorlevel 1 (
+    echo ERROR: MySQL setup failed. Start Laragon MySQL and configure DATABASE_URL in .env
+    pause
+    exit /b 1
+)
 
 echo.
 echo [3/3] Setup complete!
@@ -31,11 +36,11 @@ echo.
 echo ========================================
 echo IMPORTANT: Before running the app
 echo ========================================
-echo 1. Download firebase-credentials.json from Firebase Console
-echo 2. Update Firebase Web API Key in login.html and chat.html
-echo 3. Enable Authentication and Firestore in Firebase Console
+echo 1. Create the menti_chatbot database in Laragon MySQL
+echo 2. Copy .env.example to .env and set Google OAuth values
+echo 3. Register /auth/google/callback in your Google OAuth client
 echo.
-echo See SETUP.md for detailed instructions
+echo See MYSQL_GOOGLE_SETUP.md for detailed instructions
 echo ========================================
 echo.
 echo To start the application, run:
