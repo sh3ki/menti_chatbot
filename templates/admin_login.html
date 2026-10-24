@@ -251,12 +251,12 @@
 
         <form id="adminLoginForm">
             <div class="form-group">
-                <label for="username">Email</label>
+                <label for="email">Email</label>
                 <div class="input-wrapper">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
                     </svg>
-                    <input type="text" id="username" name="username" placeholder="Enter admin email" autocomplete="username" required>
+                    <input type="email" id="email" name="email" placeholder="Enter admin email" autocomplete="username" required>
                 </div>
             </div>
 
@@ -296,10 +296,10 @@
             e.preventDefault();
             errorMsg.classList.remove('show');
 
-            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
 
-            if (!username || !password) {
+            if (!email || !password) {
                 showError('Please enter both username and password.');
                 return;
             }
@@ -312,7 +312,7 @@
                 const res = await fetch('/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ email, password })
                 });
                 const data = await res.json();
 
