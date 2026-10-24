@@ -631,17 +631,15 @@
                 <div class="security-item">
                     <div class="security-item-info">
                         <div class="security-item-title">Email Verification</div>
-                        <div class="security-item-desc">Verify your email to protect your account.</div>
+                        <div class="security-item-desc" id="emailVerificationDescription">Your email verification status.</div>
                     </div>
                     <span class="verified-badge" id="emailVerifiedBadge" style="display:none;">✓ Verified</span>
-                    <button class="btn btn-secondary" id="verifyEmailBtn" style="display:none;">Send Verification</button>
                 </div>
                 <div class="security-item">
                     <div class="security-item-info">
                         <div class="security-item-title">Password Reset</div>
-                        <div class="security-item-desc">Send a password reset link to your email.</div>
+                        <div class="security-item-desc">Password reset emails are not configured. For Google sign-in, manage your password in your Google Account.</div>
                     </div>
-                    <button class="btn btn-secondary" id="resetPasswordBtn">Send Reset Link</button>
                 </div>
             </div>
         </div>
@@ -707,22 +705,21 @@
     <div class="toast" id="toast"></div>
 
     <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { initializeApp } from '/static/js/auth-client.js';
         import {
-            getAuth, onAuthStateChanged, signOut,
-            sendEmailVerification, sendPasswordResetEmail
-        } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+            getAuth, onAuthStateChanged, signOut
+        } from '/static/js/auth-client.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
-            authDomain: "menti-7b8a1.firebaseapp.com",
-            projectId: "menti-7b8a1",
-            storageBucket: "menti-7b8a1.firebasestorage.app",
+        const authConfig = {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
             messagingSenderId: "164612023817",
             appId: "1:164612023817:web:c0437146e86951377f3ad8"
         };
 
-        const app  = initializeApp(firebaseConfig);
+        const app  = initializeApp(authConfig);
         const auth = getAuth(app);
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
@@ -957,8 +954,9 @@
 
             if (currentUser.emailVerified) {
                 document.getElementById('emailVerifiedBadge').style.display = 'inline-flex';
+                document.getElementById('emailVerificationDescription').textContent = 'Your email address is verified.';
             } else {
-                document.getElementById('verifyEmailBtn').style.display = 'block';
+                document.getElementById('emailVerificationDescription').textContent = 'This account does not have a verified email address.';
             }
         }
 
@@ -1011,23 +1009,6 @@
                 btn.disabled = false;
                 setTimeout(() => status.classList.remove('show'), 3000);
             }
-        });
-
-        // ===== SECURITY =====
-        document.getElementById('verifyEmailBtn').addEventListener('click', async () => {
-            try {
-                await sendEmailVerification(currentUser);
-                showToast('Verification email sent! Check your inbox.');
-            } catch (e) { showToast('Error: ' + e.message, true); }
-        });
-
-        document.getElementById('resetPasswordBtn').addEventListener('click', async () => {
-            const email = currentUser.email;
-            if (!email) { showToast('No email address found.', true); return; }
-            try {
-                await sendPasswordResetEmail(auth, email);
-                showToast('Password reset email sent to ' + email);
-            } catch (e) { showToast('Error: ' + e.message, true); }
         });
 
         // ===== PFP MODAL =====
@@ -1295,8 +1276,8 @@
       };
     </script>
     <script type="module">
-      import { getApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-      import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+      import { getApp } from '/static/js/auth-client.js';
+      import { getAuth, onAuthStateChanged } from '/static/js/auth-client.js';
       try {
         const auth = getAuth(getApp());
         onAuthStateChanged(auth, async (user) => {
@@ -1307,6 +1288,7 @@
       } catch (e) {}
     </script>
 <script src="/static/js/background-music.js"></script>
+<script>document.addEventListener('DOMContentLoaded',()=>{const m=document.querySelector('.profile-dropdown'),p=m?.querySelector('a[href="/profile"]'),c=m?.querySelector('a[href="/counseling-appointments"]'),d=m?.querySelector('.profile-dropdown-divider');if(m&&p&&c&&d){d.before(c);d.before(p)}});</script>
 </body>
 <script src="/static/js/sidebar-persistence.js"></script>
 </html>
