@@ -1034,21 +1034,21 @@
         </div>
     </footer>
 
-    <!-- Firebase SDK -->
+    <!-- MySQL SDK -->
     <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { initializeApp } from '/static/js/auth-client.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from '/static/js/auth-client.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
-            authDomain: "menti-7b8a1.firebaseapp.com",
-            projectId: "menti-7b8a1",
-            storageBucket: "menti-7b8a1.firebasestorage.app",
+        const authConfig = {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
             messagingSenderId: "164612023817",
             appId: "1:164612023817:web:c0437146e86951377f3ad8"
         };
 
-        const app = initializeApp(firebaseConfig);
+        const app = initializeApp(authConfig);
         const auth = getAuth(app);
 
         // Listen for authentication state changes and auto-redirect
