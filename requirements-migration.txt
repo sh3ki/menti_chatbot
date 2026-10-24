@@ -1,0 +1,3 @@
+# Install only in the one-time Firebase export/import environment.
+-r requirements.txt
+firebase-admin>=6.5,<8.0
