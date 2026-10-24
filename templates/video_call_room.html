@@ -466,6 +466,8 @@
         // Use requested role first so user-accepted tabs render as receiver (not caller).
         const roomToken = SERVER_ROOM_TOKEN || pathParts[pathParts.length - 1];
         const role = REQUESTED_ROLE || params.get('role') || SERVER_ROLE;
+        const signalEndpoint = `/api/video/${encodeURIComponent(roomToken)}/signal?role=${encodeURIComponent(role)}`;
+        const statusEndpoint = `/api/video/${encodeURIComponent(roomToken)}/status?role=${encodeURIComponent(role)}`;
         const otherPartyName = role === 'provider' ? USER_NAME : PROVIDER_NAME;
         document.getElementById('call-notes-toggle').hidden = !(SERVER_ROLE === 'provider' && role === 'provider');
 
@@ -511,11 +513,11 @@
         const deviceMenuToggle = document.getElementById('device-menu-toggle');
         const deviceSelector = document.getElementById('device-selector');
 
-        const FIREBASE_CONFIG = {
-            apiKey: 'AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0',
-            authDomain: 'menti-7b8a1.firebaseapp.com',
-            projectId: 'menti-7b8a1',
-            storageBucket: 'menti-7b8a1.firebasestorage.app',
+        const AUTH_CONFIG = {
+            apiKey: '',
+            authDomain: '',
+            projectId: '',
+            storageBucket: '',
             messagingSenderId: '164612023817',
             appId: '1:164612023817:web:c0437146e86951377f3ad8'
         };
@@ -689,7 +691,7 @@
         }
 
         async function sendSignal(payload) {
-            const response = await fetch(`/api/video/${roomToken}/signal`, {
+            const response = await fetch(signalEndpoint, {
                 method: 'POST',
                 headers: buildHeaders(true),
                 body: JSON.stringify(payload),
@@ -701,7 +703,7 @@
         }
 
         async function getSignal() {
-            const response = await fetch(`/api/video/${roomToken}/signal`, {
+            const response = await fetch(signalEndpoint, {
                 headers: buildHeaders(false),
             });
             if (!response.ok) {
@@ -785,32 +787,9 @@
 
         async function startSignalRealtime() {
             stopSignalRealtime();
-            try {
-                const [{ initializeApp, getApps, getApp }, { getFirestore, doc, onSnapshot }] = await Promise.all([
-                    import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'),
-                    import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js')
-                ]);
-
-                const fbApp = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
-                const fs = getFirestore(fbApp);
-                const signalRef = doc(fs, 'video_signals', roomToken);
-                signalUnsubscribe = onSnapshot(signalRef, (snap) => {
-                    const signal = snap.exists() ? (snap.data() || {}) : {};
-                    handleSignalUpdate(signal).catch((err) => {
-                        console.error('[video-call] realtime signal handling error:', err);
-                    });
-                }, (err) => {
-                    console.warn('[video-call] realtime listener failed, falling back to polling:', err);
-                    stopSignalRealtime();
-                    startSignalPolling();
-                });
-                signalRealtimeReady = true;
-                return true;
-            } catch (err) {
-                console.warn('[video-call] realtime init failed, using polling fallback:', err);
-                signalRealtimeReady = false;
-                return false;
-            }
+            signalRealtimeReady = false;
+            await startSignalPolling();
+            return false;
         }
 
         function createPeerConnection() {
@@ -977,7 +956,7 @@
                     await sendSignal({ callEnded: true, endedBy: role, duration });
                 } catch (_) {}
                 try {
-                    await fetch(`/api/video/${roomToken}/status`, {
+                    await fetch(statusEndpoint, {
                         method: 'POST',
                         headers: buildHeaders(true),
                         body: JSON.stringify({ status: 'ended', duration }),
@@ -1080,7 +1059,7 @@
                 const token = getUserToken();
                 const payload = JSON.stringify({ callEnded: true, endedBy: role });
                 const blob = new Blob([payload], { type: 'application/json' });
-                const url = `/api/video/${roomToken}/signal`;
+                const url = signalEndpoint;
                 if (navigator.sendBeacon && token) {
                     navigator.sendBeacon(url, blob);
                 }
