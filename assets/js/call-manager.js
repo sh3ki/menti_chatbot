@@ -7,7 +7,7 @@
  * - Auto-decline after 30 seconds
  * - Works on any page
  * 
- * IMPORTANT: Pages must call window.mentiCallManager.setUserToken(token) after Firebase auth
+ * IMPORTANT: Pages must call window.mentiCallManager.setUserToken(token) after MySQL auth
  */
 
 class MentiCallManager {
@@ -20,6 +20,8 @@ class MentiCallManager {
     this.userToken = null;
     this.audioContext = null;
     this.ringtoneAudio = null;
+    this.ringtoneInterval = null;
+    this.audioUnlockEvents = ['pointerdown', 'keydown', 'touchstart'];
     this.userEmail = null;
     this.isRinging = false;
     // Tracks appointment IDs whose current offer has already been accepted/declined,
@@ -31,44 +33,22 @@ class MentiCallManager {
     this.signalUnsubscribers = new Map();
     this.approvedAppointments = new Map();
 
-    this.firebaseConfig = {
-      apiKey: 'AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0',
-      authDomain: 'menti-7b8a1.firebaseapp.com',
-      projectId: 'menti-7b8a1',
-      storageBucket: 'menti-7b8a1.firebasestorage.app',
-      messagingSenderId: '164612023817',
-      appId: '1:164612023817:web:c0437146e86951377f3ad8'
-    };
-    
-    console.log('[MentiCallManager] Initialized, waiting for user token...');
-    
-    // Wait for page to initialize Firebase and provide token
+    // Browsers may suspend Web Audio when a call arrives from SSE/background
+    // polling. Resume it after the user's normal page interaction so the next
+    // incoming call can ring audibly.
+    this.audioUnlockEvents.forEach((eventName) => {
+      document.addEventListener(eventName, () => this.unlockAudio(), { passive: true });
+    });
+
+    console.log('[MentiCallManager] Initialized, checking Flask session...');
     this.waitForAuth();
   }
 
   waitForAuth() {
-    // Check every 500ms if a token is available
-    const checkToken = setInterval(() => {
-      if (!this.userToken && window.__mentiUserToken) {
-        this.userToken = window.__mentiUserToken;
-      } else if (!this.userToken) {
-        this.userToken = localStorage.getItem('menti_user_token');
-      }
-      if (this.userToken) {
-        clearInterval(checkToken);
-        console.log('[MentiCallManager] Token received, starting polling');
-        this.startPolling();
-      }
-    }, 500);
-    
-    // Give up after 30 seconds and try anyway (fallback for pages without auth)
-    setTimeout(() => {
-      clearInterval(checkToken);
-      if (!this.userToken && !this.isListening) {
-        console.log('[MentiCallManager] No token after 30s, starting polling without auth');
-        this.startPolling();
-      }
-    }, 30000);
+    fetch('/auth/session', { credentials: 'same-origin' })
+      .then(response => response.ok ? response.json() : null)
+      .then(result => { if (result?.authenticated && !this.isListening) this.startPolling(); })
+      .catch(() => {});
   }
 
   setUserToken(token) {
@@ -228,7 +208,7 @@ class MentiCallManager {
     });
   }
 
-  async waitForFirebaseUser(auth, timeoutMs = 6000, onAuthStateChangedFn = null) {
+  async waitForMySQLUser(auth, timeoutMs = 6000, onAuthStateChangedFn = null) {
     if (auth.currentUser) return auth.currentUser;
     return new Promise((resolve) => {
       let resolved = false;
@@ -250,60 +230,9 @@ class MentiCallManager {
   }
 
   async startRealtimeIncomingCalls() {
-    const [{ initializeApp, getApps, getApp }, { getAuth, onAuthStateChanged }, { getFirestore, collection, query, where, doc, onSnapshot }] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'),
-      import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js')
-    ]);
-
-    const app = getApps().length ? getApp() : initializeApp(this.firebaseConfig);
-    const auth = getAuth(app);
-    const user = await this.waitForFirebaseUser(auth, 6000, onAuthStateChanged);
-    if (!user) {
-      throw new Error('No Firebase user session available for realtime listener');
-    }
-
-    const fs = getFirestore(app);
-    const appointmentsQuery = query(
-      collection(fs, 'appointments'),
-      where('userId', '==', user.uid),
-      where('status', '==', 'approved')
-    );
-
-    this.appointmentUnsubscribe = onSnapshot(appointmentsQuery, (snapshot) => {
-      const liveIds = new Set();
-
-      snapshot.forEach((snap) => {
-        const appointment = { id: snap.id, ...(snap.data() || {}) };
-        liveIds.add(appointment.id);
-        this.approvedAppointments.set(appointment.id, appointment);
-        if (!this.signalUnsubscribers.has(appointment.id)) {
-          const signalRef = doc(fs, 'video_signals', appointment.id);
-          const signalUnsub = onSnapshot(signalRef, (signalSnap) => {
-            const signal = signalSnap.exists() ? (signalSnap.data() || {}) : {};
-            this.processSignalUpdate(appointment, signal);
-          });
-          this.signalUnsubscribers.set(appointment.id, signalUnsub);
-        }
-      });
-
-      for (const [appointmentId, unsub] of this.signalUnsubscribers.entries()) {
-        if (liveIds.has(appointmentId)) continue;
-        try { unsub(); } catch (_) {}
-        this.signalUnsubscribers.delete(appointmentId);
-        this.approvedAppointments.delete(appointmentId);
-        this.handledOffers.delete(appointmentId);
-      }
-    }, (err) => {
-      console.log('[MentiCallManager] Realtime appointments listener error:', err.message);
-      this.stopRealtimeIncomingCalls();
-      this.setPollingInterval(2000);
-    });
-
-    this.realtimeReady = true;
-    // Keep a low-frequency fallback poll for resilience.
-    this.setPollingInterval(15000);
-    console.log('[MentiCallManager] Realtime call notifications enabled');
+    this.realtimeReady = false;
+    this.setPollingInterval(2000);
+    return false;
   }
 
   processSignalUpdate(appointment, signal) {
@@ -518,7 +447,6 @@ class MentiCallManager {
     // Use a familiar telephone cadence: two bright dual-tone bursts, then a pause.
     try {
       const audioContext = this.audioContext || (this.audioContext = new (window.AudioContext || window.webkitAudioContext)());
-      if (audioContext.state === 'suspended') audioContext.resume();
 
       const playBurst = (startTime, duration = 0.42) => {
         const gain = audioContext.createGain();
@@ -545,14 +473,32 @@ class MentiCallManager {
         playBurst(now + 0.62);
       };
 
-      if (!this.ringtoneInterval) {
+      const startRinging = () => {
+        if (!this.isRinging || this.ringtoneInterval || audioContext.state !== 'running') return;
         playPattern();
-        this.ringtoneInterval = setInterval(() => {
-          playPattern();
-        }, 3000);
+        this.ringtoneInterval = setInterval(() => playPattern(), 3000);
+      };
+
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(startRinging).catch(() => {
+          // A later user interaction will call unlockAudio() and retry.
+        });
+      } else {
+        startRinging();
       }
     } catch (err) {
       console.log('[MentiCallManager] Ringtone error (Web Audio not available):', err.message);
+    }
+  }
+
+  unlockAudio() {
+    if (!this.audioContext) return;
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume().then(() => {
+        if (this.isRinging && !this.ringtoneInterval) this.playRingtone();
+      }).catch(() => {});
+    } else if (this.isRinging && !this.ringtoneInterval) {
+      this.playRingtone();
     }
   }
 
