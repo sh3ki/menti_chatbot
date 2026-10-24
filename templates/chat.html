@@ -2493,28 +2493,28 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
+    <!-- MySQL SDK -->
     <script type="module">
-        // Import Firebase modules
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        // Import MySQL modules
+        import { initializeApp } from '/static/js/auth-client.js';
         import { 
             getAuth, 
             onAuthStateChanged,
             signOut
-        } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        } from '/static/js/auth-client.js';
 
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0",
-            authDomain: "menti-7b8a1.firebaseapp.com",
-            projectId: "menti-7b8a1",
-            storageBucket: "menti-7b8a1.firebasestorage.app",
+        // MySQL configuration
+        const authConfig = {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
             messagingSenderId: "164612023817",
             appId: "1:164612023817:web:c0437146e86951377f3ad8"
         };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
+        // Initialize MySQL
+        const app = initializeApp(authConfig);
         const auth = getAuth(app);
 
         // DOM Elements
@@ -3028,8 +3028,8 @@
                     // Show sidebar for logged-in users
                     sidebar.style.display = 'flex';
                     sidebarToggle.style.display = '';
-                    // Render the Google/Firebase identity immediately. Do not
-                    // make the header or sidebar wait for Firestore.
+                    // Render the Google/MySQL identity immediately. Do not
+                    // make the header or sidebar wait for MySQL.
                     updateHeaderProfile(user, currentPhotoURL);
 
                     const uid = encodeURIComponent(user.uid);
@@ -3226,14 +3226,16 @@
                 const data = await response.json();
                 const safeReply = (data.reply || '').trim() || "I'm here with you. Could you share a little more so I can support you better?";
 
-                // Hide typing indicator
-                hideTypingIndicator();
+                // Prepare cloud TTS before rendering the reply so the text and
+                // selected cloud voice start together instead of showing text
+                // several seconds before audio is ready.
+                if (!isSpeakerMuted) {
+                    await speakBotResponse(safeReply, data.voice_tone);
+                }
 
-                // Add bot message with emotion
+                // Hide typing indicator and add bot message with emotion
+                hideTypingIndicator();
                 addMessage(safeReply, 'bot', data.emotion);
-                
-                // Speak bot response if speaker not muted
-                speakBotResponse(safeReply, data.voice_tone);
                 
                 // If this is a new conversation and user is logged in, create it now
                 if (isNewConversation && !currentUser.isAnonymous && pendingConversationTitle) {
@@ -4162,16 +4164,16 @@
                 const audioBlob = await response.blob();
                 const audioUrl = URL.createObjectURL(audioBlob);
                 currentPlayingAudio = new Audio(audioUrl);
-                currentPlayingAudio.play();
+                await currentPlayingAudio.play();
                 console.log('[Voice] Playing synthesized speech with voice', voiceId);
             } catch (error) {
                 console.error('[Voice] Speech synthesis error:', error);
             }
         }
 
-        function speakBotResponse(text, voiceTone) {
+        async function speakBotResponse(text, voiceTone) {
             if (isSpeakerMuted) return;
-            synthesizeAndSpeak(text, selectedVoiceId, voiceTone);
+            await synthesizeAndSpeak(text, selectedVoiceId, voiceTone);
         }
 
         function speakMessage(text) {
@@ -4305,8 +4307,8 @@
       };
     </script>
     <script type="module">
-      import { getApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-      import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+      import { getApp } from '/static/js/auth-client.js';
+      import { getAuth, onAuthStateChanged } from '/static/js/auth-client.js';
       try {
         const auth = getAuth(getApp());
         onAuthStateChanged(auth, async (user) => {
@@ -4316,5 +4318,6 @@
         });
       } catch (e) {}
     </script>
+<script>document.addEventListener('DOMContentLoaded',()=>{const m=document.querySelector('.profile-dropdown'),p=m?.querySelector('a[href="/profile"]'),c=m?.querySelector('a[href="/counseling-appointments"]'),d=m?.querySelector('.profile-dropdown-divider');if(m&&p&&c&&d){d.before(c);d.before(p)}});</script>
 </body>
 </html>
