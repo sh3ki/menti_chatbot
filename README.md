@@ -1,192 +1,41 @@
-# Menti Emotional Support Chatbot 🌱
+# Menti Emotional Support Chatbot
 
-An AI-powered emotional support chatbot built with Flask, Firebase, and OpenAI that provides empathetic responses based on emotion detection.
+Flask-based emotional support app using MySQL for persistence, server-side Flask sessions for authentication, and OpenAI for chatbot features.
 
-## 🎯 Features (MVP 30-40%)
+## Architecture
 
-- ✅ User Authentication (Firebase Auth)
-  - Email/Password login and signup
-  - Google Sign-In
-  - Anonymous login
-- ✅ Real-time Chatbot Interface
-  - Clean, responsive UI with chat bubbles
-  - Auto-scroll chat window
-  - Typing indicators
-- ✅ Emotion Detection (OpenAI)
-  - Detects: happy, sad, anxious, stressed, neutral
-- ✅ Supportive AI Responses (OpenAI GPT-3.5)
-  - Context-aware emotional support
-  - Mental health focused responses
-- ✅ Chat History Storage (Firestore)
-  - Stores user conversations
-  - Supports both authenticated and anonymous users
+- MySQL domain tables and relational child tables; no JSON columns or catch-all JSON document table.
+- Email/password registration/login and Google OAuth. Account roles in MySQL control user/provider/admin authorization.
+- Guest sessions are temporary and do not create account rows.
+- Firebase is not used by the app runtime. Its source data was left untouched during the completed read-only-source import; the credential is only for migration and must remain private.
 
-## 🛠️ Technologies
+## Run locally with Laragon
 
-- **Backend**: Python, Flask
-- **Frontend**: HTML, CSS, JavaScript
-- **Authentication**: Firebase Authentication
-- **Database**: Firebase Firestore
-- **AI**: OpenAI API (GPT-3.5 Turbo)
+1. Start Laragon MySQL and create/select the `menti_chatbot` database.
+2. Copy `.env.example` to `.env`; configure `SECRET_KEY`, `DATABASE_URL`, OpenAI settings, and Google OAuth values. Set `ADMIN_EMAIL` if you want to provision the first admin role.
+3. Add `http://127.0.0.1:5000/auth/google/callback` to the Google OAuth client's authorized redirect URIs.
+4. Run:
 
-## 📁 Project Structure
+   ```powershell
+   pip install -r requirements.txt
+   python seed_database.py
+   python app.py
+   ```
 
-```
-menti_chatbot/
-├── app.py                      # Main Flask application
-├── requirements.txt            # Python dependencies
-├── .env                        # Environment variables (API keys)
-├── firebase-credentials.json   # Firebase Admin SDK credentials (to be added)
-├── templates/
-│   ├── login.html             # Login/Signup page
-│   └── chat.html              # Chat interface
-└── README.md                  # This file
-```
+`seed_database.py` creates/updates relational tables and seeds the configured administrator. It removes legacy MySQL compatibility tables only when they are empty. The one-time Firebase data import has already been completed for this local database; do not run `migrate_firebase_to_mysql.py --apply` again. Open `http://127.0.0.1:5000`.
 
-## 🚀 Setup Instructions
+Detailed Laragon and Hostinger KVM1 instructions are in [MYSQL_GOOGLE_SETUP.md](MYSQL_GOOGLE_SETUP.md); migration scope and relationships are in [MYSQL_GOOGLE_MIGRATION_PLAN.md](MYSQL_GOOGLE_MIGRATION_PLAN.md).
 
-### 1. Install Python Dependencies
+## Hostinger KVM1 deployment
 
-```bash
-pip install -r requirements.txt
-```
+Configure the production MySQL database and environment variables, register the exact HTTPS Google callback, run the seed command once, and run the Flask app behind HTTPS using Gunicorn/Nginx as described in the setup guide. Production backup/restore should be configured before accepting user records.
 
-### 2. Configure Firebase
+## Legacy files retained for your review
 
-You need to download your Firebase Admin SDK credentials:
+These Firebase-era utilities/docs are not called by the app runtime or Hostinger setup. They are left in place for you to decide whether to remove or archive:
 
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Select your project: **menti-7b8a1**
-3. Go to **Project Settings** > **Service Accounts**
-4. Click **Generate New Private Key**
-5. Save the downloaded JSON file as `firebase-credentials.json` in the project root
-
-### 3. Firebase Web Configuration
-
-The Firebase web configuration is already set up in the HTML files with these credentials:
-- **Project ID**: menti-7b8a1
-- **App ID**: 1:164612023817:web:c0437146e86951377f3ad8
-
-**⚠️ IMPORTANT**: You need to add your Firebase Web API Key in both `login.html` and `chat.html`:
-- Replace `"AIzaSyBCYdU_-ZJjws8JTdmLiCgwkYD6O4ze9z0"` with your actual Firebase Web API Key
-- Find it in Firebase Console > Project Settings > General > Web API Key
-
-### 4. Environment Variables
-
-The `.env` file is already configured with your OpenAI API key. Ensure it contains:
-
-```env
-OPENAI_API_KEY=your-openai-key-here
-FLASK_APP=app.py
-FLASK_ENV=development
-SECRET_KEY=your-secret-key
-FIREBASE_CREDENTIALS_PATH=firebase-credentials.json
-```
-
-### 5. Enable Firebase Services
-
-In your Firebase Console, make sure to enable:
-- **Authentication**:
-  - Email/Password
-  - Google Sign-In
-  - Anonymous
-- **Firestore Database**:
-  - Create database in production mode or test mode
-
-## ▶️ Running the Application
-
-```bash
-python app.py
-```
-
-The application will start on `http://localhost:5000`
-
-## 📝 Usage
-
-1. **Login/Signup**: 
-   - Visit `http://localhost:5000`
-   - Sign up with email/password, Google, or continue as guest
-
-2. **Chat**:
-   - Type your message in the input box
-   - The bot detects your emotion and responds supportively
-   - Chat history is saved automatically
-
-## 🔐 Security Notes
-
-- Never commit `.env` or `firebase-credentials.json` to version control
-- Add them to `.gitignore`
-- Use environment variables for production deployment
-- Rotate API keys regularly
-
-## 🧪 Testing
-
-Test endpoints:
-- Health check: `http://localhost:5000/health`
-- Chat API: POST to `http://localhost:5000/chat`
-
-## Voice (Free/Open-Source) Setup
-
-This project uses only free/open-source voice tools:
-- **Speech-to-text**: Vosk (offline model)
-- **Text-to-speech**: Piper ONNX voices (offline neural voices)
-
-Two built-in voice options are available in the UI:
-- Female (Neural)
-- Male (Neural)
-
-### Localhost
-
-1. Install dependencies:
-  ```bash
-  pip install -r requirements.txt
-  ```
-2. Start app normally:
-  ```bash
-  python app.py
-  ```
-
-On first use, the app automatically downloads Vosk and Piper model files into `models/`.
-
-### Render Deployment Notes
-
-- No paid APIs are required for voice.
-- The service needs outbound internet on first run to download models.
-- First voice request can be slower due to model download/warmup.
-- Models are cached on the running instance filesystem.
-
-Optional environment variables:
-- `VOSK_MODELS_DIR` (default: `./models`)
-- `PIPER_MODELS_DIR` (default: `./models/piper`)
-
-## 📦 Dependencies
-
-- `Flask==3.0.0` - Web framework
-- `Flask-CORS==4.0.0` - CORS support
-- `python-dotenv==1.0.0` - Environment variable management
-- `openai==1.12.0` - OpenAI API client
-- `firebase-admin==6.4.0` - Firebase Admin SDK
-
-## 🔄 Next Steps (Future Enhancements)
-
-- Crisis detection and escalation
-- Voice input/output
-- Multi-language support
-- Admin dashboard
-- Analytics and insights
-- Mobile app version
-
-## 📄 License
-
-This is an MVP project for educational and demonstration purposes.
-
-## 🤝 Support
-
-For issues or questions, please check:
-- OpenAI API documentation
-- Firebase documentation
-- Flask documentation
-
----
-
-**Built with ❤️ for mental health support**
+- `firebase-credentials.json`
+- `check_database.py`, `cleanup_database.py`, `add_admin.py`
+- `test_setup.py`
+- `QUICK_SETUP_CHECKLIST.md`, `SETUP_NEW_LAPTOP.md`
+- `Procfile`, `render_build.sh` (Render-specific deployment files)
